@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Noticias y Actividades · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<section class="container my-5">
+  <h1 class="section-title">Noticias y Actividades</h1>
+  <div class="row g-4">
+    {% for n in noticias %}
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <p class="text-muted small mb-1">{{ n.fecha_publicacion.strftime('%d-%m-%Y') }}</p>
+          <h5 class="card-title">{{ n.titulo }}</h5>
+          <p class="card-text">{{ n.resumen }}</p>
+          <a href="{{ url_for('noticia_detalle', noticia_id=n.id) }}" class="btn btn-sm btn-primary">Leer más</a>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <p>Aún no hay noticias publicadas.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ noticia.titulo }} · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<section class="container my-5" style="max-width: 800px;">
+  <a href="{{ url_for('noticias') }}" class="btn btn-outline-secondary btn-sm mb-3">&larr; Volver a noticias</a>
+  <p class="text-muted small">{{ noticia.fecha_publicacion.strftime('%d-%m-%Y') }}</p>
+  <h1 class="section-title">{{ noticia.titulo }}</h1>
+  <p class="fs-5">{{ noticia.contenido }}</p>
+</section>
+{% endblock %}

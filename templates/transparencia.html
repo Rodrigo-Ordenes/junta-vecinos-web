@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Transparencia · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<section class="container my-5">
+  <h1 class="section-title">Transparencia y Rendición de Cuentas</h1>
+  <p class="text-muted">Documentos con el balance de ingresos y gastos de la junta de vecinos.</p>
+
+  <div class="table-responsive mt-4">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th>Período</th>
+          <th>Título</th>
+          <th>Descripción</th>
+          <th>Publicado</th>
+          <th>Documento</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rendiciones %}
+        <tr>
+          <td>{{ r.periodo }}</td>
+          <td>{{ r.titulo }}</td>
+          <td>{{ r.descripcion or '' }}</td>
+          <td>{{ r.fecha_publicacion.strftime('%d-%m-%Y') }}</td>
+          <td>
+            {% if r.archivo_url %}
+            <a href="{{ r.archivo_url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver documento</a>
+            {% else %}
+            <span class="text-muted small">Próximamente</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">Aún no hay rendiciones publicadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

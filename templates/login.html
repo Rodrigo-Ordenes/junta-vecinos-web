@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso administración · Junta de Vecinos</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="d-flex align-items-center" style="min-height:100vh; background-color: var(--crema);">
+<div class="container" style="max-width: 400px;">
+  <div class="card p-4">
+    <h4 class="text-center mb-3">Panel de Administración</h4>
+    <p class="text-center text-muted small">Junta de Vecinos N.° 2 · Cerro Esperanza</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-danger">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="POST">
+      <div class="mb-3">
+        <label class="form-label">Usuario</label>
+        <input type="text" name="usuario" class="form-control" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Clave</label>
+        <input type="password" name="clave" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

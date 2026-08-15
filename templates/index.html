@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="container text-center">
+    <h1>Junta de Vecinos N.° 2 · Cerro Esperanza</h1>
+    <p class="lead">Información, transparencia y vinculación comunitaria en un solo lugar.</p>
+    <a href="{{ url_for('contacto') }}" class="btn btn-light btn-lg mt-2">Contáctanos</a>
+  </div>
+</section>
+
+<section class="container my-5">
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="stat-box">
+        <div class="stat-number">📢</div>
+        <p class="mb-0">Actividades y noticias al día</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-box">
+        <div class="stat-number">💰</div>
+        <p class="mb-0">Rendiciones de cuentas transparentes</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-box">
+        <div class="stat-number">🏗️</div>
+        <p class="mb-0">Seguimiento de proyectos comunitarios</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container my-5">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="section-title">Últimas noticias</h2>
+    <a href="{{ url_for('noticias') }}" class="btn btn-outline-primary">Ver todas</a>
+  </div>
+  <div class="row g-4 mt-1">
+    {% for n in noticias %}
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">{{ n.titulo }}</h5>
+          <p class="card-text">{{ n.resumen }}</p>
+          <a href="{{ url_for('noticia_detalle', noticia_id=n.id) }}" class="btn btn-sm btn-primary">Leer más</a>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <p>Aún no hay noticias publicadas.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="container my-5">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="section-title">Proyectos recientes</h2>
+    <a href="{{ url_for('proyectos') }}" class="btn btn-outline-primary">Ver todos</a>
+  </div>
+  <div class="row g-4 mt-1">
+    {% for p in proyectos %}
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <span class="badge-estado {{ estado_class(p.estado) }}">{{ p.estado }}</span>
+          <h5 class="card-title mt-2">{{ p.nombre }}</h5>
+          <p class="card-text">{{ p.descripcion }}</p>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <p>Aún no hay proyectos registrados.</p>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

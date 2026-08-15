@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Junta de Vecinos N.° 2 · Cerro Esperanza{% endblock %}</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('index') }}">
+      Junta de Vecinos N.° 2<br><small>Cerro Esperanza</small>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuPrincipal">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="menuPrincipal">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Inicio</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('noticias') }}">Noticias y Actividades</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('proyectos') }}">Proyectos</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('transparencia') }}">Transparencia</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('directiva') }}">Directiva</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('contacto') }}">Contacto</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="container mt-3">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<footer class="footer mt-5">
+  <div class="container py-4">
+    <div class="row gy-3">
+      <div class="col-md-4">
+        <h5>Junta de Vecinos N.° 2</h5>
+        <p class="mb-0">Cerro Esperanza</p>
+      </div>
+      <div class="col-md-4">
+        <h5>Enlaces</h5>
+        <ul class="list-unstyled">
+          <li><a href="{{ url_for('transparencia') }}">Transparencia</a></li>
+          <li><a href="{{ url_for('proyectos') }}">Proyectos</a></li>
+          <li><a href="{{ url_for('contacto') }}">Contacto</a></li>
+        </ul>
+      </div>
+      <div class="col-md-4">
+        <h5>Comunidad</h5>
+        <p class="mb-0">Un espacio para informarnos, participar y construir juntos un mejor barrio.</p>
+      </div>
+    </div>
+    <hr class="border-light">
+    <p class="mb-0 text-center small">&copy; {{ anio_actual }} Junta de Vecinos N.° 2 · Cerro Esperanza</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

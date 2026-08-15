@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Directiva · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<section class="container my-5">
+  <h1 class="section-title">Directiva</h1>
+  <div class="row g-4">
+    {% for m in miembros %}
+    <div class="col-md-4">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title">{{ m.nombre }}</h5>
+          <p class="card-text text-muted">{{ m.cargo }}</p>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <p>Aún no se ha registrado la directiva.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
