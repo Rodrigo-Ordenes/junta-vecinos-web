@@ -2,6 +2,7 @@
 venv/
 env/
 .venv/
+.venv-dev/
 
 # Python
 __pycache__/
@@ -17,3 +18,4 @@ instance/*.db
 .DS_Store
 .vscode/
 .idea/
+.claude/

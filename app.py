@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, date
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session
@@ -12,6 +12,7 @@ from models import (
     Noticia,
     Proyecto,
     RendicionCuenta,
+    MovimientoRendicion,
     MensajeContacto,
     DirectivaMiembro,
     ESTADO_PROYECTO_CHOICES,
@@ -65,9 +66,14 @@ admin = Admin(
     theme=Bootstrap4Theme(),
     index_view=SecureAdminIndexView(name="Inicio"),
 )
+class RendicionCuentaAdminView(SecureModelView):
+    inline_models = (MovimientoRendicion,)
+    column_list = ("periodo", "titulo", "total_ingresos", "total_gastos", "saldo")
+
+
 admin.add_view(SecureModelView(Noticia, db.session, name="Noticias y Actividades"))
 admin.add_view(SecureModelView(Proyecto, db.session, name="Proyectos"))
-admin.add_view(SecureModelView(RendicionCuenta, db.session, name="Rendiciones de Cuentas"))
+admin.add_view(RendicionCuentaAdminView(RendicionCuenta, db.session, name="Rendiciones de Cuentas"))
 admin.add_view(SecureModelView(DirectivaMiembro, db.session, name="Directiva"))
 admin.add_view(SecureModelView(MensajeContacto, db.session, name="Mensajes de Contacto"))
 
@@ -239,20 +245,53 @@ def crear_datos_ejemplo():
         ]
     )
 
-    db.session.add(
-        RendicionCuenta(
-            titulo="Rendición de cuentas anual 2025",
-            periodo="2025",
-            descripcion="Balance de ingresos y gastos de la junta de vecinos durante el año 2025.",
-            archivo_url="",
-        )
+    rendicion_2025 = RendicionCuenta(
+        titulo="Rendición de cuentas anual 2025",
+        periodo="2025",
+        descripcion="Balance de ingresos y gastos de la junta de vecinos durante el año 2025.",
+        archivo_url="",
     )
+    rendicion_2025.movimientos = [
+        MovimientoRendicion(
+            fecha=date(2025, 1, 15),
+            concepto="Aporte municipal FONDEVE",
+            tipo="Ingreso",
+            monto=8500000,
+        ),
+        MovimientoRendicion(
+            fecha=date(2025, 12, 1),
+            concepto="Cuotas sociales (enero a diciembre)",
+            tipo="Ingreso",
+            monto=1200000,
+        ),
+        MovimientoRendicion(
+            fecha=date(2025, 3, 10),
+            concepto="Materiales mejoramiento de plaza",
+            tipo="Gasto",
+            monto=3200000,
+        ),
+        MovimientoRendicion(
+            fecha=date(2025, 6, 5),
+            concepto="Pago de electricidad sede social",
+            tipo="Gasto",
+            monto=450000,
+        ),
+        MovimientoRendicion(
+            fecha=date(2025, 8, 20),
+            concepto="Insumos actividad Día del Niño",
+            tipo="Gasto",
+            monto=280000,
+        ),
+    ]
+    db.session.add(rendicion_2025)
 
     db.session.add_all(
         [
-            DirectivaMiembro(nombre="Por definir", cargo="Presidente/a", orden=1),
-            DirectivaMiembro(nombre="Por definir", cargo="Secretario/a", orden=2),
-            DirectivaMiembro(nombre="Por definir", cargo="Tesorero/a", orden=3),
+            DirectivaMiembro(nombre="María Elena Soto Contreras", cargo="Presidente/a", orden=1),
+            DirectivaMiembro(nombre="Juan Carlos Pérez Muñoz", cargo="Secretario/a", orden=2),
+            DirectivaMiembro(nombre="Rosa Isabel Fuentes Vargas", cargo="Tesorero/a", orden=3),
+            DirectivaMiembro(nombre="Pedro Antonio Sánchez Rojas", cargo="Director/a", orden=4),
+            DirectivaMiembro(nombre="Carmen Gloria Reyes Castro", cargo="Delegada de Seguridad", orden=5),
         ]
     )
 
