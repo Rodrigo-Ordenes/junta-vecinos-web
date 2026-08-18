@@ -5,37 +5,71 @@
   <h1 class="section-title">Transparencia y Rendición de Cuentas</h1>
   <p class="text-muted">Documentos con el balance de ingresos y gastos de la junta de vecinos.</p>
 
-  <div class="table-responsive mt-4">
-    <table class="table table-hover align-middle">
-      <thead>
-        <tr>
-          <th>Período</th>
-          <th>Título</th>
-          <th>Descripción</th>
-          <th>Publicado</th>
-          <th>Documento</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rendiciones %}
-        <tr>
-          <td>{{ r.periodo }}</td>
-          <td>{{ r.titulo }}</td>
-          <td>{{ r.descripcion or '' }}</td>
-          <td>{{ r.fecha_publicacion.strftime('%d-%m-%Y') }}</td>
-          <td>
-            {% if r.archivo_url %}
-            <a href="{{ r.archivo_url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver documento</a>
-            {% else %}
-            <span class="text-muted small">Próximamente</span>
-            {% endif %}
-          </td>
-        </tr>
+  {% for r in rendiciones %}
+  <div class="card mt-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <h5 class="card-title mb-1">{{ r.titulo }}</h5>
+          <p class="text-muted small mb-0">Período: {{ r.periodo }} · Publicado el {{ r.fecha_publicacion.strftime('%d-%m-%Y') }}</p>
+        </div>
+        {% if r.archivo_url %}
+        <a href="{{ r.archivo_url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver documento</a>
         {% else %}
-        <tr><td colspan="5">Aún no hay rendiciones publicadas.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        <span class="text-muted small">Documento próximamente</span>
+        {% endif %}
+      </div>
+
+      {% if r.descripcion %}
+      <p class="mt-3 mb-0">{{ r.descripcion }}</p>
+      {% endif %}
+
+      {% if r.movimientos %}
+      <div class="table-responsive mt-3">
+        <table class="table table-sm align-middle mb-2">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Concepto</th>
+              <th>Tipo</th>
+              <th class="text-end">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in r.movimientos %}
+            <tr>
+              <td>{{ m.fecha.strftime('%d-%m-%Y') }}</td>
+              <td>{{ m.concepto }}</td>
+              <td>
+                <span class="badge {{ 'bg-success' if m.tipo == 'Ingreso' else 'bg-danger' }}">{{ m.tipo }}</span>
+              </td>
+              <td class="text-end">${{ "{:,}".format(m.monto).replace(',', '.') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="row text-center g-2">
+        <div class="col-4">
+          <p class="small text-muted mb-0">Ingresos</p>
+          <p class="fw-bold text-success mb-0">${{ "{:,}".format(r.total_ingresos).replace(',', '.') }}</p>
+        </div>
+        <div class="col-4">
+          <p class="small text-muted mb-0">Gastos</p>
+          <p class="fw-bold text-danger mb-0">${{ "{:,}".format(r.total_gastos).replace(',', '.') }}</p>
+        </div>
+        <div class="col-4">
+          <p class="small text-muted mb-0">Saldo</p>
+          <p class="fw-bold mb-0">${{ "{:,}".format(r.saldo).replace(',', '.') }}</p>
+        </div>
+      </div>
+      {% else %}
+      <p class="text-muted small mt-3 mb-0">Aún no hay ingresos ni gastos detallados para este período.</p>
+      {% endif %}
+    </div>
   </div>
+  {% else %}
+  <p class="mt-4">Aún no hay rendiciones publicadas.</p>
+  {% endfor %}
 </section>
 {% endblock %}

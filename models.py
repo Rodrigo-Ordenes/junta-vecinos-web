@@ -51,8 +51,45 @@ class RendicionCuenta(db.Model):
     archivo_url = db.Column(db.String(300))  # link a PDF u otro documento
     fecha_publicacion = db.Column(db.DateTime, default=datetime.utcnow)
 
+    movimientos = db.relationship(
+        "MovimientoRendicion",
+        backref="rendicion",
+        cascade="all, delete-orphan",
+        order_by="MovimientoRendicion.fecha",
+    )
+
     def __repr__(self):
         return f"<Rendicion {self.titulo} - {self.periodo}>"
+
+    @property
+    def total_ingresos(self):
+        return sum(m.monto for m in self.movimientos if m.tipo == "Ingreso")
+
+    @property
+    def total_gastos(self):
+        return sum(m.monto for m in self.movimientos if m.tipo == "Gasto")
+
+    @property
+    def saldo(self):
+        return self.total_ingresos - self.total_gastos
+
+
+TIPO_MOVIMIENTO_CHOICES = ["Ingreso", "Gasto"]
+
+
+class MovimientoRendicion(db.Model):
+    """Ingreso o gasto individual dentro de una rendición de cuentas."""
+    __tablename__ = "movimientos_rendicion"
+
+    id = db.Column(db.Integer, primary_key=True)
+    rendicion_id = db.Column(db.Integer, db.ForeignKey("rendiciones.id"), nullable=False)
+    fecha = db.Column(db.Date, nullable=False, default=lambda: datetime.utcnow().date())
+    concepto = db.Column(db.String(200), nullable=False)
+    tipo = db.Column(db.String(10), nullable=False, default="Gasto")
+    monto = db.Column(db.Integer, nullable=False)
+
+    def __repr__(self):
+        return f"<Movimiento {self.tipo} {self.concepto} ${self.monto}>"
 
 
 class MensajeContacto(db.Model):
