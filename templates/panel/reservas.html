@@ -1,0 +1,52 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Reservas de la sede · Panel{% endblock %}
+{% block panel %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <h1 class="section-title mb-0 h3">Reservas de la sede</h1>
+  <a class="btn btn-primary" href="{{ url_for('panel_reserva_nueva') }}">+ Marcar la sede como ocupada</a>
+</div>
+
+<div class="d-flex flex-wrap gap-2 my-3">
+  <a class="btn btn-sm {{ 'btn-primary' if not filtro_estado else 'btn-outline-primary' }}"
+     href="{{ url_for('panel_reservas', estado='todas') }}">Todas</a>
+  {% for e in estados %}
+    <a class="btn btn-sm {{ 'btn-primary' if filtro_estado == e else 'btn-outline-primary' }}"
+       href="{{ url_for('panel_reservas', estado=e) }}">{{ e }}</a>
+  {% endfor %}
+</div>
+
+{% for r in reservas %}
+  <div class="caja mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h2 class="h6 mb-1">{{ r.actividad }}</h2>
+        <p class="mb-1">
+          <strong>{{ r.fecha|fecha_larga }}</strong>, de {{ r.hora_inicio }} a {{ r.hora_fin }}
+          {% if r.personas %} · {{ r.personas }} personas{% endif %}
+        </p>
+        <p class="small mb-1">
+          {{ r.solicitante }}{% if r.telefono %} · {{ r.telefono }}{% endif %}{% if r.email %} · {{ r.email }}{% endif %}
+        </p>
+        {% if r.observacion %}<p class="small text-muted mb-0">Observación: {{ r.observacion }}</p>{% endif %}
+        {% if r.revisada_por %}<p class="small text-muted mb-0">Revisada por {{ r.revisada_por }}</p>{% endif %}
+      </div>
+      <span class="badge-estado {{ r.estado|clase_estado }}">{{ r.estado }}</span>
+    </div>
+
+    <form method="post" action="{{ url_for('panel_reserva_estado', reserva_id=r.id) }}" class="row g-2 mt-2">
+      <div class="col-md-5">
+        <label class="form-label small" for="obs{{ r.id }}">Mensaje para el vecino/a (opcional)</label>
+        <input class="form-control" type="text" id="obs{{ r.id }}" name="observacion" value="{{ r.observacion }}">
+      </div>
+      <div class="col-md-7 d-flex align-items-end flex-wrap gap-2">
+        <button class="btn btn-success" type="submit" name="estado" value="Aprobada">Aprobar y ocupar</button>
+        <button class="btn btn-outline-danger" type="submit" name="estado" value="Rechazada">Rechazar</button>
+        <button class="btn btn-outline-secondary" type="submit" name="estado" value="Pendiente">Dejar pendiente</button>
+        <button class="btn btn-outline-secondary" type="submit" name="estado" value="Cancelada">Cancelar</button>
+      </div>
+    </form>
+  </div>
+{% else %}
+  <p>No hay reservas en este estado.</p>
+{% endfor %}
+{% endblock %}

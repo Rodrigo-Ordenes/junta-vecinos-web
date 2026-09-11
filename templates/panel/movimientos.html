@@ -1,0 +1,64 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Ingresos y gastos · Panel{% endblock %}
+{% block panel %}
+<p><a href="{{ url_for('panel_listado', recurso=recurso) }}">&larr; Volver a {{ definicion.titulo|lower }}</a></p>
+<h1 class="section-title h3">
+  Ingresos y gastos: {{ fila['titulo'] if recurso == 'rendiciones' else fila['nombre'] }}
+</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="tarjeta-resumen"><div class="numero ingreso">{{ totales.ingresos|moneda }}</div><p class="small mb-0">Total ingresos</p></div></div>
+  <div class="col-md-4"><div class="tarjeta-resumen"><div class="numero gasto">{{ totales.gastos|moneda }}</div><p class="small mb-0">Total gastos</p></div></div>
+  <div class="col-md-4"><div class="tarjeta-resumen"><div class="numero">{{ totales.saldo|moneda }}</div><p class="small mb-0">Saldo</p></div></div>
+</div>
+
+<div class="table-responsive">
+  <table class="table align-middle tabla-balance">
+    <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="monto">Monto</th><th></th></tr></thead>
+    <tbody>
+      {% for m in movimientos %}
+        <tr>
+          <td>{{ m.fecha|fecha_corta }}</td>
+          <td>{{ m.concepto }}</td>
+          <td class="{{ 'ingreso' if m.tipo == 'Ingreso' else 'gasto' }}">{{ m.tipo }}</td>
+          <td class="monto">{{ m.monto|moneda }}</td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('panel_movimiento_eliminar', movimiento_id=m.id) }}"
+                  onsubmit="return confirm('¿Eliminar este movimiento?');">
+              <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5">Todavía no hay movimientos registrados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="h5 mt-4">Agregar un movimiento</h2>
+<form method="post" class="row g-3 caja">
+  <div class="col-md-3">
+    <label class="form-label" for="fecha">Fecha</label>
+    <input class="form-control" type="date" id="fecha" name="fecha">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="concepto">Concepto <span class="obligatorio">*</span></label>
+    <input class="form-control" type="text" id="concepto" name="concepto" required>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="tipo">Tipo</label>
+    <select class="form-select" id="tipo" name="tipo">
+      <option value="Ingreso">Ingreso</option>
+      <option value="Gasto" selected>Gasto</option>
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="monto">Monto <span class="obligatorio">*</span></label>
+    <input class="form-control" type="number" id="monto" name="monto" min="0" required>
+  </div>
+  <div class="col-12">
+    <button class="btn btn-primary" type="submit">Agregar movimiento</button>
+  </div>
+</form>
+{% endblock %}

@@ -3,69 +3,129 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Sitio oficial de la Junta de Vecinos N.° 2 · Cerro Esperanza: noticias, transparencia, proyectos, reservas de la sede y trámites vecinales.">
 <title>{% block title %}Junta de Vecinos N.° 2 · Cerro Esperanza{% endblock %}</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+
+<a href="#contenido" class="salto-contenido">Ir al contenido</a>
+
+<div class="barra-accesibilidad">
+  <div class="container d-flex flex-wrap gap-2 align-items-center justify-content-between py-1">
+    <span class="d-none d-md-inline small">¿Te cuesta leer la página? Usa estos botones.</span>
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class="btn btn-sm btn-accesible" data-accion="texto-grande">
+        A+ Texto más grande
+      </button>
+      <button type="button" class="btn btn-sm btn-accesible" data-accion="alto-contraste">
+        Alto contraste
+      </button>
+      <button type="button" class="btn btn-sm btn-accesible" data-accion="reiniciar">
+        Normal
+      </button>
+    </div>
+  </div>
+</div>
 
 <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
   <div class="container">
     <a class="navbar-brand" href="{{ url_for('index') }}">
       Junta de Vecinos N.° 2<br><small>Cerro Esperanza</small>
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuPrincipal">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuPrincipal" aria-label="Abrir menú">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="menuPrincipal">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Inicio</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('noticias') }}">Noticias y Actividades</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('proyectos') }}">Proyectos</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('transparencia') }}">Transparencia</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('directiva') }}">Directiva</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('noticias') }}">Noticias</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('sede') }}">Sede vecinal</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Información</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('transparencia') }}">Transparencia</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('proyectos') }}">Proyectos</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('plan_maestro') }}">Plan maestro</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('documentos') }}">Documentos y estatutos</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('quienes_somos') }}">Quiénes somos</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Trámites</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('certificado') }}">Certificado de residencia</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('reservar') }}">Reservar la sede</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('inscribir_servicio') }}">Inscribir mi servicio</a></li>
+          </ul>
+        </li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('directorio') }}">Directorio</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('contacto') }}">Contacto</a></li>
+        {% if usuario %}
+          {% if usuario['rol'] != 'vecino' %}
+            <li class="nav-item"><a class="nav-link nav-panel" href="{{ url_for('panel') }}">Panel
+              {% if pendientes_panel %}<span class="badge bg-warning text-dark">{{ pendientes_panel }}</span>{% endif %}
+            </a></li>
+          {% else %}
+            <li class="nav-item"><a class="nav-link nav-panel" href="{{ url_for('mis_solicitudes') }}">Mis solicitudes</a></li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Salir</a></li>
+        {% else %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Ingresar</a></li>
+        {% endif %}
       </ul>
     </div>
   </div>
 </nav>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
+{% with mensajes = get_flashed_messages(with_categories=true) %}
+  {% if mensajes %}
     <div class="container mt-3">
-      {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      {% for categoria, texto in mensajes %}
+        <div class="alert alert-{{ 'danger' if categoria == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+          {{ texto }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
         </div>
       {% endfor %}
     </div>
   {% endif %}
 {% endwith %}
 
-<main>
+<main id="contenido">
 {% block content %}{% endblock %}
 </main>
 
 <footer class="footer mt-5">
   <div class="container py-4">
-    <div class="row gy-3">
+    <div class="row gy-4">
       <div class="col-md-4">
         <h5>Junta de Vecinos N.° 2</h5>
-        <p class="mb-0">Cerro Esperanza</p>
+        <p class="mb-1">Cerro Esperanza</p>
+        {% if conf.direccion_sede %}<p class="mb-1 small">{{ conf.direccion_sede }}</p>{% endif %}
+        {% if conf.email_contacto %}<p class="mb-1 small">{{ conf.email_contacto }}</p>{% endif %}
+        {% if conf.telefono_contacto %}<p class="mb-0 small">{{ conf.telefono_contacto }}</p>{% endif %}
       </div>
       <div class="col-md-4">
         <h5>Enlaces</h5>
         <ul class="list-unstyled">
           <li><a href="{{ url_for('transparencia') }}">Transparencia</a></li>
-          <li><a href="{{ url_for('proyectos') }}">Proyectos</a></li>
+          <li><a href="{{ url_for('documentos') }}">Documentos y estatutos</a></li>
+          <li><a href="{{ url_for('sede') }}">Disponibilidad de la sede</a></li>
+          <li><a href="{{ url_for('certificado') }}">Certificado de residencia</a></li>
           <li><a href="{{ url_for('contacto') }}">Contacto</a></li>
         </ul>
       </div>
       <div class="col-md-4">
-        <h5>Comunidad</h5>
-        <p class="mb-0">Un espacio para informarnos, participar y construir juntos un mejor barrio.</p>
+        <h5>Mantente informado/a</h5>
+        {% if conf.whatsapp_grupo %}
+          <a class="btn btn-whatsapp w-100 mb-2" href="{{ conf.whatsapp_grupo }}" target="_blank" rel="noopener">
+            Entrar al grupo de WhatsApp
+          </a>
+        {% endif %}
+        <div class="d-flex gap-3 small">
+          {% if conf.facebook %}<a href="{{ conf.facebook }}" target="_blank" rel="noopener">Facebook</a>{% endif %}
+          {% if conf.instagram %}<a href="{{ conf.instagram }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
+        </div>
       </div>
     </div>
     <hr class="border-light">
@@ -73,6 +133,6 @@
   </div>
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/sitio.js') }}"></script>
 </body>
 </html>

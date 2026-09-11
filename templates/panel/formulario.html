@@ -1,0 +1,68 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}{{ definicion.titulo }} · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">
+  {% if fila %}Editar {{ definicion.singular }}{% else %}Agregar {{ definicion.singular }}{% endif %}
+</h1>
+
+<form method="post" enctype="multipart/form-data" class="row g-3 caja">
+  {% for c in definicion.campos %}
+    {% set valor = fila[c.nombre] if fila and c.tipo != 'clave' else '' %}
+    <div class="col-12 {% if c.tipo in ('texto', 'numero', 'fecha', 'hora', 'opciones', 'clave') %}col-md-6{% endif %}">
+      {% if c.tipo == 'casilla' %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                 {% if (fila and fila[c.nombre]) or (not fila and c.defecto) %}checked{% endif %}>
+          <label class="form-check-label" for="{{ c.nombre }}">{{ c.etiqueta }}</label>
+        </div>
+      {% else %}
+        <label class="form-label" for="{{ c.nombre }}">
+          {{ c.etiqueta }}{% if c.requerido %} <span class="obligatorio">*</span>{% endif %}
+        </label>
+        {% if c.tipo == 'textarea' %}
+          <textarea class="form-control" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                    rows="{{ c.filas|default(4) }}" {% if c.requerido %}required{% endif %}>{{ valor }}</textarea>
+        {% elif c.tipo == 'opciones' %}
+          <select class="form-select" id="{{ c.nombre }}" name="{{ c.nombre }}" {% if c.requerido %}required{% endif %}>
+            {% for op in c.opciones %}
+              {% if op is string %}
+                <option value="{{ op }}" {% if valor == op %}selected{% endif %}>{{ op }}</option>
+              {% else %}
+                <option value="{{ op[0] }}" {% if valor == op[0] %}selected{% endif %}>{{ op[1] }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        {% elif c.tipo == 'archivo' %}
+          <input class="form-control" type="file" id="{{ c.nombre }}" name="{{ c.nombre }}">
+          {% if fila and fila[c.nombre] %}
+            <p class="ayuda-campo mb-0">
+              Archivo actual: <a href="{{ url_for('archivo', nombre=fila[c.nombre]) }}">{{ fila[c.nombre] }}</a>.
+              Sube otro solo si quieres reemplazarlo.
+            </p>
+          {% endif %}
+        {% elif c.tipo == 'clave' %}
+          <input class="form-control" type="password" id="{{ c.nombre }}" name="{{ c.nombre }}" autocomplete="new-password">
+        {% elif c.tipo == 'fecha' %}
+          <input class="form-control" type="date" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                 value="{{ valor }}" {% if c.requerido %}required{% endif %}>
+        {% elif c.tipo == 'hora' %}
+          <input class="form-control" type="time" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                 value="{{ valor }}" {% if c.requerido %}required{% endif %}>
+        {% elif c.tipo == 'numero' %}
+          <input class="form-control" type="number" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                 value="{{ valor if valor is not none else '' }}" {% if c.requerido %}required{% endif %}>
+        {% else %}
+          <input class="form-control" type="text" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                 value="{{ valor }}" {% if c.requerido %}required{% endif %}>
+        {% endif %}
+        {% if c.ayuda %}<p class="ayuda-campo mb-0">{{ c.ayuda }}</p>{% endif %}
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <div class="col-12 d-flex gap-2">
+    <button class="btn btn-primary btn-lg" type="submit">Guardar</button>
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('panel_listado', recurso=recurso) }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Mensajes · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Mensajes de vecinas y vecinos</h1>
+
+{% for m in mensajes %}
+  <div class="caja mb-3 {{ 'border-start border-4 border-warning' if not m.leido }}">
+    <div class="d-flex flex-wrap justify-content-between gap-2">
+      <div>
+        <h2 class="h6 mb-1">{{ m.nombre }}</h2>
+        <p class="small mb-2">
+          <a href="mailto:{{ m.email }}">{{ m.email }}</a>
+          {% if m.telefono %} · {{ m.telefono }}{% endif %}
+          · {{ m.fecha_envio|fecha_corta }}
+        </p>
+      </div>
+      {% if not m.leido %}
+        <form method="post" action="{{ url_for('panel_mensaje_leido', mensaje_id=m.id) }}">
+          <button class="btn btn-sm btn-outline-primary" type="submit">Marcar como leído</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="mb-0" style="white-space: pre-line;">{{ m.mensaje }}</p>
+  </div>
+{% else %}
+  <p>No hay mensajes todavía.</p>
+{% endfor %}
+{% endblock %}

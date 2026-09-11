@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Quiénes somos · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Quiénes somos</h1>
+  <p class="lead">{{ conf.historia }}</p>
+
+  <div class="row g-4 mt-1">
+    <div class="col-md-6">
+      <div class="caja h-100">
+        <h2 class="h5">Misión</h2>
+        <p class="mb-0">{{ conf.mision }}</p>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="caja h-100">
+        <h2 class="h5">Visión</h2>
+        <p class="mb-0">{{ conf.vision }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-4">
+    <div class="col-md-4">
+      <div class="stat-box">
+        <div class="stat-number">{{ conf.socios_inscritos }}</div>
+        <p class="mb-0">socias y socios inscritos</p>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="caja h-100">
+        <h2 class="h5">Nuestra sede</h2>
+        <p class="mb-1">{{ conf.direccion_sede }}</p>
+        <p class="mb-0">{{ conf.horario_atencion }}</p>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="h4 mt-5">Directiva</h2>
+  <div class="row g-3">
+    {% for m in miembros %}
+      <div class="col-md-6 col-lg-4">
+        <div class="caja h-100 text-center">
+          {% if m.foto_url %}
+            <img class="img-fluid rounded-circle mb-2" style="max-width: 120px;" src="{{ m.foto_url }}" alt="{{ m.nombre }}">
+          {% else %}
+            <div class="stat-number" aria-hidden="true">👤</div>
+          {% endif %}
+          <h3 class="h6 mb-1">{{ m.nombre }}</h3>
+          <p class="small text-muted mb-1">{{ m.cargo }}</p>
+          {% if m.email %}<p class="small mb-0"><a href="mailto:{{ m.email }}">{{ m.email }}</a></p>{% endif %}
+          {% if m.telefono %}<p class="small mb-0">{{ m.telefono }}</p>{% endif %}
+        </div>
+      </div>
+    {% else %}
+      <p>Aún no se ha publicado la directiva.</p>
+    {% endfor %}
+  </div>
+
+  <h2 class="h4 mt-5">Cómo funcionamos</h2>
+  <div class="caja">
+    <ul class="mb-0">
+      <li>Realizamos asambleas ordinarias y extraordinarias, cuyos acuerdos quedan en el libro de actas.</li>
+      <li>Las actas y los estatutos se publican en la sección <a href="{{ url_for('documentos') }}">Documentos</a>.</li>
+      <li>Las cuentas de cada período y de cada actividad se publican en <a href="{{ url_for('transparencia') }}">Transparencia</a>.</li>
+      <li>La sede vecinal se gestiona con el <a href="{{ url_for('sede') }}">calendario de disponibilidad</a>.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

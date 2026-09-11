@@ -1,37 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Proyectos · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
-<section class="container my-5">
-  <h1 class="section-title">Proyectos</h1>
-  <p class="text-muted">Postulados, aprobados, rechazados y en ejecución.</p>
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Proyectos de la junta de vecinos</h1>
+  <p class="lead">Estos son los proyectos postulados, aprobados y en ejecución para el cerro.</p>
+  <p><a href="{{ url_for('plan_maestro') }}">Ver el plan maestro y los proyectos futuros &rarr;</a></p>
 
-  <div class="filtro-estados mb-4">
-    <a href="{{ url_for('proyectos') }}" class="btn btn-sm {{ 'btn-primary' if not filtro_estado else 'btn-outline-primary' }}">Todos</a>
+  <div class="filtro-estados my-3 d-flex flex-wrap gap-2">
+    <a class="btn btn-sm {{ 'btn-primary' if not filtro_estado else 'btn-outline-primary' }}"
+       href="{{ url_for('proyectos') }}">Todos</a>
     {% for e in estados %}
-    <a href="{{ url_for('proyectos', estado=e) }}" class="btn btn-sm {{ 'btn-primary' if filtro_estado == e else 'btn-outline-primary' }}">{{ e }}</a>
+      <a class="btn btn-sm {{ 'btn-primary' if filtro_estado == e else 'btn-outline-primary' }}"
+         href="{{ url_for('proyectos', estado=e) }}">{{ e }}</a>
     {% endfor %}
   </div>
 
   <div class="row g-4">
     {% for p in proyectos %}
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-body">
-          <span class="badge-estado {{ estado_class(p.estado) }}">{{ p.estado }}</span>
-          <h5 class="card-title mt-2">{{ p.nombre }}</h5>
-          <p class="card-text">{{ p.descripcion }}</p>
-          {% if p.fuente_financiamiento %}
-          <p class="small text-muted mb-0">Financiamiento: {{ p.fuente_financiamiento }}</p>
-          {% endif %}
-          {% if p.monto %}
-          <p class="small text-muted">Monto: ${{ "{:,}".format(p.monto).replace(',', '.') }}</p>
-          {% endif %}
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-body">
+            <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
+            <h2 class="card-title h5 mt-2">{{ p.nombre }}</h2>
+            <p class="card-text">{{ p.descripcion }}</p>
+            <ul class="list-unstyled small mb-0">
+              {% if p.eje %}<li><strong>Eje:</strong> {{ p.eje }}</li>{% endif %}
+              {% if p.fuente_financiamiento %}<li><strong>Financiamiento:</strong> {{ p.fuente_financiamiento }}</li>{% endif %}
+              {% if p.monto %}<li><strong>Monto:</strong> {{ p.monto|moneda }}</li>{% endif %}
+            </ul>
+          </div>
         </div>
       </div>
-    </div>
     {% else %}
-    <p>No hay proyectos en esta categoría.</p>
+      <p>No hay proyectos con ese estado.</p>
     {% endfor %}
   </div>
-</section>
+</div>
 {% endblock %}

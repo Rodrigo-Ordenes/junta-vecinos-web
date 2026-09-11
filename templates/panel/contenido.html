@@ -1,0 +1,22 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Textos del sitio · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Textos del sitio</h1>
+<p>Estos textos aparecen en la portada, en «Quiénes somos», en el pie de página y en el certificado de residencia.</p>
+
+<form method="post" class="row g-3 caja">
+  {% for clave, etiqueta, tipo in campos %}
+    <div class="col-12 {% if tipo == 'texto' %}col-md-6{% endif %}">
+      <label class="form-label" for="{{ clave }}">{{ etiqueta }}</label>
+      {% if tipo == 'textarea' %}
+        <textarea class="form-control" id="{{ clave }}" name="{{ clave }}" rows="4">{{ conf[clave] }}</textarea>
+      {% else %}
+        <input class="form-control" type="text" id="{{ clave }}" name="{{ clave }}" value="{{ conf[clave] }}">
+      {% endif %}
+    </div>
+  {% endfor %}
+  <div class="col-12">
+    <button class="btn btn-primary btn-lg" type="submit">Guardar textos</button>
+  </div>
+</form>
+{% endblock %}

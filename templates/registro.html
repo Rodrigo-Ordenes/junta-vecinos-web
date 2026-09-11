@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Crear cuenta · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-5" style="max-width: 520px;">
+  <h1 class="section-title">Crear cuenta de vecino/a</h1>
+  <p>Con tu cuenta puedes hacer seguimiento a tus reservas de la sede y a tus solicitudes de certificado.</p>
+  <form method="post" class="caja">
+    <div class="mb-3">
+      <label class="form-label" for="nombre">Nombre completo</label>
+      <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="usuario">Usuario</label>
+      <input class="form-control" type="text" id="usuario" name="usuario" value="{{ datos.usuario or '' }}" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="email">Correo</label>
+      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
+      <p class="ayuda-campo mb-0">Usa el mismo correo al pedir la sede o un certificado para verlos aquí.</p>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="clave">Clave (mínimo 6 caracteres)</label>
+      <input class="form-control" type="password" id="clave" name="clave" autocomplete="new-password" required>
+    </div>
+    <button class="btn btn-primary btn-lg w-100" type="submit">Crear cuenta</button>
+  </form>
+</div>
+{% endblock %}
