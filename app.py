@@ -47,7 +47,7 @@ from db import (
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 CARPETA_SUBIDAS = os.path.join(BASE_DIR, "static", "uploads")
 CARPETA_COMPROBANTES_PRIVADOS = os.path.join(
-    BASE_DIR, "instance", "comprobantes_privados"
+    base.INSTANCE_DIR, "comprobantes_privados"
 )
 ARCHIVO_PRIVADO_PREFIX = "privado-"
 ARCHIVO_CERTIFICADO_PREFIX = "privado-cert-"
@@ -64,7 +64,9 @@ app.config["COORD_USER"] = os.environ.get("COORD_USER", "coordinador")
 app.config["COORD_PASSWORD"] = os.environ.get("COORD_PASSWORD", "esperanza2026")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por archivo
 app.config["UPLOAD_FOLDER"] = CARPETA_SUBIDAS
-app.config["PRIVATE_UPLOAD_FOLDER"] = CARPETA_COMPROBANTES_PRIVADOS
+app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.abspath(
+    os.environ.get("PRIVATE_UPLOAD_FOLDER", CARPETA_COMPROBANTES_PRIVADOS)
+)
 app.teardown_appcontext(base.close_db)
 
 os.makedirs(CARPETA_SUBIDAS, exist_ok=True)

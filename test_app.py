@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import timedelta
 
 import pytest
+from werkzeug.security import generate_password_hash
 
 import db as base
 
@@ -187,6 +188,23 @@ def test_solicitud_de_certificado(cliente, app_prueba):
     archivo = cliente.get(f"/archivos/{nombre}")
     assert archivo.status_code == 200
     assert "no-store" in archivo.headers["Cache-Control"]
+    cliente.get("/logout")
+
+    ingresar(cliente, "admin", "esperanza2026")
+    assert cliente.get(f"/archivos/{nombre}").status_code == 200
+    cliente.get("/logout")
+
+    with app_prueba.app_context():
+        base.ejecutar(
+            "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
+            "estado_aprobacion, fecha_creacion) VALUES (?, ?, ?, ?, 'vecino', 1, 'Aprobada', ?)",
+            (
+                "Vecino de prueba", "vecino_archivo", "vecino_archivo@ejemplo.cl",
+                generate_password_hash("clave-vecino-123"), "2026-09-30T12:00:00",
+            ),
+        )
+    ingresar(cliente, "vecino_archivo", "clave-vecino-123")
+    assert cliente.get(f"/archivos/{nombre}").status_code == 404
 
 
 def test_certificado_puede_crear_cuenta_pendiente_y_vincularla(cliente, app_prueba):

@@ -48,10 +48,14 @@ Las cuentas creadas desde el registro o desde un certificado quedan pendientes h
 administrador las apruebe en *Panel → Aprobar cuentas vecinales*. La administración también puede
 crear cuentas activas desde el panel y decidir si delega la creación al coordinador.
 
-Los documentos para acreditar residencia se guardan en `instance/comprobantes_privados/` y solo
-los perfiles autorizados para revisar certificados pueden abrirlos. El formulario local informa
-quién puede revisar esos antecedentes; antes de publicar el sitio, la organización debe completar
-los textos aprobados de privacidad y uso desde *Panel → Textos del sitio*.
+Los documentos para acreditar residencia se guardan en almacenamiento privado del servidor, fuera
+de la carpeta pública `static`. Solo las cuentas de administrador y coordinador pueden abrirlos
+desde el panel de certificados; los vecinos no tienen acceso al archivo. Por defecto, la base de
+datos y estos documentos quedan bajo `instance/`. En un hosting, define `DATA_DIR` con la ruta de
+un volumen persistente para conservar la base de datos y los comprobantes tras reinicios o
+actualizaciones; también puedes definir `PRIVATE_UPLOAD_FOLDER` para usar otra carpeta privada.
+Antes de publicar el sitio, la organización debe completar los textos aprobados de privacidad y
+uso desde *Panel → Textos del sitio*.
 
 ---
 
@@ -126,8 +130,8 @@ test_app.py            Pruebas automatizadas
    gunicorn -w 2 -b 0.0.0.0:8000 app:app
    ```
 
-4. Respaldar periódicamente `instance/junta.db`, `instance/comprobantes_privados/` y
-   `static/uploads/`: contienen los datos y archivos del sitio.
+4. Configurar `DATA_DIR` en un volumen persistente y respaldar periódicamente la base de datos,
+   los comprobantes privados y `static/uploads/`: contienen los datos y archivos del sitio.
 
 ---
 

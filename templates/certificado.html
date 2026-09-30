@@ -12,15 +12,11 @@
 
   {% if conf.aviso_privacidad %}
     <p class="small">Antes de ingresar datos, lee el <a href="{{ url_for('privacidad') }}">aviso de privacidad</a>.</p>
-  {% else %}
-    <div class="alert alert-info" role="note">
-      Esta versión local guarda los datos y el documento en este equipo. Solo la administración y el personal autorizado para revisar certificados pueden abrirlos.
-    </div>
   {% endif %}
 
   <form method="post" enctype="multipart/form-data" class="row g-3 caja">
     <h2 class="h5 mb-0">Formulario de solicitud</h2>
-    <p class="small text-muted mb-0">Cada solicitud corresponde a una persona. La directiva revisará el documento antes de aprobar el certificado.</p>
+    <p class="small text-muted mb-0">Cada solicitud corresponde a una persona. El administrador y el coordinador revisarán el documento antes de aprobar el certificado.</p>
     <div class="col-md-6">
       <label class="form-label" for="nombre">Nombre completo <span class="obligatorio">*</span></label>
       <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" autocomplete="name" required>
@@ -84,7 +80,7 @@
     <div class="col-12">
       <label class="form-check">
         <input class="form-check-input" type="checkbox" name="entiendo_revision" value="on" required>
-        <span class="form-check-label">Entiendo que la administración y el personal autorizado para certificados podrán revisar estos datos y el documento adjunto.</span>
+        <span class="form-check-label">Entiendo que el administrador y el coordinador podrán revisar estos datos y el documento adjunto.</span>
       </label>
     </div>
     <div class="col-12"><button class="btn btn-primary btn-lg" type="submit">Enviar solicitud</button></div>

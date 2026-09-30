@@ -14,7 +14,9 @@ from flask import g
 from werkzeug.security import generate_password_hash
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+INSTANCE_DIR = os.path.abspath(
+    os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "instance"))
+)
 DB_PATH = os.path.join(INSTANCE_DIR, "junta.db")
 
 DIAS_SEMANA = [
