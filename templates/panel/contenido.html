@@ -1,0 +1,25 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Textos del sitio · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Textos del sitio</h1>
+<p>Desde aquí se actualizan los textos del sitio, el horario de atención y las horas en que se reciben reservas para la sede.</p>
+<p class="caja small">En los campos de privacidad y uso, pega solo la versión que la contraparte responsable haya revisado y aprobado. Si están vacíos, esos avisos no se publican.</p>
+
+<form method="post" class="row g-3 caja">
+  {% for clave, etiqueta, tipo in campos %}
+    <div class="col-12 {% if tipo == 'texto' %}col-md-6{% endif %}">
+      <label class="form-label" for="{{ clave }}">{{ etiqueta }}</label>
+      {% if tipo == 'textarea' %}
+        <textarea class="form-control" id="{{ clave }}" name="{{ clave }}" rows="4">{{ conf[clave] }}</textarea>
+      {% elif tipo == 'hora' %}
+        <input class="form-control" type="time" id="{{ clave }}" name="{{ clave }}" value="{{ conf[clave] }}" required>
+      {% else %}
+        <input class="form-control" type="text" id="{{ clave }}" name="{{ clave }}" value="{{ conf[clave] }}">
+      {% endif %}
+    </div>
+  {% endfor %}
+  <div class="col-12">
+    <button class="btn btn-primary btn-lg" type="submit">Guardar textos</button>
+  </div>
+</form>
+{% endblock %}

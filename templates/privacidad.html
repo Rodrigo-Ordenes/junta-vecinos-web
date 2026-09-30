@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Privacidad y condiciones de uso · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Privacidad y condiciones de uso</h1>
+  {% if aviso_privacidad %}
+    <section class="caja mb-4">
+      <h2 class="h4">Aviso de privacidad</h2>
+      <div class="texto-aprobado">{{ aviso_privacidad }}</div>
+    </section>
+  {% endif %}
+  {% if aviso_uso %}
+    <section class="caja">
+      <h2 class="h4">Condiciones de uso</h2>
+      <div class="texto-aprobado">{{ aviso_uso }}</div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

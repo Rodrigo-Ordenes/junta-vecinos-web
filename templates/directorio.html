@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Directorio vecinal · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Directorio de servicios del cerro</h1>
+  <p class="lead">
+    Vecinas y vecinos que ofrecen sus servicios en el barrio. Compra en el cerro y apoya a tu comunidad.
+  </p>
+  <a class="btn btn-primary mb-4" href="{{ url_for('inscribir_servicio') }}">Inscribir mi servicio</a>
+
+  <form class="row g-2 align-items-end mb-4" method="get">
+    <div class="col-md-5">
+      <label class="form-label" for="q">Buscar</label>
+      <input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Pan, gasfíter, fletes…">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="rubro">Rubro</label>
+      <select class="form-select" id="rubro" name="rubro">
+        <option value="">Todos los rubros</option>
+        {% for r in rubros %}
+          <option value="{{ r }}" {% if filtro_rubro == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-outline-primary w-100" type="submit">Buscar</button>
+    </div>
+  </form>
+
+  <div class="row g-3">
+    {% for s in servicios %}
+      <div class="col-md-6 col-lg-4">
+        <div class="caja h-100">
+          <p class="small text-muted mb-1">{{ s.rubro }}</p>
+          <h2 class="h6 mb-1">{{ s.nombre_servicio }}</h2>
+          <p class="small mb-2">{{ s.vecino }}</p>
+          {% if s.descripcion %}<p class="small">{{ s.descripcion }}</p>{% endif %}
+          {% if s.direccion %}<p class="small mb-2"><strong>Dirección:</strong> {{ s.direccion }}</p>{% endif %}
+          <div class="d-flex flex-wrap gap-2">
+            {% if s.telefono %}
+              <a class="btn btn-sm btn-outline-primary" href="tel:{{ s.telefono|solo_digitos }}">Llamar</a>
+            {% endif %}
+            {% if s.whatsapp %}
+              <a class="btn btn-sm btn-whatsapp" href="https://wa.me/{{ s.whatsapp|solo_digitos }}" target="_blank" rel="noopener">WhatsApp</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <p>No encontramos servicios con esa búsqueda.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

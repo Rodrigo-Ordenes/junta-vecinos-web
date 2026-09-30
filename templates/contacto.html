@@ -1,28 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Contacto · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
-<section class="container my-5" style="max-width: 700px;">
+<div class="container my-4 my-md-5">
   <h1 class="section-title">Contacto</h1>
-  <p class="text-muted">¿Tienes una consulta, sugerencia o quieres participar? Escríbenos.</p>
-
-  <form method="POST" class="form-contacto mt-4">
-    <div class="mb-3">
-      <label for="nombre" class="form-label">Nombre completo</label>
-      <input type="text" class="form-control" id="nombre" name="nombre" required>
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <form method="post" class="row g-3 caja">
+        <div class="col-md-6">
+          <label class="form-label" for="nombre">Tu nombre <span class="obligatorio">*</span></label>
+          <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="email">Tu correo <span class="obligatorio">*</span></label>
+          <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="telefono">Teléfono</label>
+          <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="mensaje">Mensaje <span class="obligatorio">*</span></label>
+          <textarea class="form-control" id="mensaje" name="mensaje" rows="5" required>{{ datos.mensaje or '' }}</textarea>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-primary btn-lg" type="submit">Enviar mensaje</button>
+        </div>
+      </form>
     </div>
-    <div class="mb-3">
-      <label for="email" class="form-label">Correo electrónico</label>
-      <input type="email" class="form-control" id="email" name="email" required>
+    <div class="col-lg-5">
+      <div class="caja h-100">
+        <h2 class="h5">Otras formas de contactarnos</h2>
+        <p class="mb-1">{{ conf.direccion_sede }}</p>
+        {% if conf.email_contacto %}<p class="mb-1">{{ conf.email_contacto }}</p>{% endif %}
+        {% if conf.telefono_contacto %}<p class="mb-1">{{ conf.telefono_contacto }}</p>{% endif %}
+        {% if conf.whatsapp_grupo %}
+          <a class="btn btn-whatsapp w-100 my-2" href="{{ conf.whatsapp_grupo }}" target="_blank" rel="noopener">
+            Entrar al grupo de WhatsApp
+          </a>
+        {% endif %}
+        {% if miembros %}
+          <h3 class="h6 mt-3">Contacto por cargo</h3>
+          <ul class="list-unstyled small mb-0">
+            {% for m in miembros %}
+              <li class="mb-1"><strong>{{ m.cargo }}:</strong> <a href="mailto:{{ m.email }}">{{ m.email }}</a></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
     </div>
-    <div class="mb-3">
-      <label for="telefono" class="form-label">Teléfono (opcional)</label>
-      <input type="tel" class="form-control" id="telefono" name="telefono">
-    </div>
-    <div class="mb-3">
-      <label for="mensaje" class="form-label">Mensaje</label>
-      <textarea class="form-control" id="mensaje" name="mensaje" rows="5" required></textarea>
-    </div>
-    <button type="submit" class="btn btn-primary">Enviar mensaje</button>
-  </form>
-</section>
+  </div>
+</div>
 {% endblock %}

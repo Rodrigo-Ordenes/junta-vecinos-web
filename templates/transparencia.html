@@ -1,41 +1,148 @@
 {% extends "base.html" %}
 {% block title %}Transparencia · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
-<section class="container my-5">
-  <h1 class="section-title">Transparencia y Rendición de Cuentas</h1>
-  <p class="text-muted">Documentos con el balance de ingresos y gastos de la junta de vecinos.</p>
 
-  <div class="table-responsive mt-4">
-    <table class="table table-hover align-middle">
-      <thead>
-        <tr>
-          <th>Período</th>
-          <th>Título</th>
-          <th>Descripción</th>
-          <th>Publicado</th>
-          <th>Documento</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rendiciones %}
-        <tr>
-          <td>{{ r.periodo }}</td>
-          <td>{{ r.titulo }}</td>
-          <td>{{ r.descripcion or '' }}</td>
-          <td>{{ r.fecha_publicacion.strftime('%d-%m-%Y') }}</td>
-          <td>
-            {% if r.archivo_url %}
-            <a href="{{ r.archivo_url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver documento</a>
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Transparencia</h1>
+  <p class="lead">
+    Consulta los balances por período y actividad, con sus movimientos y documentos de respaldo.
+  </p>
+
+  {% if not usuario %}
+    <div class="caja caja-destacada mt-4">
+      <h2 class="h4">Información para vecinas y vecinos</h2>
+      <p>Para consultar montos, movimientos y respaldos necesitas ingresar con una cuenta vecinal aprobada.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="{{ url_for('login', next=url_for('transparencia')) }}">Ingresar</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('registro') }}">Solicitar una cuenta</a>
+      </div>
+    </div>
+  {% else %}
+  <h2 class="h4 mt-5">Balance por actividad realizada</h2>
+  <p>Cuánto se juntó y cuánto se gastó en cada evento.</p>
+  {% for e in eventos %}
+    <div class="caja mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h3 class="h5 mb-1">{{ e.datos.nombre }}</h3>
+          <p class="small text-muted mb-2">{{ e.datos.fecha|fecha_larga }}</p>
+        </div>
+        <div class="text-end">
+          <div class="small">Resultado de la actividad</div>
+          <div class="{{ 'saldo-positivo' if e.totales.saldo >= 0 else 'saldo-negativo' }} fs-5">
+            {{ e.totales.saldo|moneda }}
+          </div>
+        </div>
+      </div>
+      {% if e.datos.descripcion %}<p>{{ e.datos.descripcion }}</p>{% endif %}
+      <div class="table-responsive">
+        <table class="table table-sm tabla-balance align-middle">
+          <thead>
+            <tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="monto">Monto</th></tr>
+          </thead>
+          <tbody>
+            {% for m in e.movimientos %}
+              <tr>
+                <td>{{ m.fecha|fecha_corta }}</td>
+                <td>{{ m.concepto }}</td>
+                <td class="{{ 'ingreso' if m.tipo == 'Ingreso' else 'gasto' }}">{{ m.tipo }}</td>
+                <td class="monto">{{ m.monto|moneda }}</td>
+              </tr>
             {% else %}
-            <span class="text-muted small">Próximamente</span>
+              <tr><td colspan="4">Sin movimientos registrados.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3">Total ingresos</th>
+              <th class="monto ingreso">{{ e.totales.ingresos|moneda }}</th>
+            </tr>
+            <tr>
+              <th colspan="3">Total gastos</th>
+              <th class="monto gasto">{{ e.totales.gastos|moneda }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <p>Todavía no hay actividades con balance publicado.</p>
+  {% endfor %}
+
+  <h2 class="h4 mt-5">Rendiciones de cuentas por período</h2>
+  {% for r in rendiciones %}
+    <div class="caja mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h3 class="h5 mb-1">{{ r.datos.titulo }}</h3>
+          <p class="small text-muted mb-2">Período {{ r.datos.periodo }}</p>
+        </div>
+        <div class="text-end">
+          <div class="small">Saldo del período</div>
+          <div class="{{ 'saldo-positivo' if r.totales.saldo >= 0 else 'saldo-negativo' }} fs-5">
+            {{ r.totales.saldo|moneda }}
+          </div>
+        </div>
+      </div>
+      {% if r.datos.descripcion %}<p>{{ r.datos.descripcion }}</p>{% endif %}
+      {% if r.datos.archivo %}
+        <p><a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=r.datos.archivo) }}">Ver documento de respaldo</a></p>
+      {% endif %}
+      <div class="table-responsive">
+        <table class="table table-sm tabla-balance align-middle">
+          <thead>
+            <tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="monto">Monto</th></tr>
+          </thead>
+          <tbody>
+            {% for m in r.movimientos %}
+              <tr>
+                <td>{{ m.fecha|fecha_corta }}</td>
+                <td>{{ m.concepto }}</td>
+                <td class="{{ 'ingreso' if m.tipo == 'Ingreso' else 'gasto' }}">{{ m.tipo }}</td>
+                <td class="monto">{{ m.monto|moneda }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4">Sin movimientos registrados.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr><th colspan="3">Total ingresos</th><th class="monto ingreso">{{ r.totales.ingresos|moneda }}</th></tr>
+            <tr><th colspan="3">Total gastos</th><th class="monto gasto">{{ r.totales.gastos|moneda }}</th></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <p>Todavía no hay rendiciones publicadas.</p>
+  {% endfor %}
+
+  {% if documentos_financieros %}
+    <h2 class="h4 mt-5">Documentos financieros</h2>
+    <div class="row g-3">
+      {% for documento in documentos_financieros %}
+        <div class="col-md-6">
+          <article class="caja h-100">
+            <p class="small text-muted mb-1">Respaldo financiero</p>
+            <h3 class="h6">{{ documento.titulo }}</h3>
+            {% if documento.descripcion %}<p>{{ documento.descripcion }}</p>{% endif %}
+            {% if documento.archivo %}
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=documento.archivo) }}">Ver o descargar documento</a>
+            {% elif documento.enlace %}
+              <a class="btn btn-sm btn-outline-primary" href="{{ documento.enlace }}" target="_blank" rel="noopener">Abrir documento</a>
             {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5">Aún no hay rendiciones publicadas.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          </article>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endif %}
+
+  <div class="caja mt-4">
+    <p class="mb-0">
+      ¿Tienes dudas sobre alguna cuenta? Escríbenos en <a href="{{ url_for('contacto') }}">Contacto</a>
+      y la directiva te responderá.
+    </p>
   </div>
-</section>
+</div>
+
 {% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Estado de la solicitud · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Estado de tu solicitud</h1>
+
+  {% if solicitud %}
+    {% if codigo_nuevo %}
+      <div class="alert alert-success" role="status">
+        Guarda este código privado para volver a consultar el estado:
+        <strong class="codigo-seguimiento">{{ solicitud.codigo_seguimiento }}</strong>
+      </div>
+    {% endif %}
+    <div class="caja">
+      <p class="mb-1"><strong>Código de seguimiento:</strong> {{ solicitud.codigo_seguimiento }}</p>
+      <p class="mb-1"><strong>Fecha de ingreso:</strong> {{ solicitud.fecha_solicitud|fecha_larga }}</p>
+      <p class="mb-0">
+        <strong>Estado:</strong>
+        <span class="badge-estado {{ solicitud.estado|clase_estado }}">{{ solicitud.estado }}</span>
+      </p>
+    </div>
+  {% else %}
+    <p>Ingresa el código privado que recibiste al enviar tu solicitud.</p>
+    <form class="row g-2 align-items-end caja" method="post" autocomplete="off">
+      <div class="col-sm-8">
+        <label class="form-label" for="codigo">Código de seguimiento</label>
+        <input class="form-control codigo-seguimiento" type="text" id="codigo" name="codigo"
+               minlength="24" maxlength="24" pattern="[A-Fa-f0-9]{24}"
+               value="{{ codigo or '' }}" autocapitalize="characters" required>
+      </div>
+      <div class="col-sm-4">
+        <button class="btn btn-primary w-100" type="submit">Consultar</button>
+      </div>
+    </form>
+  {% endif %}
+
+  <p class="mt-4"><a href="{{ url_for('certificado') }}">&larr; Volver al certificado de residencia</a></p>
+</div>
+{% endblock %}
