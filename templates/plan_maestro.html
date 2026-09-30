@@ -13,9 +13,20 @@
           <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
           <h3 class="h6 mt-2 mb-1">{{ p.nombre }}</h3>
           <p class="small mb-1">{{ p.descripcion }}</p>
+          {% if p.avance_porcentaje is not none %}
+            <div class="avance-resumen">
+              <span>Avance físico</span><strong>{{ p.avance_porcentaje }}%</strong>
+            </div>
+            <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
+                      aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
+              {{ p.avance_porcentaje }}%
+            </progress>
+            <p class="small text-muted">Actualizado {{ p.avance_fecha|fecha_larga }}</p>
+            <p class="small">{{ p.avance_detalle }}</p>
+          {% endif %}
           <p class="small text-muted mb-0">
             {% if p.eje %}{{ p.eje }}{% endif %}
-            {% if p.monto %} · {{ p.monto|moneda }}{% endif %}
+            {% if usuario and p.monto %} · {{ p.monto|moneda }}{% endif %}
           </p>
         </div>
       {% else %}
@@ -32,8 +43,8 @@
           <p class="small mb-1">{{ p.descripcion }}</p>
           <p class="small text-muted mb-0">
             {% if p.eje %}{{ p.eje }}{% endif %}
-            {% if p.fuente_financiamiento %} · {{ p.fuente_financiamiento }}{% endif %}
-            {% if p.monto %} · {{ p.monto|moneda }}{% endif %}
+            {% if usuario and p.fuente_financiamiento %} · {{ p.fuente_financiamiento }}{% endif %}
+            {% if usuario and p.monto %} · {{ p.monto|moneda }}{% endif %}
           </p>
         </div>
       {% else %}

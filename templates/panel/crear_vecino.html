@@ -1,0 +1,39 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Crear cuenta vecinal · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Crear cuenta vecinal</h1>
+{% if usuario.rol == 'administrador' %}
+  <p class="lead">Las cuentas que crea la administración quedan aprobadas y activas de inmediato.</p>
+{% else %}
+  <p class="lead">La cuenta quedará pendiente hasta que la administración la apruebe.</p>
+{% endif %}
+<form method="post" class="row g-3 caja">
+  <div class="col-md-6">
+    <label class="form-label" for="nombre">Nombre completo</label>
+    <input class="form-control" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" autocomplete="name" required>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="usuario_nuevo">Nombre de usuario</label>
+    <input class="form-control" id="usuario_nuevo" name="usuario" value="{{ datos.usuario or '' }}" minlength="3" autocomplete="username" required>
+  </div>
+  <div class="col-12">
+    <label class="form-label" for="email">Correo electrónico (opcional)</label>
+    <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}" autocomplete="email">
+    <p class="ayuda-campo">El correo se usa para contacto; no reemplaza la aprobación de la cuenta.</p>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="clave">Clave (mínimo 8 caracteres)</label>
+    <input class="form-control" type="password" id="clave" name="clave" minlength="8" autocomplete="new-password" required>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="confirmar_clave">Repetir clave</label>
+    <input class="form-control" type="password" id="confirmar_clave" name="confirmar_clave" minlength="8" autocomplete="new-password" required>
+  </div>
+  <div class="col-12 d-flex flex-wrap gap-2">
+    <button class="btn btn-primary btn-lg" type="submit">Crear cuenta</button>
+    {% if usuario.rol == 'administrador' %}
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('panel_usuarios_pendientes') }}">Ver aprobaciones</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

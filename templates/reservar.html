@@ -17,11 +17,11 @@
     </div>
     <div class="col-md-4">
       <label class="form-label" for="hora_inicio">Desde las <span class="obligatorio">*</span></label>
-      <input class="form-control" type="time" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio or '' }}" required>
+      <input class="form-control" type="time" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio or '' }}" min="{{ conf.horario_sede_inicio }}" max="{{ conf.horario_sede_fin }}" required>
     </div>
     <div class="col-md-4">
       <label class="form-label" for="hora_fin">Hasta las <span class="obligatorio">*</span></label>
-      <input class="form-control" type="time" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin or '' }}" required>
+      <input class="form-control" type="time" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin or '' }}" min="{{ conf.horario_sede_inicio }}" max="{{ conf.horario_sede_fin }}" required>
     </div>
     <div class="col-md-6">
       <label class="form-label" for="actividad">¿Para qué la necesitas? <span class="obligatorio">*</span></label>
@@ -43,7 +43,7 @@
     <div class="col-md-6">
       <label class="form-label" for="email">Correo (opcional)</label>
       <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
-      <p class="ayuda-campo mb-0">Si tienes cuenta de vecino/a con este correo, podrás seguir el estado en «Mis solicitudes».</p>
+      <p class="ayuda-campo mb-0">Inicia sesión antes de reservar para que la solicitud quede asociada a «Mis solicitudes».</p>
     </div>
     <div class="col-12">
       <label class="form-label" for="observacion">¿Algo más que debamos saber?</label>

@@ -5,24 +5,28 @@
   <h1 class="section-title">Estado de tu solicitud</h1>
 
   {% if solicitud %}
+    {% if codigo_nuevo %}
+      <div class="alert alert-success" role="status">
+        Guarda este código privado para volver a consultar el estado:
+        <strong class="codigo-seguimiento">{{ solicitud.codigo_seguimiento }}</strong>
+      </div>
+    {% endif %}
     <div class="caja">
-      <p class="mb-1"><strong>Número de solicitud:</strong> {{ solicitud.id }}</p>
-      <p class="mb-1"><strong>Nombre:</strong> {{ solicitud.nombre }}</p>
-      <p class="mb-1"><strong>Fecha:</strong> {{ solicitud.fecha_solicitud|fecha_larga }}</p>
-      <p class="mb-1">
+      <p class="mb-1"><strong>Código de seguimiento:</strong> {{ solicitud.codigo_seguimiento }}</p>
+      <p class="mb-1"><strong>Fecha de ingreso:</strong> {{ solicitud.fecha_solicitud|fecha_larga }}</p>
+      <p class="mb-0">
         <strong>Estado:</strong>
         <span class="badge-estado {{ solicitud.estado|clase_estado }}">{{ solicitud.estado }}</span>
       </p>
-      {% if solicitud.observacion %}
-        <p class="mb-0"><strong>Mensaje de la directiva:</strong> {{ solicitud.observacion }}</p>
-      {% endif %}
     </div>
   {% else %}
-    <p>Ingresa el número que te entregamos al enviar tu solicitud.</p>
-    <form class="row g-2 align-items-end caja" method="get">
-      <div class="col-sm-6">
-        <label class="form-label" for="folio">Número de solicitud</label>
-        <input class="form-control" type="number" id="folio" name="folio" min="1" value="{{ folio or '' }}" required>
+    <p>Ingresa el código privado que recibiste al enviar tu solicitud.</p>
+    <form class="row g-2 align-items-end caja" method="post" autocomplete="off">
+      <div class="col-sm-8">
+        <label class="form-label" for="codigo">Código de seguimiento</label>
+        <input class="form-control codigo-seguimiento" type="text" id="codigo" name="codigo"
+               minlength="24" maxlength="24" pattern="[A-Fa-f0-9]{24}"
+               value="{{ codigo or '' }}" autocapitalize="characters" required>
       </div>
       <div class="col-sm-4">
         <button class="btn btn-primary w-100" type="submit">Consultar</button>

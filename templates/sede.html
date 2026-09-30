@@ -10,7 +10,8 @@
   </p>
 
   <div class="caja mb-4">
-    <h2 class="h5">Actividades fijas de cada semana</h2>
+    <h2 class="h5">Horario habitual de la sede</h2>
+    <p class="small mb-2">Las reservas se reciben entre las {{ horario_inicio }} y las {{ horario_fin }}.</p>
     {% if bloques %}
       <ul class="mb-0">
         {% for b in bloques %}
@@ -23,49 +24,112 @@
     {% endif %}
   </div>
 
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <div>
-      <h2 class="h4 mb-0">Semana del {{ semana.lunes|fecha_corta }} al {{ semana.domingo|fecha_corta }}</h2>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div class="btn-group" role="group" aria-label="Vista del calendario">
+      <a class="btn {{ 'btn-primary' if not vista_mes else 'btn-outline-primary' }}"
+         href="{{ url_for('sede', semana=semana.lunes.isoformat(), disponibles=1 if solo_disponibles else None) }}">Vista semanal</a>
+      <a class="btn {{ 'btn-primary' if vista_mes else 'btn-outline-primary' }}"
+         href="{{ url_for('sede', vista='mes', mes=mes_ref.strftime('%Y-%m'), disponibles=1 if solo_disponibles else None) }}">Vista mensual</a>
     </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-primary" href="{{ url_for('sede', semana=anterior) }}">&larr; Semana anterior</a>
-      <a class="btn btn-outline-primary" href="{{ url_for('sede') }}">Esta semana</a>
-      <a class="btn btn-outline-primary" href="{{ url_for('sede', semana=siguiente) }}">Semana siguiente &rarr;</a>
-    </div>
+    <a class="btn {{ 'btn-success' if solo_disponibles else 'btn-outline-success' }}"
+       href="{{ url_for('sede', vista='mes' if vista_mes else None, mes=mes_ref.strftime('%Y-%m') if vista_mes else None, semana=semana.lunes.isoformat() if not vista_mes else None, disponibles=None if solo_disponibles else 1) }}">
+      {{ 'Mostrar todos los días' if solo_disponibles else 'Ver solo horarios disponibles' }}
+    </a>
   </div>
 
-  <div class="row g-3">
-    {% for dia in semana.dias %}
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="dia-sede {{ 'libre' if dia.libre }} {{ 'hoy' if dia.hoy }} {{ 'pasado' if dia.pasado }}">
-          <h3>{{ dia.nombre }}</h3>
-          <div class="fecha">{{ dia.fecha|fecha_larga }}</div>
-
-          {% if dia.libre %}
-            <p class="mt-3 mb-2 text-success fw-semibold">Sede disponible todo el día</p>
-          {% else %}
-            {% for a in dia.actividades %}
-              <div class="franja {{ 'fija' if a.tipo == 'fija' else a.estado|lower }}">
-                <span class="hora">{{ a.hora_inicio }} a {{ a.hora_fin }}</span>
-                {{ a.titulo }}
-                {% if a.tipo == 'fija' %}
-                  <span class="badge-estado badge-fija">Actividad fija</span>
-                {% else %}
-                  <span class="badge-estado {{ a.estado|clase_estado }}">{{ a.estado }}</span>
-                {% endif %}
-              </div>
-            {% endfor %}
-          {% endif %}
-
-          {% if not dia.pasado %}
-            <a class="btn btn-sm btn-primary mt-3" href="{{ url_for('reservar', fecha=dia.fecha.isoformat()) }}">
-              Pedir este día
-            </a>
-          {% endif %}
-        </div>
+  {% if vista_mes %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h2 class="h4 mb-0">{{ mes_nombre }} {{ mes_ref.year }}</h2>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', vista='mes', mes=mes_anterior, disponibles=1 if solo_disponibles else None) }}" aria-label="Mes anterior">&larr; Anterior</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', vista='mes', mes=mes_siguiente, disponibles=1 if solo_disponibles else None) }}" aria-label="Mes siguiente">Siguiente &rarr;</a>
       </div>
-    {% endfor %}
-  </div>
+    </div>
+    <p class="small text-muted">En una pantalla pequeña, desliza el calendario hacia los lados para ver todos los días.</p>
+    <div class="calendario-mes-wrap">
+    <div class="calendario-mes" aria-label="Calendario mensual de la sede">
+      {% for nombre_dia in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+        <div class="calendario-mes-cabecera">{{ nombre_dia }}</div>
+      {% endfor %}
+      {% for semana_mes in semanas_mes %}
+        {% for dia in semana_mes %}
+          {% if dia.fecha.month == mes_ref.month and (not solo_disponibles or dia.horarios) %}
+            <article class="calendario-dia {{ 'calendario-hoy' if dia.hoy }} {{ 'calendario-pasado' if dia.pasado }}">
+              <div class="calendario-dia-top"><strong>{{ dia.fecha.day }}</strong><span>{{ dia.nombre }}</span></div>
+              {% if dia.pasado %}
+                <span class="calendario-etiqueta">Fecha pasada</span>
+              {% elif dia.horarios %}
+                <span class="calendario-etiqueta disponible">Hay horarios</span>
+                {% for desde, hasta in dia.horarios[:3] %}
+                  <a class="calendario-hora" href="{{ url_for('reservar', fecha=dia.fecha.isoformat(), hora_inicio=desde, hora_fin=hasta) }}">{{ desde }}–{{ hasta }}</a>
+                {% endfor %}
+                {% if dia.horarios|length > 3 %}<small>y {{ dia.horarios|length - 3 }} más</small>{% endif %}
+              {% else %}
+                <span class="calendario-etiqueta ocupado">Sin horarios libres</span>
+                {% for actividad in dia.actividades[:2] %}
+                  <small class="calendario-actividad">{{ actividad.hora_inicio }} · {{ actividad.titulo }}</small>
+                {% endfor %}
+              {% endif %}
+              <a class="calendario-ver-semana" href="{{ url_for('sede', semana=dia.fecha.isoformat(), disponibles=1 if solo_disponibles else None) }}">Ver semana</a>
+            </article>
+          {% else %}
+            <div class="calendario-dia calendario-vacio" aria-hidden="true"></div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+    </div>
+  {% else %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h2 class="h4 mb-0">Semana del {{ semana.lunes|fecha_corta }} al {{ semana.domingo|fecha_corta }}</h2>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', semana=anterior, disponibles=1 if solo_disponibles else None) }}">&larr; Semana anterior</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', disponibles=1 if solo_disponibles else None) }}">Esta semana</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', semana=siguiente, disponibles=1 if solo_disponibles else None) }}">Semana siguiente &rarr;</a>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      {% for dia in dias_visibles %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="dia-sede {{ 'libre' if dia.horarios }} {{ 'hoy' if dia.hoy }} {{ 'pasado' if dia.pasado }}">
+            <h3>{{ dia.nombre }}</h3>
+            <div class="fecha">{{ dia.fecha|fecha_larga }}</div>
+            {% if dia.pasado %}
+              <p class="mt-3 mb-2 text-muted">Esta fecha ya pasó.</p>
+            {% else %}
+              {% if dia.actividades %}
+                <h4 class="h6 mt-3">Horarios ocupados</h4>
+                {% for a in dia.actividades %}
+                  <div class="franja {{ 'fija' if a.tipo == 'fija' else a.estado|lower }}">
+                    <span class="hora">{{ a.hora_inicio }} a {{ a.hora_fin }}</span>
+                    {{ a.titulo }}
+                    {% if a.tipo == 'fija' %}<span class="badge-estado badge-fija">Actividad fija</span>
+                    {% else %}<span class="badge-estado {{ a.estado|clase_estado }}">{{ a.estado }}</span>{% endif %}
+                  </div>
+                {% endfor %}
+              {% endif %}
+              {% if dia.horarios %}
+                <h4 class="h6 mt-3">Horarios disponibles</h4>
+                <div class="d-flex flex-wrap gap-2">
+                  {% for desde, hasta in dia.horarios %}
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('reservar', fecha=dia.fecha.isoformat(), hora_inicio=desde, hora_fin=hasta) }}">{{ desde }}–{{ hasta }}</a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <p class="mt-3 mb-2 text-muted">No quedan horarios disponibles dentro del horario de atención.</p>
+              {% endif %}
+            {% endif %}
+            {% if not dia.pasado and not solo_disponibles %}
+              <a class="btn btn-sm btn-primary mt-3" href="{{ url_for('reservar', fecha=dia.fecha.isoformat()) }}">Pedir este día</a>
+            {% endif %}
+          </article>
+        </div>
+      {% else %}
+        <div class="col-12"><div class="caja">No hay horarios disponibles para esta semana.</div></div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   <div class="caja mt-4">
     <h2 class="h5">¿Cómo se reserva?</h2>

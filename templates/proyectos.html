@@ -23,10 +23,37 @@
             <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
             <h2 class="card-title h5 mt-2">{{ p.nombre }}</h2>
             <p class="card-text">{{ p.descripcion }}</p>
+            {% if p.avance_porcentaje is not none %}
+              <div class="avance-resumen">
+                <span>Avance físico informado</span>
+                <strong>{{ p.avance_porcentaje }}%</strong>
+              </div>
+              <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
+                        aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
+                {{ p.avance_porcentaje }}%
+              </progress>
+              <p class="small text-muted">Actualizado {{ p.avance_fecha|fecha_larga }}</p>
+            {% elif p.estado == 'En ejecución' %}
+              <p class="small text-muted">El avance físico aún no se ha informado.</p>
+            {% endif %}
+            {% set historial = historial_por_proyecto.get(p.id, []) %}
+            {% if historial %}
+              <details class="historial-avances mb-3">
+                <summary>Historial de avances ({{ historial|length }})</summary>
+                <ol class="mt-2 mb-0">
+                  {% for avance in historial %}
+                    <li class="mb-2">
+                      <strong>{{ avance.porcentaje }}%</strong> · {{ avance.fecha_actualizacion|fecha_larga }}
+                      <div>{{ avance.detalle }}</div>
+                    </li>
+                  {% endfor %}
+                </ol>
+              </details>
+            {% endif %}
             <ul class="list-unstyled small mb-0">
               {% if p.eje %}<li><strong>Eje:</strong> {{ p.eje }}</li>{% endif %}
-              {% if p.fuente_financiamiento %}<li><strong>Financiamiento:</strong> {{ p.fuente_financiamiento }}</li>{% endif %}
-              {% if p.monto %}<li><strong>Monto:</strong> {{ p.monto|moneda }}</li>{% endif %}
+              {% if usuario and p.fuente_financiamiento %}<li><strong>Financiamiento:</strong> {{ p.fuente_financiamiento }}</li>{% endif %}
+              {% if usuario and p.monto %}<li><strong>Monto:</strong> {{ p.monto|moneda }}</li>{% endif %}
             </ul>
           </div>
         </div>

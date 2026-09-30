@@ -3,23 +3,27 @@
 {% block content %}
 <div class="container my-4 my-md-5">
   <h1 class="section-title">Certificado de residencia</h1>
-  <p class="lead">
-    La junta de vecinos puede certificar que vives en el sector. Revisa los requisitos y
-    deja tu solicitud aquí; luego te avisamos cuándo pasar a firmarlo.
-  </p>
+  <p class="lead">Solicita la revisión de tu residencia y consulta el avance con un código privado.</p>
 
   <div class="caja mb-4">
     <h2 class="h5">Requisitos</h2>
-    <ul class="mb-0">
-      {% for r in requisitos %}<li>{{ r }}</li>{% endfor %}
-    </ul>
+    <ul class="mb-0">{% for r in requisitos %}<li>{{ r }}</li>{% endfor %}</ul>
   </div>
 
-  <form method="post" class="row g-3 caja">
+  {% if conf.aviso_privacidad %}
+    <p class="small">Antes de ingresar datos, lee el <a href="{{ url_for('privacidad') }}">aviso de privacidad</a>.</p>
+  {% else %}
+    <div class="alert alert-info" role="note">
+      Esta versión local guarda los datos y el documento en este equipo. Solo la administración y el personal autorizado para revisar certificados pueden abrirlos.
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="row g-3 caja">
     <h2 class="h5 mb-0">Formulario de solicitud</h2>
+    <p class="small text-muted mb-0">Cada solicitud corresponde a una persona. La directiva revisará el documento antes de aprobar el certificado.</p>
     <div class="col-md-6">
       <label class="form-label" for="nombre">Nombre completo <span class="obligatorio">*</span></label>
-      <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" required>
+      <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" autocomplete="name" required>
     </div>
     <div class="col-md-6">
       <label class="form-label" for="rut">RUT <span class="obligatorio">*</span></label>
@@ -27,36 +31,90 @@
     </div>
     <div class="col-12">
       <label class="form-label" for="direccion">Dirección en el cerro <span class="obligatorio">*</span></label>
-      <input class="form-control" type="text" id="direccion" name="direccion" value="{{ datos.direccion or '' }}" required>
+      <input class="form-control" type="text" id="direccion" name="direccion" value="{{ datos.direccion or '' }}" autocomplete="street-address" required>
     </div>
     <div class="col-md-6">
       <label class="form-label" for="telefono">Teléfono o WhatsApp</label>
-      <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}">
+      <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}" autocomplete="tel">
     </div>
     <div class="col-md-6">
       <label class="form-label" for="email">Correo</label>
-      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
+      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}" autocomplete="email">
     </div>
     <div class="col-12">
-      <label class="form-label" for="motivo">¿Para qué lo necesitas?</label>
+      <label class="form-label" for="motivo">¿Para qué necesitas el certificado?</label>
       <textarea class="form-control" id="motivo" name="motivo" rows="3">{{ datos.motivo or '' }}</textarea>
     </div>
     <div class="col-12">
-      <button class="btn btn-primary btn-lg" type="submit">Enviar solicitud</button>
+      <label class="form-label" for="documento_domicilio">Documento para acreditar domicilio <span class="obligatorio">*</span></label>
+      <input class="form-control" type="file" id="documento_domicilio" name="documento_domicilio"
+             accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" required>
+      <p class="ayuda-campo">PDF, JPG, PNG o WebP; máximo 16 MB. Sube una copia legible, no el documento original en papel.</p>
     </div>
+
+    {% if not usuario %}
+      <div class="col-12">
+        <fieldset class="auth-create-account">
+          <legend class="h5">Crear cuenta vecinal (opcional)</legend>
+          <p class="small text-muted">Marca la casilla para reutilizar el nombre y correo de este formulario. La cuenta quedará pendiente hasta que la directiva la apruebe; podrás consultar este certificado con el código privado mientras tanto.</p>
+          <label class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="crear_cuenta" name="crear_cuenta" value="on" {% if crear_cuenta %}checked{% endif %} aria-controls="datos_cuenta">
+            <span class="form-check-label fw-semibold">Sí, quiero una cuenta con estos mismos datos</span>
+          </label>
+          <div class="row g-3" id="datos_cuenta" data-account-fields>
+            <div class="col-md-4">
+              <label class="form-label" for="nuevo_usuario">Nombre de usuario</label>
+              <input class="form-control" type="text" id="nuevo_usuario" name="nuevo_usuario" minlength="3" autocomplete="username">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="nueva_clave">Clave (mínimo 8 caracteres)</label>
+              <input class="form-control" type="password" id="nueva_clave" name="nueva_clave" minlength="8" autocomplete="new-password">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="confirmar_clave">Repite la clave</label>
+              <input class="form-control" type="password" id="confirmar_clave" name="confirmar_clave" minlength="8" autocomplete="new-password">
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    {% else %}
+      <div class="col-12"><p class="small text-success mb-0">Esta solicitud quedará asociada a tu cuenta.</p></div>
+    {% endif %}
+
+    <div class="col-12">
+      <label class="form-check">
+        <input class="form-check-input" type="checkbox" name="entiendo_revision" value="on" required>
+        <span class="form-check-label">Entiendo que la administración y el personal autorizado para certificados podrán revisar estos datos y el documento adjunto.</span>
+      </label>
+    </div>
+    <div class="col-12"><button class="btn btn-primary btn-lg" type="submit">Enviar solicitud</button></div>
   </form>
 
   <div class="caja mt-4">
     <h2 class="h5">¿Ya hiciste tu solicitud?</h2>
-    <form class="row g-2 align-items-end" method="get" action="{{ url_for('estado_certificado') }}">
-      <div class="col-sm-6">
-        <label class="form-label" for="folio">Número de solicitud</label>
-        <input class="form-control" type="number" id="folio" name="folio" min="1" required>
+    <form class="row g-2 align-items-end" method="post" action="{{ url_for('estado_certificado') }}" autocomplete="off">
+      <div class="col-sm-8">
+        <label class="form-label" for="codigo">Código privado de seguimiento</label>
+        <input class="form-control codigo-seguimiento" type="text" id="codigo" name="codigo" minlength="24" maxlength="24" pattern="[A-Fa-f0-9]{24}" autocapitalize="characters" required>
       </div>
-      <div class="col-sm-4">
-        <button class="btn btn-outline-primary w-100" type="submit">Consultar estado</button>
-      </div>
+      <div class="col-sm-4"><button class="btn btn-outline-primary w-100" type="submit">Consultar estado</button></div>
     </form>
   </div>
 </div>
+<script>
+  (() => {
+    const casilla = document.getElementById("crear_cuenta");
+    const campos = document.querySelector("[data-account-fields]");
+    if (!casilla || !campos) return;
+    const credenciales = campos.querySelectorAll("input");
+    const actualizar = () => {
+      campos.hidden = !casilla.checked;
+      credenciales.forEach((campo) => {
+        campo.required = casilla.checked;
+      });
+    };
+    casilla.addEventListener("change", actualizar);
+    actualizar();
+  })();
+</script>
 {% endblock %}

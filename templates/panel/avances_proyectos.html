@@ -1,0 +1,68 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Avances de proyectos · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Avances de proyectos</h1>
+<p class="lead">Registra el avance físico y una nota breve de las obras en ejecución. Cada actualización se conserva en el historial y se publica en el portal.</p>
+<p class="small text-muted">No incluyas nombres, RUT, domicilios ni otros datos personales. Este formulario no permite editar presupuestos ni comprobantes.</p>
+
+<div class="row g-3 mt-2">
+  {% for p in proyectos %}
+    <div class="col-12">
+      <article class="caja tarjeta-avance">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
+            <h2 class="h5 mt-2 mb-1">{{ p.nombre }}</h2>
+          </div>
+          {% if p.avance_porcentaje is not none %}
+            <strong class="avance-porcentaje">{{ p.avance_porcentaje }}%</strong>
+          {% else %}
+            <span class="small text-muted">Sin avance informado</span>
+          {% endif %}
+        </div>
+
+        {% if p.avance_porcentaje is not none %}
+          <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
+                    aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
+            {{ p.avance_porcentaje }}%
+          </progress>
+          <p class="small text-muted">Última actualización: {{ p.avance_fecha|fecha_larga }}</p>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('panel_proyecto_avance', proyecto_id=p.id) }}" class="row g-2 align-items-end mt-2">
+          <div class="col-sm-4 col-md-3">
+            <label class="form-label" for="porcentaje{{ p.id }}">Avance físico (%)</label>
+            <input class="form-control" type="number" id="porcentaje{{ p.id }}" name="porcentaje"
+                   min="0" max="100" step="1" value="{{ p.avance_porcentaje if p.avance_porcentaje is not none else 0 }}" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="detalle{{ p.id }}">Qué cambió desde la última actualización</label>
+            <textarea class="form-control" id="detalle{{ p.id }}" name="detalle" rows="2"
+                      maxlength="500" required></textarea>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary" type="submit">Guardar actualización</button>
+          </div>
+        </form>
+
+        {% set historial = historial_por_proyecto.get(p.id, []) %}
+        {% if historial %}
+          <details class="historial-avances mt-3">
+            <summary>Ver historial ({{ historial|length }})</summary>
+            <ol class="mt-2 mb-0">
+              {% for avance in historial %}
+                <li class="mb-2">
+                  <strong>{{ avance.porcentaje }}%</strong> · {{ avance.fecha_actualizacion|fecha_larga }}
+                  <div>{{ avance.detalle }}</div>
+                </li>
+              {% endfor %}
+            </ol>
+          </details>
+        {% endif %}
+      </article>
+    </div>
+  {% else %}
+    <div class="col-12"><p>No hay proyectos en ejecución que requieran una actualización.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -6,16 +6,19 @@
       <div class="caja">
         <h2 class="h6 text-uppercase text-muted">Panel</h2>
         <p class="small mb-2">{{ usuario.nombre }}<br><strong>{{ usuario.rol|capitalize }}</strong></p>
-        <div class="list-group panel-menu">
-          <a class="list-group-item list-group-item-action" href="{{ url_for('panel') }}">🏠 Inicio del panel</a>
-          {% for clave, etiqueta, icono in menu_panel %}
-            {% if puede(clave) %}
-              <a class="list-group-item list-group-item-action" href="{{ url_panel(clave) }}">
-                {{ icono }} {{ etiqueta }}
-              </a>
-            {% endif %}
-          {% endfor %}
-        </div>
+        <a class="list-group-item list-group-item-action mb-3" href="{{ url_for('panel') }}">🏠 Inicio del panel</a>
+        {% for categoria, enlaces in menu_panel %}
+          <section class="panel-menu-grupo mb-3" aria-label="{{ categoria }}">
+            <h3 class="h6 text-uppercase text-muted px-3">{{ categoria }}</h3>
+            <div class="list-group panel-menu">
+              {% for clave, etiqueta, icono in enlaces %}
+                <a class="list-group-item list-group-item-action" href="{{ url_panel(clave) }}">
+                  {{ icono }} {{ etiqueta }}
+                </a>
+              {% endfor %}
+            </div>
+          </section>
+        {% endfor %}
       </div>
     </aside>
     <section class="col-lg-9">

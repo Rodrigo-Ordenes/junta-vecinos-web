@@ -15,13 +15,13 @@ no haya acceso a servicios externos.
 |---|---|
 | Portada | Accesos grandes a los cuatro trámites más usados, disponibilidad de la sede de la semana, últimas noticias y proyectos. |
 | Noticias y actividades | Publicaciones con fecha de actividad y botón para compartir por WhatsApp. |
-| Sede vecinal | Calendario semanal con las actividades fijas y las reservas; navegación entre semanas y solicitud de reserva en línea. |
-| Transparencia | Balance por período **y balance por actividad realizada** (ingresos, gastos y resultado de cada evento). |
-| Proyectos | Listado filtrable por estado (postulado, aprobado, en ejecución, finalizado, rechazado). |
+| Sede vecinal | Vista semanal o mensual, filtro de horas disponibles y formulario que precarga el intervalo elegido. El horario de apertura y cierre se configura en el panel. |
+| Transparencia | Montos, movimientos y respaldos se muestran solo a usuarios con una cuenta aprobada. |
+| Proyectos | Listado filtrable e historial público de avance físico; montos y fuentes de financiamiento requieren una cuenta aprobada. |
 | Plan maestro | Proyectos actuales y futuros, agrupados por eje de trabajo. |
-| Documentos | Estatutos, leyes, actas y rendiciones, con archivo descargable o enlace. |
+| Documentos | Estatutos, leyes y actas; los archivos de rendición no se publican en el repositorio público. |
 | Directorio de servicios | Actividades económicas de vecinas y vecinos, con búsqueda, rubro, llamada directa y WhatsApp. |
-| Certificado de residencia | Requisitos, solicitud en línea y consulta de estado con número de solicitud. |
+| Certificado de residencia | Solicitud individual con documento privado para acreditar domicilio, código de seguimiento y opción de crear una cuenta reutilizando nombre y correo. |
 | Quiénes somos | Misión, visión, reseña, socios inscritos y directiva con contacto por cargo. |
 | Contacto | Formulario que queda guardado en el panel, más los correos por cargo. |
 
@@ -29,7 +29,7 @@ no haya acceso a servicios externos.
 
 - Botones **«A+ Texto más grande»** y **«Alto contraste»** en todas las páginas; la preferencia
   queda recordada en el mismo dispositivo.
-- Diseño móvil primero, botones de al menos 44 px, enlace «Ir al contenido» y foco visible.
+- Diseño móvil primero, controles táctiles de al menos 48 px, enlace «Ir al contenido» y foco visible.
 
 ### Panel de administración (`/panel`)
 
@@ -37,13 +37,21 @@ Tres perfiles:
 
 | Perfil | Puede hacer |
 |---|---|
-| **Administrador** | Todo, incluidos usuarios del sistema, textos del sitio, proyectos y rendiciones. |
-| **Coordinador** (encargado de la sede) | Reservas, certificados, mensajes, noticias, actividades fijas, directorio y documentos. |
-| **Vecino** | Ver el estado de sus reservas y certificados en «Mis solicitudes». |
+| **Administrador** | Todo, incluida la creación y aprobación de cuentas, contenido institucional, presupuestos, balances, respaldos y permisos delegados al coordinador. |
+| **Coordinador** | Reservas, certificados, aprobación del directorio, noticias, documentos no financieros y avances de proyectos. La administración puede delegarle la creación de cuentas; estas quedan pendientes de aprobación. No puede editar usuarios, presupuestos ni finanzas. |
+| **Vecino** | Tras la aprobación de la directiva, ingresar a su cuenta y ver reservas enviadas durante la sesión y estados de certificados asociados; el código privado también permite consultar sin iniciar sesión. |
 
-El panel permite aprobar o rechazar reservas, marcar la sede como ocupada, cambiar el estado de
-los certificados, subir documentos, cargar ingresos y gastos de cada rendición o actividad, y
-editar los textos del sitio sin tocar código.
+El panel agrupa solicitudes, publicaciones, proyectos, transparencia y configuración. Las
+solicitudes nuevas del directorio deben aprobarse antes de publicarse. Desde noticias y documentos
+se cargan imágenes y archivos; los respaldos financieros permanecen fuera de la carpeta pública.
+Las cuentas creadas desde el registro o desde un certificado quedan pendientes hasta que un
+administrador las apruebe en *Panel → Aprobar cuentas vecinales*. La administración también puede
+crear cuentas activas desde el panel y decidir si delega la creación al coordinador.
+
+Los documentos para acreditar residencia se guardan en `instance/comprobantes_privados/` y solo
+los perfiles autorizados para revisar certificados pueden abrirlos. El formulario local informa
+quién puede revisar esos antecedentes; antes de publicar el sitio, la organización debe completar
+los textos aprobados de privacidad y uso desde *Panel → Textos del sitio*.
 
 ---
 
@@ -83,9 +91,9 @@ pip install pytest
 python -m pytest
 ```
 
-Cubren las páginas públicas, los formularios (incluido el rechazo de reservas en fechas pasadas
-y los choques de horario con las actividades fijas), los permisos de cada perfil y el flujo
-completo del panel.
+Cubren páginas y formularios, disponibilidad semanal y mensual, documentos privados, aprobación
+de cuentas y del directorio, permisos por perfil, cargas de noticias/documentos y visibilidad
+financiera para usuarios registrados. Las cargas de prueba se escriben en carpetas temporales.
 
 ---
 
@@ -99,6 +107,7 @@ templates/panel/       Panel de administración
 static/css/style.css   Estilos propios (incluye modo alto contraste)
 static/js/sitio.js     Menú, desplegables y accesibilidad
 static/uploads/        Archivos subidos desde el panel
+instance/comprobantes_privados/ Documentos de domicilio y respaldos financieros privados
 instance/junta.db      Base de datos (se crea sola; no se versiona)
 test_app.py            Pruebas automatizadas
 ```
@@ -117,8 +126,8 @@ test_app.py            Pruebas automatizadas
    gunicorn -w 2 -b 0.0.0.0:8000 app:app
    ```
 
-4. Respaldar periódicamente `instance/junta.db` y la carpeta `static/uploads/`: ahí está toda la
-   información de la junta.
+4. Respaldar periódicamente `instance/junta.db`, `instance/comprobantes_privados/` y
+   `static/uploads/`: contienen los datos y archivos del sitio.
 
 ---
 
@@ -128,5 +137,10 @@ test_app.py            Pruebas automatizadas
 - Correos por cargo (`presidencia@`, `secretaria@`, `tesoreria@`…) y enlace al grupo de WhatsApp:
   se cargan desde *Panel → Textos del sitio* y *Panel → Directiva*.
 - Horarios exactos de las actividades fijas de la sede (adulto mayor, karate).
-- Requisitos definitivos del certificado de residencia.
+- Requisitos definitivos y aviso de privacidad/condiciones de uso aprobados por la contraparte.
+  Los campos para integrar esos textos están en *Panel → Textos del sitio*; permanecen sin publicar
+  mientras no se entregue una versión aprobada.
 - Contenido real: noticias, proyectos, estatutos, actas y rendiciones.
+- Al migrar una base existente, los folios numéricos de certificados se reemplazan por códigos
+  privados; la directiva deberá facilitar el nuevo código a quienes ya tengan una solicitud pendiente.
+- Las cuentas nuevas requieren una clave de al menos 8 caracteres y aprobación manual de la directiva.

@@ -5,10 +5,19 @@
 <div class="container my-4 my-md-5">
   <h1 class="section-title">Transparencia</h1>
   <p class="lead">
-    Aquí publicamos en qué se usan los recursos de la junta de vecinos: el balance de cada
-    período y también el resultado de cada actividad que realizamos.
+    Consulta los balances por período y actividad, con sus movimientos y documentos de respaldo.
   </p>
 
+  {% if not usuario %}
+    <div class="caja caja-destacada mt-4">
+      <h2 class="h4">Información para vecinas y vecinos</h2>
+      <p>Para consultar montos, movimientos y respaldos necesitas ingresar con una cuenta vecinal aprobada.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="{{ url_for('login', next=url_for('transparencia')) }}">Ingresar</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('registro') }}">Solicitar una cuenta</a>
+      </div>
+    </div>
+  {% else %}
   <h2 class="h4 mt-5">Balance por actividad realizada</h2>
   <p>Cuánto se juntó y cuánto se gastó en cada evento.</p>
   {% for e in eventos %}
@@ -76,6 +85,9 @@
         </div>
       </div>
       {% if r.datos.descripcion %}<p>{{ r.datos.descripcion }}</p>{% endif %}
+      {% if r.datos.archivo %}
+        <p><a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=r.datos.archivo) }}">Ver documento de respaldo</a></p>
+      {% endif %}
       <div class="table-responsive">
         <table class="table table-sm tabla-balance align-middle">
           <thead>
@@ -99,29 +111,30 @@
           </tfoot>
         </table>
       </div>
-      {% if r.datos.archivo %}
-        <a class="btn btn-outline-primary" href="{{ url_for('archivo', nombre=r.datos.archivo) }}">Descargar documento</a>
-      {% endif %}
     </div>
   {% else %}
     <p>Todavía no hay rendiciones publicadas.</p>
   {% endfor %}
 
-  {% if documentos %}
-    <h2 class="h4 mt-5">Documentos de respaldo</h2>
-    <ul>
-      {% for d in documentos %}
-        <li>
-          {% if d.archivo %}
-            <a href="{{ url_for('archivo', nombre=d.archivo) }}">{{ d.titulo }}</a>
-          {% elif d.enlace %}
-            <a href="{{ d.enlace }}" target="_blank" rel="noopener">{{ d.titulo }}</a>
-          {% else %}
-            {{ d.titulo }}
-          {% endif %}
-        </li>
+  {% if documentos_financieros %}
+    <h2 class="h4 mt-5">Documentos financieros</h2>
+    <div class="row g-3">
+      {% for documento in documentos_financieros %}
+        <div class="col-md-6">
+          <article class="caja h-100">
+            <p class="small text-muted mb-1">Respaldo financiero</p>
+            <h3 class="h6">{{ documento.titulo }}</h3>
+            {% if documento.descripcion %}<p>{{ documento.descripcion }}</p>{% endif %}
+            {% if documento.archivo %}
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=documento.archivo) }}">Ver o descargar documento</a>
+            {% elif documento.enlace %}
+              <a class="btn btn-sm btn-outline-primary" href="{{ documento.enlace }}" target="_blank" rel="noopener">Abrir documento</a>
+            {% endif %}
+          </article>
+        </div>
       {% endfor %}
-    </ul>
+    </div>
+  {% endif %}
   {% endif %}
 
   <div class="caja mt-4">

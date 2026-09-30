@@ -2,7 +2,7 @@
 {% block title %}Panel · Junta de Vecinos N.° 2{% endblock %}
 {% block panel %}
 <h1 class="section-title">Panel de administración</h1>
-<p class="lead">Desde aquí se actualiza todo lo que ven las vecinas y vecinos en el sitio.</p>
+<p class="lead">Desde aquí puedes gestionar las tareas habilitadas para tu perfil.</p>
 
 <div class="row g-3 mt-1">
   <div class="col-6 col-md-3">
@@ -17,18 +17,36 @@
       <p class="small mb-0">Certificados en trámite</p>
     </div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="tarjeta-resumen">
-      <div class="numero">{{ resumen.mensajes_nuevos }}</div>
-      <p class="small mb-0">Mensajes sin leer</p>
+  {% if usuario['rol'] == 'administrador' %}
+    <div class="col-6 col-md-3">
+      <div class="tarjeta-resumen">
+        <div class="numero">{{ resumen.mensajes_nuevos }}</div>
+        <p class="small mb-0">Mensajes sin leer</p>
+      </div>
     </div>
-  </div>
+  {% endif %}
   <div class="col-6 col-md-3">
     <div class="tarjeta-resumen">
       <div class="numero">{{ resumen.servicios_por_aprobar }}</div>
       <p class="small mb-0">Servicios por aprobar</p>
     </div>
   </div>
+  {% if usuario['rol'] == 'coordinador' %}
+    <div class="col-6 col-md-3">
+      <div class="tarjeta-resumen">
+        <div class="numero">{{ resumen.proyectos_en_ejecucion }}</div>
+        <p class="small mb-0">Proyectos con avance disponible</p>
+      </div>
+    </div>
+  {% endif %}
+  {% if usuario['rol'] == 'administrador' %}
+    <div class="col-6 col-md-3">
+      <a class="tarjeta-resumen tarjeta-resumen-enlace" href="{{ url_for('panel_usuarios_pendientes') }}">
+        <div class="numero">{{ resumen.usuarios_pendientes }}</div>
+        <p class="small mb-0">Cuentas vecinales por aprobar</p>
+      </a>
+    </div>
+  {% endif %}
 </div>
 
 <h2 class="h5 mt-5">Próximas actividades aprobadas en la sede</h2>

@@ -3,7 +3,8 @@
 {% block content %}
 <div class="container my-5" style="max-width: 520px;">
   <h1 class="section-title">Crear cuenta de vecino/a</h1>
-  <p>Con tu cuenta puedes hacer seguimiento a tus reservas de la sede y a tus solicitudes de certificado.</p>
+  <p>Con tu cuenta podrás consultar tus solicitudes vecinales y los certificados asociados a ella.</p>
+  <div class="alert alert-warning" role="status">Por seguridad, la directiva debe aprobar cada cuenta antes del primer ingreso.</div>
   <form method="post" class="caja">
     <div class="mb-3">
       <label class="form-label" for="nombre">Nombre completo</label>
@@ -11,16 +12,20 @@
     </div>
     <div class="mb-3">
       <label class="form-label" for="usuario">Usuario</label>
-      <input class="form-control" type="text" id="usuario" name="usuario" value="{{ datos.usuario or '' }}" required>
+      <input class="form-control" type="text" id="usuario" name="usuario" value="{{ datos.usuario or '' }}" minlength="3" required>
     </div>
     <div class="mb-3">
       <label class="form-label" for="email">Correo</label>
       <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
-      <p class="ayuda-campo mb-0">Usa el mismo correo al pedir la sede o un certificado para verlos aquí.</p>
+      <p class="ayuda-campo mb-0">Opcional. La directiva lo usará para responderte si hace falta.</p>
     </div>
     <div class="mb-3">
-      <label class="form-label" for="clave">Clave (mínimo 6 caracteres)</label>
-      <input class="form-control" type="password" id="clave" name="clave" autocomplete="new-password" required>
+      <label class="form-label" for="clave">Clave (mínimo 8 caracteres)</label>
+      <input class="form-control" type="password" id="clave" name="clave" minlength="8" autocomplete="new-password" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="confirmar_clave">Repite la clave</label>
+      <input class="form-control" type="password" id="confirmar_clave" name="confirmar_clave" minlength="8" autocomplete="new-password" required>
     </div>
     <button class="btn btn-primary btn-lg w-100" type="submit">Crear cuenta</button>
   </form>

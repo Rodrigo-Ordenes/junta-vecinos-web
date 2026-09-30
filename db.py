@@ -6,6 +6,7 @@ para que el sitio pueda instalarse en cualquier hosting básico.
 
 import os
 import re
+import secrets
 import sqlite3
 from datetime import date, datetime, timedelta
 
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     clave_hash TEXT NOT NULL,
     rol TEXT NOT NULL DEFAULT 'vecino',
     activo INTEGER NOT NULL DEFAULT 1,
+    estado_aprobacion TEXT NOT NULL DEFAULT 'Aprobada',
     fecha_creacion TEXT NOT NULL
 );
 
@@ -90,6 +92,19 @@ CREATE TABLE IF NOT EXISTS proyectos (
     horizonte TEXT NOT NULL DEFAULT 'Actual',
     fecha_actualizacion TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS avances_proyecto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proyecto_id INTEGER NOT NULL,
+    porcentaje INTEGER NOT NULL CHECK (porcentaje BETWEEN 0 AND 100),
+    detalle TEXT NOT NULL,
+    fecha_actualizacion TEXT NOT NULL,
+    actualizado_por TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (proyecto_id) REFERENCES proyectos (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_avances_proyecto_proyecto_id
+    ON avances_proyecto (proyecto_id, id DESC);
 
 CREATE TABLE IF NOT EXISTS rendiciones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,7 +168,8 @@ CREATE TABLE IF NOT EXISTS reservas (
     estado TEXT NOT NULL DEFAULT 'Pendiente',
     observacion TEXT DEFAULT '',
     revisada_por TEXT DEFAULT '',
-    fecha_solicitud TEXT NOT NULL
+    fecha_solicitud TEXT NOT NULL,
+    usuario_id INTEGER REFERENCES usuarios (id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS servicios (
@@ -180,7 +196,10 @@ CREATE TABLE IF NOT EXISTS certificados (
     motivo TEXT DEFAULT '',
     estado TEXT NOT NULL DEFAULT 'Recibida',
     observacion TEXT DEFAULT '',
-    fecha_solicitud TEXT NOT NULL
+    fecha_solicitud TEXT NOT NULL,
+    codigo_seguimiento TEXT NOT NULL DEFAULT '',
+    usuario_id INTEGER REFERENCES usuarios (id) ON DELETE SET NULL,
+    archivo_domicilio TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS mensajes (
@@ -209,6 +228,23 @@ CREATE TABLE IF NOT EXISTS config (
 );
 """
 
+REQUISITOS_CERTIFICADO_ANTERIORES = (
+    "Cédula de identidad vigente del solicitante.\n"
+    "Documento que acredite domicilio en el sector (boleta de servicios, contrato de "
+    "arriendo u otro).\n"
+    "Ser residente del territorio de la Junta de Vecinos N.° 2 Cerro Esperanza.\n"
+    "La solicitud es revisada por la directiva y el certificado se firma en la sede."
+)
+REQUISITOS_CERTIFICADO_PENDIENTES = (
+    "Adjunta un documento que permita revisar tu domicilio. La directiva confirmará "
+    "si el antecedente es suficiente durante la revisión de la solicitud."
+)
+REQUISITOS_CERTIFICADO_SIN_ADJUNTOS = (
+    "La directiva confirmará qué documentos presentar y cómo entregarlos durante la "
+    "revisión. Este formulario no recibe archivos."
+)
+
+
 CONFIG_POR_DEFECTO = {
     "socios_inscritos": "2400",
     "mision": (
@@ -233,13 +269,12 @@ CONFIG_POR_DEFECTO = {
     "whatsapp_grupo": "",
     "facebook": "",
     "instagram": "",
-    "requisitos_certificado": (
-        "Cédula de identidad vigente del solicitante.\n"
-        "Documento que acredite domicilio en el sector (boleta de servicios, contrato de "
-        "arriendo u otro).\n"
-        "Ser residente del territorio de la Junta de Vecinos N.° 2 Cerro Esperanza.\n"
-        "La solicitud es revisada por la directiva y el certificado se firma en la sede."
-    ),
+    "requisitos_certificado": REQUISITOS_CERTIFICADO_PENDIENTES,
+    "aviso_privacidad": "",
+    "aviso_uso": "",
+    "horario_sede_inicio": "09:00",
+    "horario_sede_fin": "21:00",
+    "coordinador_crear_vecinos": "0",
     "plan_maestro_intro": (
         "El plan maestro reúne lo que la junta de vecinos quiere lograr en el cerro: "
         "los proyectos que están en marcha hoy y los que se postularán en los próximos años."
@@ -359,6 +394,49 @@ def _migrar_esquema():
                 limpia = re.sub(r"\s*NOT NULL", "", limpia, flags=re.IGNORECASE)
             db.execute(f"ALTER TABLE {tabla} ADD COLUMN {nombre} {limpia}")
             db.commit()
+
+    codigos = {
+        fila["codigo_seguimiento"]
+        for fila in consultar(
+            "SELECT codigo_seguimiento FROM certificados WHERE codigo_seguimiento != ''"
+        )
+    }
+    for fila in consultar(
+        "SELECT id FROM certificados WHERE codigo_seguimiento IS NULL OR codigo_seguimiento = ''"
+    ):
+        codigo = secrets.token_hex(12).upper()
+        while codigo in codigos:
+            codigo = secrets.token_hex(12).upper()
+        db.execute(
+            "UPDATE certificados SET codigo_seguimiento = ? WHERE id = ?",
+            (codigo, fila["id"]),
+        )
+        codigos.add(codigo)
+    db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_certificados_codigo_seguimiento "
+        "ON certificados (codigo_seguimiento) WHERE codigo_seguimiento != ''"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_certificados_usuario_id ON certificados (usuario_id)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_reservas_usuario_id ON reservas (usuario_id)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_usuarios_aprobacion "
+        "ON usuarios (rol, estado_aprobacion)"
+    )
+    db.commit()
+
+    db.execute(
+        "UPDATE config SET valor = ? WHERE clave = 'requisitos_certificado' AND valor = ?",
+        (REQUISITOS_CERTIFICADO_PENDIENTES, REQUISITOS_CERTIFICADO_ANTERIORES),
+    )
+    db.execute(
+        "UPDATE config SET valor = ? WHERE clave = 'requisitos_certificado' AND valor = ?",
+        (REQUISITOS_CERTIFICADO_PENDIENTES, REQUISITOS_CERTIFICADO_SIN_ADJUNTOS),
+    )
+    db.commit()
 
     # La versión anterior guardaba estos datos en otras tablas.
     if _tabla_existe("movimientos_rendicion") and not consultar(

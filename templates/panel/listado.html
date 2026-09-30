@@ -22,6 +22,8 @@
               {% set valor = fila[campo] %}
               {% if campo in ('publicado', 'activo', 'aprobado') %}
                 {{ 'Sí' if valor else 'No' }}
+              {% elif campo == 'estado_aprobacion' %}
+                <span class="badge-estado {{ valor|clase_estado }}">{{ valor }}</span>
               {% elif campo == 'dia_semana' %}
                 {{ dias_semana[valor] }}
               {% elif campo == 'monto' %}

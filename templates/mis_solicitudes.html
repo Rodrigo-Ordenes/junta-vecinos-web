@@ -4,15 +4,6 @@
 <div class="container my-4 my-md-5">
   <h1 class="section-title">Hola, {{ usuario.nombre }}</h1>
 
-  {% if not usuario.email %}
-    <div class="caja mb-4">
-      <p class="mb-0">
-        Tu cuenta no tiene un correo registrado, así que aún no podemos mostrarte tus solicitudes.
-        Pídele a la directiva que agregue tu correo, o escríbenos desde <a href="{{ url_for('contacto') }}">Contacto</a>.
-      </p>
-    </div>
-  {% endif %}
-
   <h2 class="h4">Mis reservas de la sede</h2>
   <div class="table-responsive mb-4">
     <table class="table align-middle">
@@ -26,29 +17,29 @@
             <td><span class="badge-estado {{ r.estado|clase_estado }}">{{ r.estado }}</span></td>
           </tr>
         {% else %}
-          <tr><td colspan="4">Todavía no tienes reservas registradas con tu correo.</td></tr>
+          <tr><td colspan="4">Todavía no tienes reservas enviadas desde esta cuenta.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
-  <h2 class="h4">Mis certificados de residencia</h2>
-  <div class="table-responsive">
-    <table class="table align-middle">
-      <thead><tr><th>N.°</th><th>Fecha</th><th>Estado</th><th>Observación</th></tr></thead>
-      <tbody>
+  <div class="caja">
+    <h2 class="h5">Certificado de residencia</h2>
+    {% if certificados %}
+      <p>Tus solicitudes asociadas a esta cuenta:</p>
+      <ul class="list-unstyled mb-3">
         {% for c in certificados %}
-          <tr>
-            <td>{{ c.id }}</td>
-            <td>{{ c.fecha_solicitud|fecha_corta }}</td>
-            <td><span class="badge-estado {{ c.estado|clase_estado }}">{{ c.estado }}</span></td>
-            <td>{{ c.observacion }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="4">Todavía no tienes solicitudes registradas con tu correo.</td></tr>
+          <li class="certificado-solicitud-row">
+            <span>Enviada el {{ c.fecha_solicitud|fecha_corta }}</span>
+            <span class="badge-estado {{ c.estado|clase_estado }}">{{ c.estado }}</span>
+          </li>
         {% endfor %}
-      </tbody>
-    </table>
+      </ul>
+    {% else %}
+      <p>Aquí aparecerá el estado de los certificados que envíes con esta cuenta.</p>
+    {% endif %}
+    <p class="small text-muted">También puedes consultar una solicitud sin iniciar sesión con el código privado que recibiste al enviarla.</p>
+    <a class="btn btn-outline-primary" href="{{ url_for('estado_certificado') }}">Consultar con mi código</a>
   </div>
 </div>
 {% endblock %}

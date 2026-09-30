@@ -23,6 +23,14 @@
           {% if s.email %} · {{ s.email }}{% endif %}
           · {{ s.fecha_solicitud|fecha_corta }}
         </p>
+        <p class="small mb-1"><strong>Código privado para la persona:</strong>
+          <span class="codigo-seguimiento">{{ s.codigo_seguimiento }}</span>
+        </p>
+        {% if s.archivo_domicilio %}
+          <p class="small mb-1"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=s.archivo_domicilio) }}">Ver documento de domicilio</a></p>
+        {% else %}
+          <p class="small text-muted mb-1">No se adjuntó documento.</p>
+        {% endif %}
         {% if s.motivo %}<p class="small text-muted mb-0">Motivo: {{ s.motivo }}</p>{% endif %}
       </div>
       <span class="badge-estado {{ s.estado|clase_estado }}">{{ s.estado }}</span>

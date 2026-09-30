@@ -7,9 +7,14 @@ perfiles: administrador, coordinador y vecino.
 """
 
 import os
+import calendar
+import secrets
+import sqlite3
+import shutil
 import unicodedata
 from datetime import date, datetime, timedelta
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask,
@@ -41,6 +46,11 @@ from db import (
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 CARPETA_SUBIDAS = os.path.join(BASE_DIR, "static", "uploads")
+CARPETA_COMPROBANTES_PRIVADOS = os.path.join(
+    BASE_DIR, "instance", "comprobantes_privados"
+)
+ARCHIVO_PRIVADO_PREFIX = "privado-"
+ARCHIVO_CERTIFICADO_PREFIX = "privado-cert-"
 EXTENSIONES_PERMITIDAS = {
     "pdf", "doc", "docx", "xls", "xlsx", "odt", "ods",
     "jpg", "jpeg", "png", "webp", "gif",
@@ -53,6 +63,8 @@ app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "esperanza2026")
 app.config["COORD_USER"] = os.environ.get("COORD_USER", "coordinador")
 app.config["COORD_PASSWORD"] = os.environ.get("COORD_PASSWORD", "esperanza2026")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por archivo
+app.config["UPLOAD_FOLDER"] = CARPETA_SUBIDAS
+app.config["PRIVATE_UPLOAD_FOLDER"] = CARPETA_COMPROBANTES_PRIVADOS
 app.teardown_appcontext(base.close_db)
 
 os.makedirs(CARPETA_SUBIDAS, exist_ok=True)
@@ -65,6 +77,12 @@ MESES = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
+ZONA_SANTIAGO = ZoneInfo("America/Santiago")
+
+
+def fecha_hoy():
+    """Fecha civil de Chile, independiente de la zona horaria del servidor."""
+    return datetime.now(ZONA_SANTIAGO).date()
 
 
 def a_fecha(valor):
@@ -120,11 +138,22 @@ app.jinja_env.filters["moneda"] = moneda
 app.jinja_env.filters["solo_digitos"] = solo_digitos
 
 
+def es_archivo_privado(nombre):
+    return str(nombre or "").startswith(ARCHIVO_PRIVADO_PREFIX)
+
+
+app.jinja_env.globals["es_archivo_privado"] = es_archivo_privado
+
+
 def usuario_actual():
     uid = session.get("usuario_id")
     if not uid:
         return None
-    return consultar("SELECT * FROM usuarios WHERE id = ? AND activo = 1", (uid,), uno=True)
+    return consultar(
+        "SELECT * FROM usuarios WHERE id = ? AND activo = 1 "
+        "AND estado_aprobacion = 'Aprobada'",
+        (uid,), uno=True,
+    )
 
 
 def puede(recurso, usuario=None):
@@ -134,6 +163,8 @@ def puede(recurso, usuario=None):
     if usuario["rol"] == "administrador":
         return True
     if usuario["rol"] == "coordinador":
+        if recurso == "crear_vecinos":
+            return obtener_config()["coordinador_crear_vecinos"] == "1"
         return recurso in PERMISOS_COORDINADOR
     return False
 
@@ -164,19 +195,89 @@ def permiso_requerido(recurso):
     return decorador
 
 
-def guardar_archivo(campo):
+def carpeta_subidas():
+    return app.config.get("UPLOAD_FOLDER", CARPETA_SUBIDAS)
+
+
+def carpeta_privada():
+    return app.config.get("PRIVATE_UPLOAD_FOLDER", CARPETA_COMPROBANTES_PRIVADOS)
+
+
+def guardar_archivo(campo, privado=False, prefijo_privado=None, extensiones=None):
     archivo = request.files.get(campo)
     if not archivo or not archivo.filename:
         return None
     nombre = secure_filename(archivo.filename)
     extension = nombre.rsplit(".", 1)[-1].lower() if "." in nombre else ""
-    if extension not in EXTENSIONES_PERMITIDAS:
+    extensiones_permitidas = extensiones or EXTENSIONES_PERMITIDAS
+    if extension not in extensiones_permitidas:
         flash(f"El archivo «{archivo.filename}» no es de un tipo permitido.", "error")
         return None
     marca = datetime.now().strftime("%Y%m%d%H%M%S")
-    nombre_final = f"{marca}_{nombre}"
-    archivo.save(os.path.join(CARPETA_SUBIDAS, nombre_final))
+    nombre_final = f"{marca}_{secrets.token_hex(6)}_{nombre}"
+    carpeta = carpeta_privada() if privado else carpeta_subidas()
+    os.makedirs(carpeta, exist_ok=True)
+    archivo.save(os.path.join(carpeta, nombre_final))
+    if privado:
+        return f"{prefijo_privado or ARCHIVO_PRIVADO_PREFIX}{nombre_final}"
     return nombre_final
+
+
+def migrar_comprobantes_privados():
+    """Mueve a almacenamiento no público los respaldos financieros ya cargados."""
+    os.makedirs(carpeta_privada(), exist_ok=True)
+    with app.app_context():
+        filas = consultar(
+            "SELECT archivo FROM rendiciones WHERE archivo IS NOT NULL AND archivo != '' "
+            "UNION SELECT archivo FROM documentos "
+            "WHERE categoria = 'Rendiciones de cuentas' AND archivo IS NOT NULL AND archivo != ''"
+        )
+        for fila in filas:
+            nombre = fila["archivo"]
+            if es_archivo_privado(nombre):
+                continue
+            if not nombre or os.path.basename(nombre) != nombre or nombre in (".", ".."):
+                continue
+
+            origen = os.path.join(carpeta_subidas(), nombre)
+            destino = os.path.join(carpeta_privada(), nombre)
+            if os.path.isfile(origen) and not os.path.islink(origen):
+                if not os.path.exists(destino):
+                    shutil.copy2(origen, destino)
+
+            privado = f"{ARCHIVO_PRIVADO_PREFIX}{nombre}"
+            ejecutar("UPDATE rendiciones SET archivo = ? WHERE archivo = ?", (privado, nombre))
+            ejecutar("UPDATE documentos SET archivo = ? WHERE archivo = ?", (privado, nombre))
+
+            quedan_referencias = consultar(
+                "SELECT 1 FROM rendiciones WHERE archivo = ? "
+                "UNION ALL SELECT 1 FROM documentos WHERE archivo = ? LIMIT 1",
+                (nombre, nombre), uno=True,
+            )
+            if not quedan_referencias and os.path.lexists(origen):
+                os.remove(origen)
+
+        ya_privados = consultar(
+            "SELECT archivo FROM rendiciones WHERE archivo LIKE 'privado-%' "
+            "UNION SELECT archivo FROM documentos WHERE archivo LIKE 'privado-%'"
+        )
+        for fila in ya_privados:
+            nombre = fila["archivo"][len(ARCHIVO_PRIVADO_PREFIX):]
+            if not nombre or os.path.basename(nombre) != nombre:
+                continue
+            origen = os.path.join(carpeta_subidas(), nombre)
+            destino = os.path.join(carpeta_privada(), nombre)
+            if os.path.lexists(origen):
+                if os.path.isfile(origen) and not os.path.islink(origen):
+                    if not os.path.exists(destino):
+                        shutil.copy2(origen, destino)
+                quedan_referencias = consultar(
+                    "SELECT 1 FROM rendiciones WHERE archivo = ? "
+                    "UNION ALL SELECT 1 FROM documentos WHERE archivo = ? LIMIT 1",
+                    (nombre, nombre), uno=True,
+                )
+                if not quedan_referencias:
+                    os.remove(origen)
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +303,8 @@ RECURSOS = {
                   ayuda="Una o dos líneas; es lo que se ve en la portada."),
             campo("contenido", "Texto completo", "textarea", requerido=True, filas=8),
             campo("fecha_evento", "Fecha de la actividad (opcional)", "fecha"),
-            campo("imagen_url", "Enlace a una imagen (opcional)"),
+            campo("imagen_url", "Imagen para la noticia (opcional)", "imagen",
+                  ayuda="Sube una imagen JPG, PNG o WebP, o pega un enlace directo."),
             campo("publicado", "Publicada en el sitio", "casilla", defecto=1),
         ],
         "extra_nuevo": {"fecha_publicacion": lambda: datetime.now().isoformat(timespec="seconds")},
@@ -320,10 +422,12 @@ RECURSOS = {
             campo("titulo", "Título", requerido=True),
             campo("periodo", "Período", requerido=True, ayuda="Por ejemplo: 2025 o Marzo 2026."),
             campo("descripcion", "Descripción", "textarea"),
-            campo("archivo", "Documento respaldo", "archivo"),
+            campo("archivo", "Comprobante o respaldo privado", "archivo",
+                  ayuda="Solo lo puede consultar la administración."),
         ],
         "extra_nuevo": {"fecha_publicacion": lambda: datetime.now().isoformat(timespec="seconds")},
         "movimientos": "rendicion_id",
+        "archivo_privado": True,
     },
     "usuarios": {
         "titulo": "Usuarios del sistema",
@@ -331,7 +435,7 @@ RECURSOS = {
         "tabla": "usuarios",
         "orden": "rol, nombre",
         "columnas": [("nombre", "Nombre"), ("usuario", "Usuario"), ("rol", "Perfil"),
-                     ("activo", "Activo")],
+                     ("estado_aprobacion", "Aprobación"), ("activo", "Activo")],
         "campos": [
             campo("nombre", "Nombre completo", requerido=True),
             campo("usuario", "Nombre de usuario", requerido=True),
@@ -347,24 +451,39 @@ RECURSOS = {
 }
 
 PERMISOS_COORDINADOR = {
-    "panel", "noticias", "documentos", "bloques", "servicios", "eventos",
-    "reservas", "certificados", "mensajes",
+    "panel", "reservas", "certificados", "servicios", "servicios_pendientes",
+    "avance_proyectos", "noticias", "documentos",
 }
 
 MENU_PANEL = [
-    ("reservas", "Reservas de la sede", "🗓️"),
-    ("certificados", "Certificados de residencia", "📄"),
-    ("mensajes", "Mensajes de vecinos", "✉️"),
-    ("noticias", "Noticias y actividades", "📢"),
-    ("bloques", "Actividades fijas de la sede", "🏛️"),
-    ("servicios", "Directorio de servicios", "🧰"),
-    ("documentos", "Documentos", "📚"),
-    ("proyectos", "Proyectos", "🏗️"),
-    ("rendiciones", "Rendiciones de cuentas", "💰"),
-    ("eventos", "Actividades con balance", "🎉"),
-    ("directiva", "Directiva", "👥"),
-    ("contenido", "Textos del sitio", "⚙️"),
-    ("usuarios", "Usuarios del sistema", "🔐"),
+    ("Solicitudes vecinales", [
+        ("reservas", "Reservas de la sede", "🗓️"),
+        ("certificados", "Certificados de residencia", "📄"),
+        ("servicios_pendientes", "Aprobar directorio", "🧰"),
+        ("mensajes", "Mensajes de vecinos", "✉️"),
+        ("servicios", "Directorio de servicios", "🧰"),
+    ]),
+    ("Información institucional", [
+        ("noticias", "Noticias y actividades", "📢"),
+        ("documentos", "Documentos", "📚"),
+        ("directiva", "Directiva", "👥"),
+        ("contenido", "Textos del sitio", "⚙️"),
+    ]),
+    ("Proyectos", [
+        ("proyectos", "Ficha de proyectos y presupuestos", "🏗️"),
+        ("avance_proyectos", "Avances de proyectos", "📈"),
+    ]),
+    ("Transparencia", [
+        ("rendiciones", "Rendiciones de cuentas", "💰"),
+        ("eventos", "Balances de actividades", "🎉"),
+    ]),
+    ("Configuración", [
+        ("bloques", "Actividades fijas de la sede", "🏛️"),
+        ("crear_vecinos", "Crear cuenta vecinal", "➕"),
+        ("permisos", "Permisos del coordinador", "🛡️"),
+        ("usuarios_pendientes", "Aprobar cuentas vecinales", "🛡️"),
+        ("usuarios", "Usuarios del sistema", "🔐"),
+    ]),
 ]
 
 
@@ -373,6 +492,11 @@ ENDPOINTS_ESPECIALES = {
     "certificados": "panel_certificados",
     "mensajes": "panel_mensajes",
     "contenido": "panel_contenido",
+    "avance_proyectos": "panel_avances_proyectos",
+    "usuarios_pendientes": "panel_usuarios_pendientes",
+    "crear_vecinos": "panel_crear_vecino",
+    "permisos": "panel_permisos_coordinador",
+    "servicios_pendientes": "panel_servicios_pendientes",
 }
 
 
@@ -394,16 +518,29 @@ def contexto_global():
         pendientes = (
             consultar("SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'", uno=True)["c"]
             + consultar("SELECT COUNT(*) c FROM certificados WHERE estado = 'Recibida'", uno=True)["c"]
-            + consultar("SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True)["c"]
             + consultar("SELECT COUNT(*) c FROM servicios WHERE aprobado = 0", uno=True)["c"]
         )
+        if puede("mensajes", usuario):
+            pendientes += consultar(
+                "SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True
+            )["c"]
+        if puede("usuarios", usuario):
+            pendientes += consultar(
+                "SELECT COUNT(*) c FROM usuarios WHERE rol = 'vecino' "
+                "AND estado_aprobacion = 'Pendiente'", uno=True
+            )["c"]
+    menu_visible = [
+        (categoria, [enlace for enlace in enlaces if puede(enlace[0], usuario)])
+        for categoria, enlaces in MENU_PANEL
+    ]
+    menu_visible = [(categoria, enlaces) for categoria, enlaces in menu_visible if enlaces]
     return {
         "conf": conf,
         "usuario": usuario,
         "puede": puede,
         "url_panel": url_panel,
-        "anio_actual": date.today().year,
-        "menu_panel": MENU_PANEL,
+        "anio_actual": fecha_hoy().year,
+        "menu_panel": menu_visible,
         "pendientes_panel": pendientes,
     }
 
@@ -411,16 +548,44 @@ def contexto_global():
 # ---------------------------------------------------------------------------
 # Sitio público
 # ---------------------------------------------------------------------------
+def proyectos_con_ultimo_avance(condiciones, parametros=(), orden="p.nombre"):
+    """Devuelve proyectos con su actualización de avance más reciente, si existe."""
+    where = " AND ".join(condiciones)
+    return consultar(
+        "SELECT p.*, a.porcentaje AS avance_porcentaje, a.detalle AS avance_detalle, "
+        "a.fecha_actualizacion AS avance_fecha "
+        "FROM proyectos p LEFT JOIN avances_proyecto a ON a.id = ("
+        "SELECT id FROM avances_proyecto WHERE proyecto_id = p.id ORDER BY id DESC LIMIT 1) "
+        f"WHERE {where} ORDER BY {orden}",
+        parametros,
+    )
+
+
+def historial_de_avances(proyecto_ids):
+    if not proyecto_ids:
+        return {}
+    marcadores = ", ".join("?" for _ in proyecto_ids)
+    filas = consultar(
+        "SELECT proyecto_id, porcentaje, detalle, fecha_actualizacion "
+        f"FROM avances_proyecto WHERE proyecto_id IN ({marcadores}) ORDER BY id DESC",
+        tuple(proyecto_ids),
+    )
+    historial = {}
+    for fila in filas:
+        historial.setdefault(fila["proyecto_id"], []).append(fila)
+    return historial
+
+
 @app.route("/")
 def index():
     noticias = consultar(
         "SELECT * FROM noticias WHERE publicado = 1 ORDER BY fecha_publicacion DESC LIMIT 3"
     )
-    proyectos = consultar(
-        "SELECT * FROM proyectos WHERE horizonte = 'Actual' "
-        "ORDER BY fecha_actualizacion DESC LIMIT 3"
+    proyectos = proyectos_con_ultimo_avance(
+        ["p.horizonte = 'Actual'"],
+        orden="COALESCE(a.id, 0) DESC, p.fecha_actualizacion DESC LIMIT 3",
     )
-    semana = semana_de(date.today())
+    semana = semana_de(fecha_hoy())
     return render_template(
         "index.html", noticias=noticias, proyectos=proyectos, semana=semana
     )
@@ -447,27 +612,30 @@ def noticia_detalle(noticia_id):
 @app.route("/proyectos")
 def proyectos():
     estado = request.args.get("estado") or ""
-    sql = "SELECT * FROM proyectos WHERE horizonte = 'Actual'"
+    condiciones = ["p.horizonte = 'Actual'"]
     params = []
     if estado in ESTADOS_PROYECTO:
-        sql += " AND estado = ?"
+        condiciones.append("p.estado = ?")
         params.append(estado)
-    sql += " ORDER BY fecha_actualizacion DESC"
+    lista = proyectos_con_ultimo_avance(
+        condiciones, params, "COALESCE(a.id, 0) DESC, p.fecha_actualizacion DESC"
+    )
     return render_template(
         "proyectos.html",
-        proyectos=consultar(sql, params),
+        proyectos=lista,
         estados=ESTADOS_PROYECTO,
         filtro_estado=estado,
+        historial_por_proyecto=historial_de_avances([p["id"] for p in lista]),
     )
 
 
 @app.route("/plan-maestro")
 def plan_maestro():
-    actuales = consultar(
-        "SELECT * FROM proyectos WHERE horizonte = 'Actual' ORDER BY eje, nombre"
+    actuales = proyectos_con_ultimo_avance(
+        ["p.horizonte = 'Actual'"], orden="p.eje, p.nombre"
     )
-    futuros = consultar(
-        "SELECT * FROM proyectos WHERE horizonte = 'Futuro' ORDER BY eje, nombre"
+    futuros = proyectos_con_ultimo_avance(
+        ["p.horizonte = 'Futuro'"], orden="p.eje, p.nombre"
     )
     ejes = sorted({(p["eje"] or "General") for p in list(actuales) + list(futuros)})
     return render_template(
@@ -483,56 +651,136 @@ def totales_de(movimientos):
 
 @app.route("/transparencia")
 def transparencia():
+    usuario = usuario_actual()
     rendiciones = []
-    for r in consultar("SELECT * FROM rendiciones ORDER BY fecha_publicacion DESC"):
-        movs = consultar(
-            "SELECT * FROM movimientos WHERE rendicion_id = ? ORDER BY fecha", (r["id"],)
-        )
-        rendiciones.append({"datos": r, "movimientos": movs, "totales": totales_de(movs)})
-
     eventos = []
-    for e in consultar("SELECT * FROM eventos WHERE publicado = 1 ORDER BY fecha DESC"):
-        movs = consultar(
-            "SELECT * FROM movimientos WHERE evento_id = ? ORDER BY fecha", (e["id"],)
-        )
-        eventos.append({"datos": e, "movimientos": movs, "totales": totales_de(movs)})
+    documentos_financieros = []
+    if usuario:
+        for r in consultar("SELECT * FROM rendiciones ORDER BY fecha_publicacion DESC"):
+            movs = consultar(
+                "SELECT * FROM movimientos WHERE rendicion_id = ? ORDER BY fecha", (r["id"],)
+            )
+            rendiciones.append({"datos": r, "movimientos": movs, "totales": totales_de(movs)})
 
-    documentos = consultar(
-        "SELECT * FROM documentos WHERE categoria = 'Rendiciones de cuentas' "
-        "ORDER BY fecha_publicacion DESC"
-    )
+        for e in consultar("SELECT * FROM eventos WHERE publicado = 1 ORDER BY fecha DESC"):
+            movs = consultar(
+                "SELECT * FROM movimientos WHERE evento_id = ? ORDER BY fecha", (e["id"],)
+            )
+            eventos.append({"datos": e, "movimientos": movs, "totales": totales_de(movs)})
+        documentos_financieros = consultar(
+            "SELECT * FROM documentos WHERE categoria = 'Rendiciones de cuentas' "
+            "ORDER BY fecha_publicacion DESC"
+        )
+
     return render_template(
-        "transparencia.html", rendiciones=rendiciones, eventos=eventos, documentos=documentos
+        "transparencia.html", rendiciones=rendiciones, eventos=eventos,
+        documentos_financieros=documentos_financieros, usuario=usuario,
     )
 
 
 @app.route("/documentos")
 def documentos():
     categoria = request.args.get("categoria") or ""
-    sql = "SELECT * FROM documentos"
+    categorias_publicas = [
+        c for c in CATEGORIAS_DOCUMENTO if c != "Rendiciones de cuentas"
+    ]
+    if categoria == "Rendiciones de cuentas":
+        abort(404)
+    if categoria not in categorias_publicas:
+        categoria = ""
+    sql = (
+        "SELECT * FROM documentos WHERE categoria != 'Rendiciones de cuentas' "
+        "AND (archivo IS NULL OR archivo = '' OR archivo NOT LIKE 'privado-%')"
+    )
     params = []
-    if categoria in CATEGORIAS_DOCUMENTO:
-        sql += " WHERE categoria = ?"
+    if categoria:
+        sql += " AND categoria = ?"
         params.append(categoria)
     sql += " ORDER BY categoria, fecha_publicacion DESC"
     return render_template(
         "documentos.html",
         documentos=consultar(sql, params),
-        categorias=CATEGORIAS_DOCUMENTO,
+        categorias=categorias_publicas,
         filtro_categoria=categoria,
     )
 
 
 @app.route("/archivos/<path:nombre>")
 def archivo(nombre):
-    return send_from_directory(CARPETA_SUBIDAS, nombre)
+    if nombre.startswith(ARCHIVO_CERTIFICADO_PREFIX):
+        if not puede("certificados"):
+            abort(404)
+        nombre_privado = nombre[len(ARCHIVO_CERTIFICADO_PREFIX):]
+    elif es_archivo_privado(nombre):
+        if not usuario_actual():
+            abort(404)
+        nombre_privado = nombre[len(ARCHIVO_PRIVADO_PREFIX):]
+    else:
+        return send_from_directory(carpeta_subidas(), nombre)
+
+    respuesta = send_from_directory(
+        carpeta_privada(), nombre_privado, as_attachment=True
+    )
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+    respuesta.headers["Referrer-Policy"] = "no-referrer"
+    return respuesta
 
 
 # ---------------------------------------------------------------------------
 # Sede vecinal: calendario y reservas
 # ---------------------------------------------------------------------------
-def semana_de(dia_referencia):
-    """Devuelve la lista de 7 días (lunes a domingo) con su ocupación."""
+def minutos_de_hora(valor):
+    try:
+        horas, minutos = str(valor).split(":", 1)
+        horas, minutos = int(horas), int(minutos[:2])
+        if 0 <= horas <= 23 and 0 <= minutos <= 59:
+            return horas * 60 + minutos
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def hora_desde_minutos(valor):
+    return f"{valor // 60:02d}:{valor % 60:02d}"
+
+
+def intervalos_disponibles(dia, actividades, apertura, cierre):
+    """Resta actividades y reservas del horario de apertura configurado."""
+    inicio = minutos_de_hora(apertura)
+    fin = minutos_de_hora(cierre)
+    hoy = fecha_hoy()
+    if inicio is None or fin is None or fin <= inicio or dia < hoy:
+        return []
+    if dia == hoy:
+        ahora = datetime.now(ZONA_SANTIAGO)
+        inicio = max(inicio, ahora.hour * 60 + ahora.minute + bool(ahora.second))
+
+    ocupados = []
+    for actividad in actividades:
+        desde = minutos_de_hora(actividad["hora_inicio"])
+        hasta = minutos_de_hora(actividad["hora_fin"])
+        if desde is None or hasta is None or hasta <= desde:
+            continue
+        desde, hasta = max(inicio, desde), min(fin, hasta)
+        if hasta > desde:
+            ocupados.append((desde, hasta))
+    ocupados.sort()
+
+    libres = []
+    cursor = inicio
+    for desde, hasta in ocupados:
+        if desde > cursor:
+            libres.append((hora_desde_minutos(cursor), hora_desde_minutos(desde)))
+        cursor = max(cursor, hasta)
+    if cursor < fin:
+        libres.append((hora_desde_minutos(cursor), hora_desde_minutos(fin)))
+    return libres
+
+
+def semana_de(dia_referencia, conf=None):
+    """Devuelve la semana de lunes a domingo, con actividades y horas libres."""
+    conf = conf or obtener_config()
     lunes = dia_referencia - timedelta(days=dia_referencia.weekday())
     bloques = consultar("SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY hora_inicio")
     domingo = lunes + timedelta(days=6)
@@ -575,26 +823,67 @@ def semana_de(dia_referencia):
                 "nombre": DIAS_SEMANA[i],
                 "actividades": actividades,
                 "libre": not actividades,
-                "pasado": dia < date.today(),
-                "hoy": dia == date.today(),
+                "horarios": intervalos_disponibles(
+                    dia, actividades,
+                    conf.get("horario_sede_inicio", "09:00"),
+                    conf.get("horario_sede_fin", "21:00"),
+                ),
+                "pasado": dia < fecha_hoy(),
+                "hoy": dia == fecha_hoy(),
             }
         )
     return {"lunes": lunes, "domingo": domingo, "dias": dias}
 
 
+def fecha_del_mes(valor):
+    try:
+        anio, mes = (int(parte) for parte in str(valor).split("-", 1))
+        return date(anio, mes, 1)
+    except (TypeError, ValueError):
+        hoy = fecha_hoy()
+        return date(hoy.year, hoy.month, 1)
+
+
 @app.route("/sede")
 def sede():
-    referencia = a_fecha(request.args.get("semana")) or date.today()
-    semana = semana_de(referencia)
+    conf = obtener_config()
+    vista_mes = request.args.get("vista") == "mes" or bool(request.args.get("mes"))
+    solo_disponibles = request.args.get("disponibles") == "1"
+    referencia = a_fecha(request.args.get("semana")) or fecha_hoy()
+    semana = semana_de(referencia, conf)
+    mes_ref = fecha_del_mes(
+        request.args.get("mes") or referencia.strftime("%Y-%m")
+    )
+    semanas_mes = []
+    if vista_mes:
+        semanas_mes = [
+            semana_de(fechas[0], conf)["dias"]
+            for fechas in calendar.Calendar(firstweekday=0).monthdatescalendar(
+                mes_ref.year, mes_ref.month
+            )
+        ]
+    dias_visibles = semana["dias"]
+    if solo_disponibles:
+        dias_visibles = [dia for dia in dias_visibles if dia["horarios"]]
     return render_template(
         "sede.html",
         semana=semana,
+        dias_visibles=dias_visibles,
+        vista_mes=vista_mes,
+        semanas_mes=semanas_mes,
+        mes_ref=mes_ref,
+        mes_nombre=MESES[mes_ref.month - 1].capitalize(),
+        mes_anterior=(mes_ref.replace(day=1) - timedelta(days=1)).strftime("%Y-%m"),
+        mes_siguiente=(mes_ref.replace(day=28) + timedelta(days=4)).replace(day=1).strftime("%Y-%m"),
+        solo_disponibles=solo_disponibles,
         anterior=(semana["lunes"] - timedelta(days=7)).isoformat(),
         siguiente=(semana["lunes"] + timedelta(days=7)).isoformat(),
         bloques=consultar(
             "SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY dia_semana, hora_inicio"
         ),
         dias_semana=DIAS_SEMANA,
+        horario_inicio=conf.get("horario_sede_inicio", "09:00"),
+        horario_fin=conf.get("horario_sede_fin", "21:00"),
     )
 
 
@@ -603,6 +892,8 @@ def reservar():
     usuario = usuario_actual()
     datos = {
         "fecha": request.args.get("fecha", ""),
+        "hora_inicio": request.args.get("hora_inicio", ""),
+        "hora_fin": request.args.get("hora_fin", ""),
         "solicitante": usuario["nombre"] if usuario else "",
         "email": (usuario["email"] if usuario else "") or "",
     }
@@ -613,14 +904,28 @@ def reservar():
         faltan = [c for c in ("fecha", "hora_inicio", "hora_fin", "actividad",
                               "solicitante", "telefono") if not datos[c]]
         fecha = a_fecha(datos["fecha"])
+        hora_inicio = minutos_de_hora(datos["hora_inicio"])
+        hora_fin = minutos_de_hora(datos["hora_fin"])
+        conf = obtener_config()
+        apertura = minutos_de_hora(conf.get("horario_sede_inicio", "09:00"))
+        cierre = minutos_de_hora(conf.get("horario_sede_fin", "21:00"))
         if faltan:
             flash("Completa los datos obligatorios del formulario.", "error")
         elif not fecha:
             flash("La fecha no es válida.", "error")
-        elif fecha < date.today():
+        elif fecha < fecha_hoy():
             flash("No se puede reservar una fecha que ya pasó.", "error")
-        elif datos["hora_fin"] <= datos["hora_inicio"]:
+        elif hora_inicio is None or hora_fin is None:
+            flash("Elige horas válidas para la reserva.", "error")
+        elif hora_fin <= hora_inicio:
             flash("La hora de término debe ser posterior a la de inicio.", "error")
+        elif (apertura is not None and hora_inicio < apertura) or (
+            cierre is not None and hora_fin > cierre
+        ):
+            flash(
+                f"La sede recibe reservas entre {conf.get('horario_sede_inicio', '09:00')} "
+                f"y {conf.get('horario_sede_fin', '21:00')}.", "error"
+            )
         elif hay_choque(fecha, datos["hora_inicio"], datos["hora_fin"]):
             flash(
                 "Ese horario ya está ocupado en la sede. Revisa el calendario y elige otro.",
@@ -629,14 +934,15 @@ def reservar():
         else:
             ejecutar(
                 "INSERT INTO reservas (fecha, hora_inicio, hora_fin, actividad, solicitante, "
-                "telefono, email, personas, estado, observacion, revisada_por, fecha_solicitud) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, '', ?)",
+                "telefono, email, personas, estado, observacion, revisada_por, fecha_solicitud, "
+                "usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, '', ?, ?)",
                 (
                     fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
                     datos["actividad"], datos["solicitante"], datos["telefono"],
                     datos["email"], int(datos["personas"] or 0) or None,
                     datos["observacion"],
                     datetime.now().isoformat(timespec="seconds"),
+                    usuario["id"] if usuario else None,
                 ),
             )
             flash(
@@ -731,44 +1037,143 @@ def inscribir_servicio():
 @app.route("/certificado-residencia", methods=["GET", "POST"])
 def certificado():
     usuario = usuario_actual()
+    crear_cuenta = False
     datos = {"nombre": usuario["nombre"] if usuario else "",
              "email": (usuario["email"] if usuario else "") or ""}
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip() for k in
                  ("nombre", "rut", "direccion", "telefono", "email", "motivo")}
-        if not datos["nombre"] or not datos["rut"] or not datos["direccion"]:
+        crear_cuenta = not usuario and request.form.get("crear_cuenta") == "on"
+        nuevo_usuario = (request.form.get("nuevo_usuario") or "").strip()
+        nueva_clave = request.form.get("nueva_clave") or ""
+        confirmar_clave = request.form.get("confirmar_clave") or ""
+        documento = request.files.get("documento_domicilio")
+        extension_documento = ""
+        if documento and documento.filename:
+            nombre_documento = secure_filename(documento.filename)
+            extension_documento = (
+                nombre_documento.rsplit(".", 1)[-1].lower()
+                if "." in nombre_documento else ""
+            )
+        if request.form.get("entiendo_revision") != "on":
+            flash("Confirma que entiendes quién revisará los datos y el documento.", "error")
+        elif not documento or not documento.filename:
+            flash("Adjunta un documento para acreditar tu domicilio.", "error")
+        elif extension_documento not in {"pdf", "jpg", "jpeg", "png", "webp"}:
+            flash("El documento debe ser PDF, JPG, PNG o WebP.", "error")
+        elif not datos["nombre"] or not datos["rut"] or not datos["direccion"]:
             flash("Completa tu nombre, RUT y dirección.", "error")
-        else:
-            folio = ejecutar(
-                "INSERT INTO certificados (nombre, rut, direccion, telefono, email, motivo, "
-                "estado, observacion, fecha_solicitud) VALUES (?, ?, ?, ?, ?, ?, 'Recibida', '', ?)",
-                (
-                    datos["nombre"], datos["rut"], datos["direccion"], datos["telefono"],
-                    datos["email"], datos["motivo"],
-                    datetime.now().isoformat(timespec="seconds"),
-                ),
-            )
+        elif crear_cuenta and (
+            len(nuevo_usuario) < 3 or len(nueva_clave) < 8
+        ):
             flash(
-                f"Solicitud registrada con el número {folio}. Anótalo: con ese número puedes "
-                "consultar el estado de tu certificado.",
-                "success",
+                "Para crear la cuenta, ingresa un usuario de al menos 3 caracteres "
+                "y una clave de al menos 8 caracteres.",
+                "error",
             )
-            return redirect(url_for("estado_certificado", folio=folio))
+        elif crear_cuenta and nueva_clave != confirmar_clave:
+            flash("Las claves no coinciden.", "error")
+        elif crear_cuenta and consultar(
+            "SELECT id FROM usuarios WHERE usuario = ?", (nuevo_usuario,), uno=True
+        ):
+            flash("Ese nombre de usuario ya existe. Elige otro.", "error")
+        else:
+            codigo = secrets.token_hex(12).upper()
+            while consultar(
+                "SELECT id FROM certificados WHERE codigo_seguimiento = ?", (codigo,), uno=True
+            ):
+                codigo = secrets.token_hex(12).upper()
+            archivo_domicilio = guardar_archivo(
+                "documento_domicilio", privado=True,
+                prefijo_privado=ARCHIVO_CERTIFICADO_PREFIX,
+                extensiones={"pdf", "jpg", "jpeg", "png", "webp"},
+            )
+            if not archivo_domicilio:
+                return render_template(
+                    "certificado.html", datos=datos, crear_cuenta=crear_cuenta,
+                    requisitos=[r.strip() for r in obtener_config()["requisitos_certificado"].split("\n") if r.strip()],
+                )
+            db = base.get_db()
+            try:
+                usuario_id = usuario["id"] if usuario else None
+                if crear_cuenta:
+                    cursor = db.execute(
+                        "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
+                        "estado_aprobacion, fecha_creacion) "
+                        "VALUES (?, ?, ?, ?, 'vecino', 0, 'Pendiente', ?)",
+                        (
+                            datos["nombre"], nuevo_usuario, datos["email"],
+                            generate_password_hash(nueva_clave),
+                            datetime.now().isoformat(timespec="seconds"),
+                        ),
+                    )
+                    usuario_id = cursor.lastrowid
+                db.execute(
+                    "INSERT INTO certificados (nombre, rut, direccion, telefono, email, motivo, "
+                    "estado, observacion, fecha_solicitud, codigo_seguimiento, usuario_id, "
+                    "archivo_domicilio) VALUES (?, ?, ?, ?, ?, ?, 'Recibida', '', ?, ?, ?, ?)",
+                    (
+                        datos["nombre"], datos["rut"], datos["direccion"], datos["telefono"],
+                        datos["email"], datos["motivo"],
+                        datetime.now().isoformat(timespec="seconds"), codigo, usuario_id,
+                        archivo_domicilio,
+                    ),
+                )
+                db.commit()
+            except sqlite3.IntegrityError:
+                db.rollback()
+                nombre_guardado = archivo_domicilio[len(ARCHIVO_CERTIFICADO_PREFIX):]
+                try:
+                    os.remove(os.path.join(carpeta_privada(), nombre_guardado))
+                except FileNotFoundError:
+                    pass
+                flash(
+                    "No pudimos guardar la solicitud. Revisa si el usuario elegido ya existe "
+                    "e inténtalo nuevamente.",
+                    "error",
+                )
+                return redirect(url_for("certificado"))
+            if crear_cuenta:
+                flash(
+                    "Tu solicitud de certificado fue recibida. La cuenta quedó pendiente "
+                    "de aprobación por la directiva; podrás ingresar cuando la aprueben.",
+                    "info",
+                )
+            session["codigo_seguimiento_reciente"] = codigo
+            return redirect(url_for("estado_certificado"))
     requisitos = [
         r.strip() for r in obtener_config()["requisitos_certificado"].split("\n") if r.strip()
     ]
-    return render_template("certificado.html", datos=datos, requisitos=requisitos)
+    return render_template(
+        "certificado.html", datos=datos, crear_cuenta=crear_cuenta, requisitos=requisitos
+    )
 
 
-@app.route("/certificado-residencia/estado")
+@app.route("/certificado-residencia/estado", methods=["GET", "POST"])
 def estado_certificado():
-    folio = request.args.get("folio", type=int)
+    codigo_nuevo = session.pop("codigo_seguimiento_reciente", "")
+    codigo = (
+        (request.form.get("codigo") or "").strip().upper()
+        if request.method == "POST"
+        else codigo_nuevo
+    )
     solicitud = None
-    if folio:
-        solicitud = consultar("SELECT * FROM certificados WHERE id = ?", (folio,), uno=True)
+    if codigo:
+        solicitud = consultar(
+            "SELECT codigo_seguimiento, estado, fecha_solicitud FROM certificados "
+            "WHERE codigo_seguimiento = ?",
+            (codigo,), uno=True,
+        )
         if not solicitud:
-            flash("No encontramos una solicitud con ese número.", "error")
-    return render_template("estado_certificado.html", solicitud=solicitud, folio=folio)
+            flash("No encontramos una solicitud con ese código.", "error")
+    respuesta = app.make_response(render_template(
+        "estado_certificado.html", solicitud=solicitud, codigo=codigo,
+        codigo_nuevo=codigo_nuevo,
+    ))
+    respuesta.headers["Cache-Control"] = "no-store"
+    respuesta.headers["Referrer-Policy"] = "no-referrer"
+    respuesta.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return respuesta
 
 
 # ---------------------------------------------------------------------------
@@ -810,15 +1215,21 @@ def login():
         nombre_usuario = (request.form.get("usuario") or "").strip()
         clave = request.form.get("clave") or ""
         fila = consultar(
-            "SELECT * FROM usuarios WHERE usuario = ? AND activo = 1", (nombre_usuario,), uno=True
+            "SELECT * FROM usuarios WHERE usuario = ?", (nombre_usuario,), uno=True
         )
         if fila and check_password_hash(fila["clave_hash"], clave):
-            session["usuario_id"] = fila["id"]
-            destino = request.args.get("next")
-            if not destino or not destino.startswith("/"):
-                destino = url_for("panel") if fila["rol"] != "vecino" else url_for("mis_solicitudes")
-            return redirect(destino)
-        flash("Usuario o clave incorrectos.", "error")
+            if fila["estado_aprobacion"] == "Pendiente":
+                flash("Tu cuenta está pendiente de aprobación por la directiva.", "info")
+            elif not fila["activo"]:
+                flash("La cuenta está desactivada. Contacta a la directiva.", "error")
+            else:
+                session["usuario_id"] = fila["id"]
+                destino = request.args.get("next")
+                if not destino or not destino.startswith("/"):
+                    destino = url_for("panel") if fila["rol"] != "vecino" else url_for("mis_solicitudes")
+                return redirect(destino)
+        else:
+            flash("Usuario o clave incorrectos.", "error")
     return render_template("login.html")
 
 
@@ -829,21 +1240,32 @@ def registro():
         datos = {k: (request.form.get(k) or "").strip()
                  for k in ("nombre", "usuario", "email")}
         clave = request.form.get("clave") or ""
-        if not datos["nombre"] or not datos["usuario"] or len(clave) < 6:
-            flash("Completa tu nombre, un usuario y una clave de al menos 6 caracteres.", "error")
+        confirmar_clave = request.form.get("confirmar_clave") or ""
+        if not datos["nombre"] or len(datos["usuario"]) < 3 or len(clave) < 8:
+            flash(
+                "Completa tu nombre, un usuario de al menos 3 caracteres "
+                "y una clave de al menos 8 caracteres.",
+                "error",
+            )
+        elif clave != confirmar_clave:
+            flash("Las claves no coinciden.", "error")
         elif consultar("SELECT id FROM usuarios WHERE usuario = ?", (datos["usuario"],), uno=True):
             flash("Ese nombre de usuario ya existe, elige otro.", "error")
         else:
-            uid = ejecutar(
+            ejecutar(
                 "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
-                "fecha_creacion) VALUES (?, ?, ?, ?, 'vecino', 1, ?)",
+                "estado_aprobacion, fecha_creacion) "
+                "VALUES (?, ?, ?, ?, 'vecino', 0, 'Pendiente', ?)",
                 (datos["nombre"], datos["usuario"], datos["email"],
                  generate_password_hash(clave),
                  datetime.now().isoformat(timespec="seconds")),
             )
-            session["usuario_id"] = uid
-            flash("¡Bienvenido/a! Tu cuenta de vecino/a fue creada.", "success")
-            return redirect(url_for("mis_solicitudes"))
+            flash(
+                "Recibimos tu solicitud de cuenta. La directiva debe aprobarla antes "
+                "de que puedas ingresar.",
+                "info",
+            )
+            return redirect(url_for("login"))
     return render_template("registro.html", datos=datos)
 
 
@@ -857,13 +1279,15 @@ def logout():
 @login_requerido
 def mis_solicitudes():
     usuario = usuario_actual()
-    email = usuario["email"] or ""
     reservas = consultar(
-        "SELECT * FROM reservas WHERE email != '' AND email = ? ORDER BY fecha DESC", (email,)
-    ) if email else []
+        "SELECT * FROM reservas WHERE usuario_id = ? ORDER BY fecha DESC, hora_inicio",
+        (usuario["id"],),
+    )
     certificados = consultar(
-        "SELECT * FROM certificados WHERE email != '' AND email = ? ORDER BY id DESC", (email,)
-    ) if email else []
+        "SELECT estado, fecha_solicitud FROM certificados "
+        "WHERE usuario_id = ? ORDER BY fecha_solicitud DESC",
+        (usuario["id"],),
+    )
     return render_template(
         "mis_solicitudes.html", reservas=reservas, certificados=certificados
     )
@@ -884,18 +1308,182 @@ def panel():
         "certificados_pendientes": consultar(
             "SELECT COUNT(*) c FROM certificados WHERE estado IN ('Recibida', 'En revisión')",
             uno=True)["c"],
-        "mensajes_nuevos": consultar(
-            "SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True)["c"],
+        "mensajes_nuevos": (
+            consultar("SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True)["c"]
+            if puede("mensajes", usuario) else 0
+        ),
         "servicios_por_aprobar": consultar(
             "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0", uno=True)["c"],
+        "proyectos_en_ejecucion": consultar(
+            "SELECT COUNT(*) c FROM proyectos WHERE horizonte = 'Actual' "
+            "AND estado = 'En ejecución'", uno=True)["c"],
         "noticias": consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"],
         "proyectos": consultar("SELECT COUNT(*) c FROM proyectos", uno=True)["c"],
+        "usuarios_pendientes": (
+            consultar(
+                "SELECT COUNT(*) c FROM usuarios WHERE rol = 'vecino' "
+                "AND estado_aprobacion = 'Pendiente'",
+                uno=True,
+            )["c"] if puede("usuarios", usuario) else 0
+        ),
     }
     proximas = consultar(
         "SELECT * FROM reservas WHERE fecha >= ? AND estado = 'Aprobada' "
-        "ORDER BY fecha LIMIT 5", (date.today().isoformat(),)
+        "ORDER BY fecha LIMIT 5", (fecha_hoy().isoformat(),)
     )
     return render_template("panel/inicio.html", resumen=resumen, proximas=proximas)
+
+
+@app.route("/panel/usuarios-pendientes")
+@permiso_requerido("usuarios")
+def panel_usuarios_pendientes():
+    usuarios_pendientes = consultar(
+        "SELECT id, nombre, usuario, email, fecha_creacion FROM usuarios "
+        "WHERE rol = 'vecino' AND estado_aprobacion = 'Pendiente' ORDER BY fecha_creacion"
+    )
+    return render_template(
+        "panel/usuarios_pendientes.html", usuarios_pendientes=usuarios_pendientes
+    )
+
+
+@app.route("/panel/usuarios/<int:usuario_id>/aprobar", methods=["POST"])
+@permiso_requerido("usuarios")
+def panel_usuario_aprobar(usuario_id):
+    usuario = consultar(
+        "SELECT id FROM usuarios WHERE id = ? AND rol = 'vecino' "
+        "AND estado_aprobacion = 'Pendiente'",
+        (usuario_id,), uno=True,
+    )
+    if not usuario:
+        abort(404)
+    ejecutar(
+        "UPDATE usuarios SET estado_aprobacion = 'Aprobada', activo = 1 WHERE id = ?",
+        (usuario_id,),
+    )
+    flash("La cuenta vecinal fue aprobada y ya puede ingresar.", "success")
+    return redirect(url_for("panel_usuarios_pendientes"))
+
+
+@app.route("/panel/crear-vecino", methods=["GET", "POST"])
+@permiso_requerido("crear_vecinos")
+def panel_crear_vecino():
+    datos = {}
+    if request.method == "POST":
+        datos = {k: (request.form.get(k) or "").strip()
+                 for k in ("nombre", "usuario", "email")}
+        clave = request.form.get("clave") or ""
+        confirmar_clave = request.form.get("confirmar_clave") or ""
+        if not datos["nombre"] or len(datos["usuario"]) < 3 or len(clave) < 8:
+            flash("Ingresa el nombre, un usuario de 3 caracteres y una clave de 8 caracteres.", "error")
+        elif clave != confirmar_clave:
+            flash("Las claves no coinciden.", "error")
+        elif consultar("SELECT id FROM usuarios WHERE usuario = ?", (datos["usuario"],), uno=True):
+            flash("Ese nombre de usuario ya existe.", "error")
+        else:
+            actor = usuario_actual()
+            aprobado = actor["rol"] == "administrador"
+            ejecutar(
+                "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
+                "estado_aprobacion, fecha_creacion) VALUES (?, ?, ?, ?, 'vecino', ?, ?, ?)",
+                (
+                    datos["nombre"], datos["usuario"], datos["email"],
+                    generate_password_hash(clave), int(aprobado),
+                    "Aprobada" if aprobado else "Pendiente",
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            if aprobado:
+                flash("La cuenta vecinal fue creada y quedó activa.", "success")
+            else:
+                flash("La cuenta quedó pendiente de aprobación administrativa.", "info")
+            return redirect(url_for("panel_crear_vecino"))
+    return render_template("panel/crear_vecino.html", datos=datos)
+
+
+@app.route("/panel/permisos-coordinador", methods=["GET", "POST"])
+@permiso_requerido("usuarios")
+def panel_permisos_coordinador():
+    if request.method == "POST":
+        permitir = "1" if request.form.get("crear_vecinos") == "on" else "0"
+        base.guardar_config("coordinador_crear_vecinos", permitir)
+        flash(
+            "Permiso actualizado. El coordinador "
+            + ("puede crear cuentas vecinales." if permitir == "1" else "ya no puede crear cuentas vecinales."),
+            "success",
+        )
+        return redirect(url_for("panel_permisos_coordinador"))
+    return render_template(
+        "panel/permisos_coordinador.html",
+        puede_crear_vecinos=obtener_config()["coordinador_crear_vecinos"] == "1",
+    )
+
+
+@app.route("/panel/directorio-pendiente")
+@permiso_requerido("servicios_pendientes")
+def panel_servicios_pendientes():
+    servicios = consultar(
+        "SELECT * FROM servicios WHERE aprobado = 0 ORDER BY fecha_solicitud DESC"
+    )
+    return render_template("panel/servicios_pendientes.html", servicios=servicios)
+
+
+@app.route("/panel/directorio/<int:servicio_id>/aprobar", methods=["POST"])
+@permiso_requerido("servicios_pendientes")
+def panel_servicio_aprobar(servicio_id):
+    servicio = consultar(
+        "SELECT id FROM servicios WHERE id = ? AND aprobado = 0", (servicio_id,), uno=True
+    )
+    if not servicio:
+        abort(404)
+    ejecutar("UPDATE servicios SET aprobado = 1 WHERE id = ?", (servicio_id,))
+    flash("El servicio fue aprobado y ya aparece en el directorio.", "success")
+    return redirect(url_for("panel_servicios_pendientes"))
+
+
+# --- Avances de proyectos -------------------------------------------------
+@app.route("/panel/avances-proyectos")
+@permiso_requerido("avance_proyectos")
+def panel_avances_proyectos():
+    lista = proyectos_con_ultimo_avance(
+        ["p.horizonte = 'Actual'", "p.estado = 'En ejecución'"], orden="p.nombre"
+    )
+    return render_template(
+        "panel/avances_proyectos.html",
+        proyectos=lista,
+        historial_por_proyecto=historial_de_avances([p["id"] for p in lista]),
+    )
+
+
+@app.route("/panel/avances-proyectos/<int:proyecto_id>", methods=["POST"])
+@permiso_requerido("avance_proyectos")
+def panel_proyecto_avance(proyecto_id):
+    proyecto = consultar(
+        "SELECT id FROM proyectos WHERE id = ? AND horizonte = 'Actual' "
+        "AND estado = 'En ejecución'",
+        (proyecto_id,), uno=True,
+    )
+    if not proyecto:
+        abort(404)
+
+    porcentaje = (request.form.get("porcentaje") or "").strip()
+    detalle = (request.form.get("detalle") or "").strip()
+    if not porcentaje.isdigit() or not 0 <= int(porcentaje) <= 100:
+        flash("Ingresa un porcentaje entre 0 y 100.", "error")
+    elif not detalle or len(detalle) > 500:
+        flash("Describe el avance en hasta 500 caracteres.", "error")
+    else:
+        usuario = usuario_actual()
+        ejecutar(
+            "INSERT INTO avances_proyecto "
+            "(proyecto_id, porcentaje, detalle, fecha_actualizacion, actualizado_por) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                proyecto_id, int(porcentaje), detalle,
+                datetime.now().isoformat(timespec="seconds"), usuario["nombre"],
+            ),
+        )
+        flash("El avance quedó registrado y se mostrará en el sitio público.", "success")
+    return redirect(url_for("panel_avances_proyectos"))
 
 
 # --- Reservas -------------------------------------------------------------
@@ -970,8 +1558,9 @@ def panel_certificados():
         sql += " WHERE estado = ?"
         params.append(estado)
     sql += " ORDER BY id DESC"
+    solicitudes = consultar(sql, params)
     return render_template(
-        "panel/certificados.html", solicitudes=consultar(sql, params),
+        "panel/certificados.html", solicitudes=solicitudes,
         estados=ESTADOS_CERTIFICADO, filtro_estado=estado,
     )
 
@@ -1015,6 +1604,8 @@ CAMPOS_CONTENIDO = [
     ("historia", "Reseña de la organización", "textarea"),
     ("direccion_sede", "Dirección de la sede", "texto"),
     ("horario_atencion", "Horario de atención", "texto"),
+    ("horario_sede_inicio", "Apertura para reservas de sede", "hora"),
+    ("horario_sede_fin", "Cierre para reservas de sede", "hora"),
     ("email_contacto", "Correo de contacto", "texto"),
     ("telefono_contacto", "Teléfono de contacto", "texto"),
     ("whatsapp_grupo", "Enlace al grupo de WhatsApp", "texto"),
@@ -1022,6 +1613,8 @@ CAMPOS_CONTENIDO = [
     ("instagram", "Enlace a Instagram", "texto"),
     ("plan_maestro_intro", "Introducción del plan maestro", "textarea"),
     ("requisitos_certificado", "Requisitos del certificado (uno por línea)", "textarea"),
+    ("aviso_privacidad", "Aviso de privacidad aprobado por la contraparte", "textarea"),
+    ("aviso_uso", "Condiciones de uso aprobadas por la contraparte", "textarea"),
 ]
 
 
@@ -1029,11 +1622,34 @@ CAMPOS_CONTENIDO = [
 @permiso_requerido("contenido")
 def panel_contenido():
     if request.method == "POST":
-        for clave, _, _ in CAMPOS_CONTENIDO:
-            base.guardar_config(clave, (request.form.get(clave) or "").strip())
+        valores = {
+            clave: (request.form.get(clave) or "").strip()
+            for clave, _, _ in CAMPOS_CONTENIDO
+        }
+        inicio = minutos_de_hora(valores["horario_sede_inicio"])
+        fin = minutos_de_hora(valores["horario_sede_fin"])
+        if inicio is None or fin is None:
+            flash("Ingresa horas válidas para el horario de la sede.", "error")
+            return redirect(url_for("panel_contenido"))
+        if fin <= inicio:
+            flash("El cierre de la sede debe ser posterior a su apertura.", "error")
+            return redirect(url_for("panel_contenido"))
+        for clave, valor in valores.items():
+            base.guardar_config(clave, valor)
         flash("Los textos del sitio fueron actualizados.", "success")
         return redirect(url_for("panel_contenido"))
     return render_template("panel/contenido.html", campos=CAMPOS_CONTENIDO)
+
+
+@app.route("/privacidad")
+def privacidad():
+    conf = obtener_config()
+    if not conf["aviso_privacidad"] and not conf["aviso_uso"]:
+        abort(404)
+    return render_template(
+        "privacidad.html", aviso_privacidad=conf["aviso_privacidad"],
+        aviso_uso=conf["aviso_uso"],
+    )
 
 
 # --- CRUD genérico --------------------------------------------------------
@@ -1051,13 +1667,26 @@ def valores_desde_formulario(recurso, fila_actual=None):
         if c["tipo"] == "casilla":
             valores[nombre] = 1 if request.form.get(nombre) else 0
         elif c["tipo"] == "archivo":
-            guardado = guardar_archivo(nombre)
+            privado = recurso.get("archivo_privado", False)
+            if recurso.get("tabla") == "documentos":
+                privado = privado or request.form.get("categoria") == "Rendiciones de cuentas"
+            if fila_actual is not None:
+                privado = privado or es_archivo_privado(fila_actual[nombre])
+            guardado = guardar_archivo(nombre, privado=privado)
             if guardado:
                 valores[nombre] = guardado
             elif fila_actual is not None:
                 valores[nombre] = fila_actual[nombre]
             else:
                 valores[nombre] = ""
+        elif c["tipo"] == "imagen":
+            subida = guardar_archivo(
+                "imagen_archivo", extensiones={"jpg", "jpeg", "png", "webp"}
+            )
+            valores[nombre] = (
+                url_for("static", filename=f"uploads/{subida}")
+                if subida else (request.form.get(nombre) or "").strip()
+            )
         elif c["tipo"] == "clave":
             clave = request.form.get(nombre) or ""
             if clave:
@@ -1070,6 +1699,37 @@ def valores_desde_formulario(recurso, fila_actual=None):
     return valores
 
 
+def coordinador_actual():
+    usuario = usuario_actual()
+    return bool(usuario and usuario["rol"] == "coordinador")
+
+
+def documento_financiero(recurso, fila=None, categoria=None):
+    if recurso != "documentos":
+        return False
+    if categoria is not None:
+        return categoria == "Rendiciones de cuentas"
+    return bool(fila and fila["categoria"] == "Rendiciones de cuentas")
+
+
+def definicion_para_panel(recurso, definicion):
+    if recurso not in {"documentos", "servicios"} or not coordinador_actual():
+        return definicion
+    adaptada = dict(definicion)
+    adaptada["campos"] = []
+    for campo_actual in definicion["campos"]:
+        if recurso == "servicios" and campo_actual["nombre"] == "aprobado":
+            continue
+        c = dict(campo_actual)
+        if recurso == "documentos" and c["nombre"] == "categoria":
+            c["opciones"] = [
+                opcion for opcion in c["opciones"]
+                if opcion != "Rendiciones de cuentas"
+            ]
+        adaptada["campos"].append(c)
+    return adaptada
+
+
 @app.route("/panel/<recurso>")
 @login_requerido
 def panel_listado(recurso):
@@ -1077,7 +1737,10 @@ def panel_listado(recurso):
     if not puede(recurso):
         flash("Tu perfil no tiene permiso para esta sección.", "error")
         return redirect(url_for("panel"))
-    filas = consultar(f"SELECT * FROM {definicion['tabla']} ORDER BY {definicion['orden']}")
+    sql = f"SELECT * FROM {definicion['tabla']}"
+    if recurso == "documentos" and coordinador_actual():
+        sql += " WHERE categoria != 'Rendiciones de cuentas'"
+    filas = consultar(f"{sql} ORDER BY {definicion['orden']}")
     return render_template(
         "panel/listado.html", recurso=recurso, definicion=definicion, filas=filas,
         dias_semana=DIAS_SEMANA,
@@ -1091,17 +1754,25 @@ def panel_nuevo(recurso):
     if not puede(recurso):
         flash("Tu perfil no tiene permiso para esta sección.", "error")
         return redirect(url_for("panel"))
+    if request.method == "POST" and documento_financiero(
+        recurso, categoria=request.form.get("categoria")
+    ) and coordinador_actual():
+        abort(403)
+    definicion_formulario = definicion_para_panel(recurso, definicion)
     if request.method == "POST":
         valores = valores_desde_formulario(definicion)
         for clave, generador in definicion.get("extra_nuevo", {}).items():
             valores[clave] = generador()
         for clave, generador in definicion.get("extra_siempre", {}).items():
             valores[clave] = generador()
+        if recurso == "servicios" and coordinador_actual():
+            valores["aprobado"] = 0
         if recurso == "usuarios":
             if "clave_hash" not in valores:
                 flash("Debes escribir una clave para el nuevo usuario.", "error")
                 return render_template(
-                    "panel/formulario.html", recurso=recurso, definicion=definicion, fila=None)
+                    "panel/formulario.html", recurso=recurso,
+                    definicion=definicion_formulario, fila=None)
             valores.pop("clave", None)
         columnas = ", ".join(valores.keys())
         marcas = ", ".join("?" for _ in valores)
@@ -1112,7 +1783,8 @@ def panel_nuevo(recurso):
         flash(f"Se agregó {definicion['singular']}.", "success")
         return redirect(url_for("panel_listado", recurso=recurso))
     return render_template(
-        "panel/formulario.html", recurso=recurso, definicion=definicion, fila=None
+        "panel/formulario.html", recurso=recurso,
+        definicion=definicion_formulario, fila=None
     )
 
 
@@ -1128,11 +1800,20 @@ def panel_editar(recurso, fila_id):
     )
     if not fila:
         abort(404)
+    if coordinador_actual() and documento_financiero(recurso, fila=fila):
+        abort(404)
+    definicion_formulario = definicion_para_panel(recurso, definicion)
     if request.method == "POST":
+        if documento_financiero(
+            recurso, categoria=request.form.get("categoria")
+        ) and coordinador_actual():
+            abort(403)
         valores = valores_desde_formulario(definicion, fila)
         valores.pop("clave", None)
         for clave, generador in definicion.get("extra_siempre", {}).items():
             valores[clave] = generador()
+        if recurso == "servicios" and coordinador_actual():
+            valores["aprobado"] = 0
         asignaciones = ", ".join(f"{k} = ?" for k in valores)
         ejecutar(
             f"UPDATE {definicion['tabla']} SET {asignaciones} WHERE id = ?",
@@ -1141,7 +1822,8 @@ def panel_editar(recurso, fila_id):
         flash("Los cambios fueron guardados.", "success")
         return redirect(url_for("panel_listado", recurso=recurso))
     return render_template(
-        "panel/formulario.html", recurso=recurso, definicion=definicion, fila=fila
+        "panel/formulario.html", recurso=recurso,
+        definicion=definicion_formulario, fila=fila
     )
 
 
@@ -1153,6 +1835,13 @@ def panel_eliminar(recurso, fila_id):
         flash("Tu perfil no tiene permiso para esta sección.", "error")
         return redirect(url_for("panel"))
     usuario = usuario_actual()
+    fila = consultar(
+        f"SELECT * FROM {definicion['tabla']} WHERE id = ?", (fila_id,), uno=True
+    )
+    if not fila:
+        abort(404)
+    if coordinador_actual() and documento_financiero(recurso, fila=fila):
+        abort(404)
     if recurso == "usuarios" and fila_id == usuario["id"]:
         flash("No puedes eliminar tu propio usuario.", "error")
         return redirect(url_for("panel_listado", recurso=recurso))
@@ -1178,7 +1867,7 @@ def panel_movimientos(recurso, fila_id):
         concepto = (request.form.get("concepto") or "").strip()
         tipo = request.form.get("tipo")
         monto = (request.form.get("monto") or "").strip()
-        fecha = a_fecha(request.form.get("fecha")) or date.today()
+        fecha = a_fecha(request.form.get("fecha")) or fecha_hoy()
         if not concepto or tipo not in ("Ingreso", "Gasto") or not monto.isdigit():
             flash("Completa el concepto, el tipo y un monto en números.", "error")
         else:
@@ -1231,6 +1920,7 @@ def error_interno(e):  # pragma: no cover
 
 
 base.init_db(app)
+migrar_comprobantes_privados()
 
 
 if __name__ == "__main__":

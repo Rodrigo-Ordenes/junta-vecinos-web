@@ -82,7 +82,7 @@
   {% if mensajes %}
     <div class="container mt-3">
       {% for categoria, texto in mensajes %}
-        <div class="alert alert-{{ 'danger' if categoria == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ 'danger' if categoria == 'error' else 'info' if categoria == 'info' else 'success' }} alert-dismissible fade show" role="alert">
           {{ texto }}
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
         </div>
@@ -113,6 +113,9 @@
           <li><a href="{{ url_for('sede') }}">Disponibilidad de la sede</a></li>
           <li><a href="{{ url_for('certificado') }}">Certificado de residencia</a></li>
           <li><a href="{{ url_for('contacto') }}">Contacto</a></li>
+          {% if conf.aviso_privacidad or conf.aviso_uso %}
+            <li><a href="{{ url_for('privacidad') }}">Privacidad y condiciones de uso</a></li>
+          {% endif %}
         </ul>
       </div>
       <div class="col-md-4">
