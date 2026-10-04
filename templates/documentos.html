@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Documentos · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Documentos, estatutos y leyes</h1>
+  <p class="lead">Todo lo que rige a la junta de vecinos, disponible para descargar.</p>
+
+  <div class="my-3 d-flex flex-wrap gap-2">
+    <a class="btn btn-sm {{ 'btn-primary' if not filtro_categoria else 'btn-outline-primary' }}"
+       href="{{ url_for('documentos') }}">Todos</a>
+    {% for c in categorias %}
+      <a class="btn btn-sm {{ 'btn-primary' if filtro_categoria == c else 'btn-outline-primary' }}"
+         href="{{ url_for('documentos', categoria=c) }}">{{ c }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3">
+    {% for d in documentos %}
+      <div class="col-md-6">
+        <div class="caja h-100">
+          <p class="small text-muted mb-1">{{ d.categoria }}</p>
+          <h2 class="h6">{{ d.titulo }}</h2>
+          {% if d.descripcion %}<p class="small">{{ d.descripcion }}</p>{% endif %}
+          {% if d.archivo %}
+            <a class="btn btn-sm btn-primary" href="{{ url_for('archivo', nombre=d.archivo) }}">Ver o descargar</a>
+          {% elif d.enlace %}
+            <a class="btn btn-sm btn-primary" href="{{ d.enlace }}" target="_blank" rel="noopener">Abrir documento</a>
+          {% else %}
+            <p class="small text-muted mb-0">Documento aún no cargado.</p>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <p>Todavía no hay documentos publicados en esta categoría.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

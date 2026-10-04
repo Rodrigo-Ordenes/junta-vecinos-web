@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Inscribir mi servicio · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Inscribe tu servicio en el directorio</h1>
+  <p class="lead">
+    Si tienes un almacén, un oficio o un emprendimiento en el cerro, cuéntanos. La directiva
+    revisa la información y la publica en el directorio vecinal.
+  </p>
+
+  <form method="post" class="row g-3 caja">
+    <div class="col-md-6">
+      <label class="form-label" for="nombre_servicio">Nombre del servicio <span class="obligatorio">*</span></label>
+      <input class="form-control" type="text" id="nombre_servicio" name="nombre_servicio" value="{{ datos.nombre_servicio or '' }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="vecino">Tu nombre <span class="obligatorio">*</span></label>
+      <input class="form-control" type="text" id="vecino" name="vecino" value="{{ datos.vecino or '' }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="rubro">Rubro</label>
+      <select class="form-select" id="rubro" name="rubro">
+        {% for r in rubros %}
+          <option value="{{ r }}" {% if datos.rubro == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="telefono">Teléfono <span class="obligatorio">*</span></label>
+      <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="whatsapp">WhatsApp</label>
+      <input class="form-control" type="tel" id="whatsapp" name="whatsapp" value="{{ datos.whatsapp or '' }}" placeholder="56912345678">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="email">Correo</label>
+      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="direccion">Dirección (opcional)</label>
+      <input class="form-control" type="text" id="direccion" name="direccion" value="{{ datos.direccion or '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="descripcion">¿Qué ofreces?</label>
+      <textarea class="form-control" id="descripcion" name="descripcion" rows="3">{{ datos.descripcion or '' }}</textarea>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary btn-lg" type="submit">Enviar para revisión</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

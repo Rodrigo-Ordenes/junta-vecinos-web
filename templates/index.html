@@ -2,39 +2,121 @@
 {% block content %}
 
 <section class="hero">
-  <div class="container text-center">
-    <h1>Junta de Vecinos N.° 2 · Cerro Esperanza</h1>
-    <p class="lead">Información, transparencia y vinculación comunitaria en un solo lugar.</p>
-    <a href="{{ url_for('contacto') }}" class="btn btn-light btn-lg mt-2">Contáctanos</a>
+  <div class="container">
+    <div class="hero-layout">
+      <div class="hero-copy">
+        <p class="hero-eyebrow">Portal comunitario · Valparaíso</p>
+        <h1>Junta de Vecinos N.º&nbsp;2<br><span>Cerro Esperanza</span></h1>
+        <p class="lead">Información clara, cuentas transparentes y una sede abierta a la comunidad.</p>
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <a href="{{ url_for('sede') }}" class="btn btn-light btn-lg">Ver disponibilidad de la sede</a>
+      {% if conf.whatsapp_grupo %}
+          <a href="{{ conf.whatsapp_grupo }}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-lg">Grupo de WhatsApp</a>
+      {% endif %}
+        </div>
+      </div>
+      <aside class="hero-visual" aria-label="Módulos del portal comunitario">
+        <div class="hero-card">
+          <div class="hero-card-heading">
+            <span class="hero-card-mark" aria-hidden="true">JV<span>2</span></span>
+            <div><span class="hero-card-overline">CERRO ESPERANZA</span><strong>La comunidad, más cerca</strong></div>
+          </div>
+          <div class="hero-card-rule"></div>
+          <p>Un espacio para informarte, participar y encontrarnos como barrio.</p>
+          <div class="hero-card-tags"><span>Comunidad</span><span>Participación</span><span>Transparencia</span></div>
+        </div>
+        <span class="hero-orbit hero-orbit-one" aria-hidden="true"></span>
+        <span class="hero-orbit hero-orbit-two" aria-hidden="true"></span>
+      </aside>
+    </div>
   </div>
 </section>
 
-<section class="container my-5">
-  <div class="row g-4">
+<section class="container my-4 my-md-5">
+  <h2 class="section-title h4">¿Qué necesitas hacer hoy?</h2>
+  <div class="row g-3">
+    <div class="col-6 col-md-3">
+      <a class="acceso-rapido accion-terracota" href="{{ url_for('certificado') }}">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.75h7l4 4v12.5H7z"/><path d="M14 3.75v4h4M10 12h5M10 15.5h5"/></svg></span>
+        Certificado de residencia
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a class="acceso-rapido accion-azul" href="{{ url_for('reservar') }}">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14h2M14 14h2M8 17h2"/></svg></span>
+        Reservar la sede
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a class="acceso-rapido accion-oliva" href="{{ url_for('transparencia') }}">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19.5h16M6.5 16v-4M12 16V7M17.5 16v-7"/><path d="m5 9 6-4 5 3 3-2"/></svg></span>
+        Ver en qué se gastó
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a class="acceso-rapido accion-dorado" href="{{ url_for('directorio') }}">
+        <span class="icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10h16v10H4zM3 10l2-5h14l2 5M8 20v-5h8v5M8 10V8M12 10V8M16 10V8"/></svg></span>
+        Servicios de vecinos
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="container my-4 my-md-5">
+  <div class="row g-3">
     <div class="col-md-4">
       <div class="stat-box">
-        <div class="stat-number">📢</div>
-        <p class="mb-0">Actividades y noticias al día</p>
+        <div class="stat-number">{{ conf.socios_inscritos }}</div>
+        <p class="mb-0">socias y socios inscritos</p>
       </div>
     </div>
     <div class="col-md-4">
       <div class="stat-box">
-        <div class="stat-number">💰</div>
-        <p class="mb-0">Rendiciones de cuentas transparentes</p>
+        <div class="stat-number stat-icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10v4h3l9 4V6l-9 4zM7 14l2 5h3l-2-4M19 9a4 4 0 0 1 0 6"/></svg></div>
+        <p class="mb-0">Noticias y actividades</p>
       </div>
     </div>
     <div class="col-md-4">
       <div class="stat-box">
-        <div class="stat-number">🏗️</div>
-        <p class="mb-0">Seguimiento de proyectos comunitarios</p>
+        <div class="stat-number stat-icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V9l7-5 7 5v11M9 20v-6h6v6M8 10h.01M16 10h.01"/></svg></div>
+        <p class="mb-0">Proyectos y plan maestro</p>
       </div>
     </div>
   </div>
 </section>
 
-<section class="container my-5">
-  <div class="d-flex justify-content-between align-items-center">
-    <h2 class="section-title">Últimas noticias</h2>
+<section class="container my-4 my-md-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 class="section-title mb-0">Agenda de la sede esta semana</h2>
+    <a href="{{ url_for('sede') }}" class="btn btn-outline-primary">Ver calendario completo</a>
+  </div>
+  <div class="row g-3 mt-1">
+    {% for dia in semana.dias %}
+      <div class="col-6 col-lg-3">
+        <div class="dia-sede {{ 'libre' if dia.libre }} {{ 'hoy' if dia.hoy }} {{ 'pasado' if dia.pasado }}">
+          <h3>{{ dia.nombre }}</h3>
+          <div class="fecha">{{ dia.fecha|fecha_corta }}</div>
+          {% if dia.libre %}
+            <p class="mt-2 mb-0 text-success fw-semibold">Sede disponible</p>
+          {% else %}
+            {% for a in dia.actividades[:2] %}
+              <div class="franja {{ 'fija' if a.tipo == 'fija' else a.estado|lower }}">
+                <span class="hora">{{ a.hora_inicio }} a {{ a.hora_fin }}</span>{{ a.titulo }}
+              </div>
+            {% endfor %}
+            {% if dia.actividades|length > 2 %}
+              <p class="small mt-2 mb-0">y {{ dia.actividades|length - 2 }} más…</p>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="container my-4 my-md-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 class="section-title mb-0">Últimas noticias</h2>
     <a href="{{ url_for('noticias') }}" class="btn btn-outline-primary">Ver todas</a>
   </div>
   <div class="row g-4 mt-1">
@@ -42,7 +124,10 @@
     <div class="col-md-4">
       <div class="card">
         <div class="card-body">
-          <h5 class="card-title">{{ n.titulo }}</h5>
+          {% if n.fecha_evento %}
+            <p class="small text-muted mb-1">Actividad: {{ n.fecha_evento|fecha_larga }}</p>
+          {% endif %}
+          <h3 class="card-title h5">{{ n.titulo }}</h3>
           <p class="card-text">{{ n.resumen }}</p>
           <a href="{{ url_for('noticia_detalle', noticia_id=n.id) }}" class="btn btn-sm btn-primary">Leer más</a>
         </div>
@@ -54,9 +139,9 @@
   </div>
 </section>
 
-<section class="container my-5">
-  <div class="d-flex justify-content-between align-items-center">
-    <h2 class="section-title">Proyectos recientes</h2>
+<section class="container my-4 my-md-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 class="section-title mb-0">Proyectos en marcha</h2>
     <a href="{{ url_for('proyectos') }}" class="btn btn-outline-primary">Ver todos</a>
   </div>
   <div class="row g-4 mt-1">
@@ -64,9 +149,18 @@
     <div class="col-md-4">
       <div class="card">
         <div class="card-body">
-          <span class="badge-estado {{ estado_class(p.estado) }}">{{ p.estado }}</span>
-          <h5 class="card-title mt-2">{{ p.nombre }}</h5>
+          <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
+          <h3 class="card-title h5 mt-2">{{ p.nombre }}</h3>
           <p class="card-text">{{ p.descripcion }}</p>
+          {% if p.avance_porcentaje is not none %}
+            <div class="avance-resumen">
+              <span>Avance físico</span><strong>{{ p.avance_porcentaje }}%</strong>
+            </div>
+            <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
+                      aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
+              {{ p.avance_porcentaje }}%
+            </progress>
+          {% endif %}
         </div>
       </div>
     </div>

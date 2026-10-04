@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Reservar la sede · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Pedir la sede vecinal</h1>
+  <p class="lead">
+    Completa este formulario y la directiva te confirmará la reserva.
+    Los campos con <span class="obligatorio">*</span> son obligatorios.
+  </p>
+  <p><a href="{{ url_for('sede') }}">Ver primero qué días están disponibles</a></p>
+
+  <form method="post" class="row g-3 caja">
+    <div class="col-md-4">
+      <label class="form-label" for="fecha">Día que necesitas <span class="obligatorio">*</span></label>
+      <input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="hora_inicio">Desde las <span class="obligatorio">*</span></label>
+      <input class="form-control" type="time" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio or '' }}" min="{{ conf.horario_sede_inicio }}" max="{{ conf.horario_sede_fin }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="hora_fin">Hasta las <span class="obligatorio">*</span></label>
+      <input class="form-control" type="time" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin or '' }}" min="{{ conf.horario_sede_inicio }}" max="{{ conf.horario_sede_fin }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="actividad">¿Para qué la necesitas? <span class="obligatorio">*</span></label>
+      <input class="form-control" type="text" id="actividad" name="actividad" value="{{ datos.actividad or '' }}"
+             placeholder="Cumpleaños, reunión, taller…" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="personas">¿Cuántas personas aproximadamente?</label>
+      <input class="form-control" type="number" min="1" id="personas" name="personas" value="{{ datos.personas or '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="solicitante">Tu nombre <span class="obligatorio">*</span></label>
+      <input class="form-control" type="text" id="solicitante" name="solicitante" value="{{ datos.solicitante or '' }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="telefono">Teléfono o WhatsApp <span class="obligatorio">*</span></label>
+      <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="email">Correo (opcional)</label>
+      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
+      <p class="ayuda-campo mb-0">Inicia sesión antes de reservar para que la solicitud quede asociada a «Mis solicitudes».</p>
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="observacion">¿Algo más que debamos saber?</label>
+      <textarea class="form-control" id="observacion" name="observacion" rows="3">{{ datos.observacion or '' }}</textarea>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary btn-lg" type="submit">Enviar solicitud</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

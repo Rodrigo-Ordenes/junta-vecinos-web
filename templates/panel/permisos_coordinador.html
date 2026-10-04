@@ -1,0 +1,14 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Permisos del coordinador · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Permisos del coordinador</h1>
+<p class="lead">Activa solo las tareas que la directiva quiera delegar.</p>
+<form method="post" class="caja permiso-toggle">
+  <label class="form-check">
+    <input class="form-check-input" type="checkbox" name="crear_vecinos" value="on" {% if puede_crear_vecinos %}checked{% endif %}>
+    <span class="form-check-label">Permitir que el coordinador cree cuentas vecinales</span>
+  </label>
+  <p class="small text-muted mt-2">Las cuentas creadas por un coordinador quedan pendientes de aprobación administrativa. Este permiso no permite editar otros usuarios ni cambiar roles.</p>
+  <button class="btn btn-primary" type="submit">Guardar permiso</button>
+</form>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Marcar la sede como ocupada · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Marcar la sede como ocupada</h1>
+<p>Úsalo cuando la reserva se acuerda en persona o por teléfono. Queda aprobada de inmediato.</p>
+
+<form method="post" class="row g-3 caja">
+  <div class="col-md-4">
+    <label class="form-label" for="fecha">Fecha <span class="obligatorio">*</span></label>
+    <input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha }}" required>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="hora_inicio">Desde <span class="obligatorio">*</span></label>
+    <input class="form-control" type="time" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio or '' }}" required>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="hora_fin">Hasta <span class="obligatorio">*</span></label>
+    <input class="form-control" type="time" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin or '' }}" required>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="actividad">Actividad <span class="obligatorio">*</span></label>
+    <input class="form-control" type="text" id="actividad" name="actividad" value="{{ datos.actividad or '' }}" required>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="solicitante">Solicitante</label>
+    <input class="form-control" type="text" id="solicitante" name="solicitante" value="{{ datos.solicitante or '' }}">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="telefono">Teléfono</label>
+    <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}">
+  </div>
+  <div class="col-12">
+    <label class="form-label" for="observacion">Observación</label>
+    <textarea class="form-control" id="observacion" name="observacion" rows="2">{{ datos.observacion or '' }}</textarea>
+  </div>
+  <div class="col-12 d-flex gap-2">
+    <button class="btn btn-primary btn-lg" type="submit">Guardar</button>
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('panel_reservas') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

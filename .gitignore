@@ -1,19 +1,10 @@
-# Entornos virtuales
-venv/
-env/
-.venv/
-
-# Python
 __pycache__/
-*.pyc
-
-# Base de datos local
-instance/*.db
-
-# Variables de entorno
-.env
-
-# Editor / SO
+*.py[cod]
+.venv/
+.venv-dev/
+instance/
+static/uploads/*
+!static/uploads/.gitkeep
+.pytest_cache/
 .DS_Store
-.vscode/
-.idea/
+.claude/

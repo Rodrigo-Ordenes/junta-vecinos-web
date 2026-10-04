@@ -1,10 +1,24 @@
 {% extends "base.html" %}
 {% block title %}{{ noticia.titulo }} · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
-<section class="container my-5" style="max-width: 800px;">
-  <a href="{{ url_for('noticias') }}" class="btn btn-outline-secondary btn-sm mb-3">&larr; Volver a noticias</a>
-  <p class="text-muted small">{{ noticia.fecha_publicacion.strftime('%d-%m-%Y') }}</p>
+<div class="container my-4 my-md-5">
+  <p><a href="{{ url_for('noticias') }}">&larr; Volver a noticias</a></p>
   <h1 class="section-title">{{ noticia.titulo }}</h1>
-  <p class="fs-5">{{ noticia.contenido }}</p>
-</section>
+  <p class="text-muted">
+    Publicado el {{ noticia.fecha_publicacion|fecha_larga }}
+    {% if noticia.fecha_evento %} · Actividad: {{ noticia.fecha_evento|fecha_larga }}{% endif %}
+  </p>
+  {% if noticia.imagen_url %}
+    <img class="img-fluid rounded mb-4" src="{{ noticia.imagen_url }}" alt="{{ noticia.titulo }}">
+  {% endif %}
+  <p class="lead">{{ noticia.resumen }}</p>
+  <div style="white-space: pre-line;">{{ noticia.contenido }}</div>
+
+  <div class="caja mt-4">
+    <p class="mb-2 fw-semibold">Comparte esta información con tus vecinos</p>
+    <a class="btn btn-whatsapp"
+       href="https://wa.me/?text={{ (noticia.titulo ~ ' - ' ~ request.url)|urlencode }}"
+       target="_blank" rel="noopener">Compartir por WhatsApp</a>
+  </div>
+</div>
 {% endblock %}

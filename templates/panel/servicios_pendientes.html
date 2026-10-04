@@ -1,0 +1,42 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Aprobar servicios del directorio · Panel{% endblock %}
+{% block panel %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="section-title h3">Solicitudes del directorio</h1>
+    <p class="text-muted">Revisa la información antes de publicarla. Solo los servicios aprobados aparecen en el sitio.</p>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('panel_listado', recurso='servicios') }}">Ver directorio publicado</a>
+</div>
+
+<div class="row g-3 mt-2">
+  {% for s in servicios %}
+    <div class="col-12 col-xl-6">
+      <article class="caja cuenta-pendiente">
+        <span class="badge-estado badge-pendiente">Por revisar</span>
+        <h2 class="h5 mt-2 mb-1">{{ s.nombre_servicio }}</h2>
+        <p class="mb-1"><strong>Responsable:</strong> {{ s.vecino }}</p>
+        <p class="mb-1"><strong>Rubro:</strong> {{ s.rubro }}</p>
+        {% if s.descripcion %}<p class="mb-1">{{ s.descripcion }}</p>{% endif %}
+        <p class="mb-1"><strong>Teléfono:</strong> {{ s.telefono }}</p>
+        {% if s.email %}<p class="mb-1"><strong>Correo:</strong> {{ s.email }}</p>{% endif %}
+        {% if s.direccion %}<p class="mb-1"><strong>Dirección:</strong> {{ s.direccion }}</p>{% endif %}
+        <p class="small text-muted">Enviado el {{ s.fecha_solicitud|fecha_corta }}</p>
+        <div class="d-flex flex-wrap gap-2">
+          <form method="post" action="{{ url_for('panel_servicio_aprobar', servicio_id=s.id) }}">
+            <button class="btn btn-primary" type="submit">Aprobar y publicar</button>
+          </form>
+          <a class="btn btn-outline-primary" href="{{ url_for('panel_editar', recurso='servicios', fila_id=s.id) }}">Revisar y editar</a>
+        </div>
+      </article>
+    </div>
+  {% else %}
+    <div class="col-12">
+      <div class="caja text-center py-4">
+        <h2 class="h5">No hay solicitudes pendientes</h2>
+        <p class="mb-0">Las nuevas inscripciones aparecerán aquí antes de publicarse.</p>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

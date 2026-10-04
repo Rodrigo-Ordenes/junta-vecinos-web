@@ -1,0 +1,60 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Certificados de residencia · Panel{% endblock %}
+{% block panel %}
+<h1 class="section-title h3">Solicitudes de certificado de residencia</h1>
+
+<div class="d-flex flex-wrap gap-2 my-3">
+  <a class="btn btn-sm {{ 'btn-primary' if not filtro_estado else 'btn-outline-primary' }}"
+     href="{{ url_for('panel_certificados') }}">Todas</a>
+  {% for e in estados %}
+    <a class="btn btn-sm {{ 'btn-primary' if filtro_estado == e else 'btn-outline-primary' }}"
+       href="{{ url_for('panel_certificados', estado=e) }}">{{ e }}</a>
+  {% endfor %}
+</div>
+
+{% for s in solicitudes %}
+  <div class="caja mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h2 class="h6 mb-1">Solicitud N.° {{ s.id }} · {{ s.nombre }}</h2>
+        <p class="small mb-1">RUT {{ s.rut }} · {{ s.direccion }}</p>
+        <p class="small mb-1">
+          {% if s.telefono %}{{ s.telefono }}{% endif %}
+          {% if s.email %} · {{ s.email }}{% endif %}
+          · {{ s.fecha_solicitud|fecha_corta }}
+        </p>
+        <p class="small mb-1"><strong>Código privado para la persona:</strong>
+          <span class="codigo-seguimiento">{{ s.codigo_seguimiento }}</span>
+        </p>
+        {% if s.archivo_domicilio %}
+          <p class="small mb-1"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=s.archivo_domicilio) }}">Ver documento de domicilio</a></p>
+        {% else %}
+          <p class="small text-muted mb-1">No se adjuntó documento.</p>
+        {% endif %}
+        {% if s.motivo %}<p class="small text-muted mb-0">Motivo: {{ s.motivo }}</p>{% endif %}
+      </div>
+      <span class="badge-estado {{ s.estado|clase_estado }}">{{ s.estado }}</span>
+    </div>
+
+    <form method="post" action="{{ url_for('panel_certificado_estado', solicitud_id=s.id) }}" class="row g-2 mt-2">
+      <div class="col-md-4">
+        <label class="form-label small" for="estado{{ s.id }}">Nuevo estado</label>
+        <select class="form-select" id="estado{{ s.id }}" name="estado">
+          {% for e in estados %}
+            <option value="{{ e }}" {% if s.estado == e %}selected{% endif %}>{{ e }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small" for="obs{{ s.id }}">Observación</label>
+        <input class="form-control" type="text" id="obs{{ s.id }}" name="observacion" value="{{ s.observacion }}">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-primary w-100" type="submit">Actualizar</button>
+      </div>
+    </form>
+  </div>
+{% else %}
+  <p>No hay solicitudes en este estado.</p>
+{% endfor %}
+{% endblock %}

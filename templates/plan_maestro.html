@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Plan maestro · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <h1 class="section-title">Plan maestro del Cerro Esperanza</h1>
+  <p class="lead">{{ conf.plan_maestro_intro }}</p>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-6">
+      <h2 class="h4">Proyectos actuales</h2>
+      {% for p in actuales %}
+        <div class="caja mb-3">
+          <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
+          <h3 class="h6 mt-2 mb-1">{{ p.nombre }}</h3>
+          <p class="small mb-1">{{ p.descripcion }}</p>
+          {% if p.avance_porcentaje is not none %}
+            <div class="avance-resumen">
+              <span>Avance físico</span><strong>{{ p.avance_porcentaje }}%</strong>
+            </div>
+            <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
+                      aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
+              {{ p.avance_porcentaje }}%
+            </progress>
+            <p class="small text-muted">Actualizado {{ p.avance_fecha|fecha_larga }}</p>
+            <p class="small">{{ p.avance_detalle }}</p>
+          {% endif %}
+          <p class="small text-muted mb-0">
+            {% if p.eje %}{{ p.eje }}{% endif %}
+            {% if usuario and p.monto %} · {{ p.monto|moneda }}{% endif %}
+          </p>
+        </div>
+      {% else %}
+        <p>Aún no hay proyectos actuales registrados.</p>
+      {% endfor %}
+    </div>
+
+    <div class="col-lg-6">
+      <h2 class="h4">Proyectos futuros</h2>
+      <p class="small text-muted">Lo que la junta quiere postular en los próximos años.</p>
+      {% for p in futuros %}
+        <div class="caja mb-3">
+          <h3 class="h6 mb-1">{{ p.nombre }}</h3>
+          <p class="small mb-1">{{ p.descripcion }}</p>
+          <p class="small text-muted mb-0">
+            {% if p.eje %}{{ p.eje }}{% endif %}
+            {% if usuario and p.fuente_financiamiento %} · {{ p.fuente_financiamiento }}{% endif %}
+            {% if usuario and p.monto %} · {{ p.monto|moneda }}{% endif %}
+          </p>
+        </div>
+      {% else %}
+        <p>Aún no hay proyectos futuros registrados.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if ejes %}
+    <h2 class="h4 mt-5">Ejes de trabajo</h2>
+    <div class="d-flex flex-wrap gap-2">
+      {% for eje in ejes %}<span class="badge-estado badge-postulado">{{ eje }}</span>{% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
