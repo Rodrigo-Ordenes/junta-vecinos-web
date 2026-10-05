@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS proyectos (
     fuente_financiamiento TEXT DEFAULT '',
     monto INTEGER,
     horizonte TEXT NOT NULL DEFAULT 'Actual',
+    imagen_url TEXT DEFAULT '',
     fecha_actualizacion TEXT NOT NULL
 );
 
@@ -184,6 +185,7 @@ CREATE TABLE IF NOT EXISTS servicios (
     whatsapp TEXT DEFAULT '',
     email TEXT DEFAULT '',
     direccion TEXT DEFAULT '',
+    foto_url TEXT DEFAULT '',
     aprobado INTEGER NOT NULL DEFAULT 0,
     fecha_solicitud TEXT NOT NULL
 );
@@ -277,6 +279,8 @@ CONFIG_POR_DEFECTO = {
     "horario_sede_inicio": "09:00",
     "horario_sede_fin": "21:00",
     "coordinador_crear_vecinos": "0",
+    "imagen_sede_url": "/static/img/sede_comunitaria.jpg",
+    "imagen_hero_url": "/static/img/hero_comunidad.jpg",
     "plan_maestro_intro": (
         "El plan maestro reúne lo que la junta de vecinos quiere lograr en el cerro: "
         "los proyectos que están en marcha hoy y los que se postularán en los próximos años."
@@ -440,6 +444,64 @@ def _migrar_esquema():
     )
     db.commit()
 
+    # Actualizar imágenes iniciales si no tienen una asignada
+    imagenes_noticias = {
+        "Asamblea ordinaria de socias y socios": "/static/img/noticia_asamblea.jpg",
+        "Comienza el mejoramiento de la plaza del cerro": "/static/img/noticia_plaza.jpg",
+        "Taller de alfabetización digital para adultos mayores": "/static/img/noticia_taller.jpg",
+    }
+    for tit, img in imagenes_noticias.items():
+        db.execute(
+            "UPDATE noticias SET imagen_url = ? WHERE titulo = ? AND (imagen_url IS NULL OR imagen_url = '')",
+            (img, tit),
+        )
+
+    imagenes_proyectos = {
+        "Mejoramiento de la plaza central": "/static/img/noticia_plaza.jpg",
+        "Cámaras de seguridad comunitarias": "/static/img/proyecto_seguridad.jpg",
+        "Ampliación de la sede vecinal": "/static/img/proyecto_sede.jpg",
+    }
+    for nom, img in imagenes_proyectos.items():
+        db.execute(
+            "UPDATE proyectos SET imagen_url = ? WHERE nombre = ? AND (imagen_url IS NULL OR imagen_url = '')",
+            (img, nom),
+        )
+
+    imagenes_directiva = {
+        "María Elena Cabello Montesinos": "/static/img/directiva_presidenta.jpg",
+        "Rosa Martínez Morales": "/static/img/directiva_presidenta.jpg",
+        "José Miguel Saldaña Gaete": "/static/img/directiva_secretario.jpg",
+        "Carlos Silva Araya": "/static/img/directiva_secretario.jpg",
+        "Tesorero/a de la junta": "/static/img/directiva_tesorera.jpg",
+        "Elena Soto Muñoz": "/static/img/directiva_tesorera.jpg",
+    }
+    for nom, img in imagenes_directiva.items():
+        db.execute(
+            "UPDATE directiva SET foto_url = ? WHERE nombre = ? AND (foto_url IS NULL OR foto_url = '')",
+            (img, nom),
+        )
+
+    imagenes_servicios = {
+        "Amasandería Doña Rosa": "/static/img/servicio_panaderia.jpg",
+        "Costurería y arreglos de ropa": "/static/img/servicio_costura.jpg",
+        "Costurería Ana": "/static/img/servicio_costura.jpg",
+    }
+    for nom, img in imagenes_servicios.items():
+        db.execute(
+            "UPDATE servicios SET foto_url = ? WHERE nombre_servicio = ? AND (foto_url IS NULL OR foto_url = '')",
+            (img, nom),
+        )
+
+    db.execute(
+        "INSERT INTO config (clave, valor) VALUES ('imagen_sede_url', '/static/img/sede_comunitaria.jpg') "
+        "ON CONFLICT(clave) DO NOTHING"
+    )
+    db.execute(
+        "INSERT INTO config (clave, valor) VALUES ('imagen_hero_url', '/static/img/hero_comunidad.jpg') "
+        "ON CONFLICT(clave) DO NOTHING"
+    )
+    db.commit()
+
     # La versión anterior guardaba estos datos en otras tablas.
     if _tabla_existe("movimientos_rendicion") and not consultar(
         "SELECT id FROM movimientos LIMIT 1", uno=True
@@ -550,6 +612,7 @@ def _crear_datos_ejemplo():
             "Convocamos a toda la comunidad a la asamblea ordinaria en la sede vecinal.",
             "Se realizará la asamblea ordinaria en la sede vecinal. Se revisará el estado de "
             "los proyectos, la rendición de cuentas del período y el uso de la sede durante el año.",
+            "/static/img/noticia_asamblea.jpg",
             (hoy + timedelta(days=20)).isoformat(),
         ),
         (
@@ -558,6 +621,7 @@ def _crear_datos_ejemplo():
             "Gracias al proyecto aprobado por el Fondo de Desarrollo Vecinal comienzan los "
             "trabajos de mejoramiento de la plaza central: juegos infantiles, áreas verdes e "
             "iluminación.",
+            "/static/img/noticia_plaza.jpg",
             None,
         ),
         (
@@ -566,14 +630,15 @@ def _crear_datos_ejemplo():
             "Todos los lunes, junto al grupo de adulto mayor, realizaremos un taller para "
             "aprender a usar el celular, enviar mensajes y revisar la información de la junta "
             "de vecinos en esta página.",
+            "/static/img/noticia_taller.jpg",
             (hoy + timedelta(days=7)).isoformat(),
         ),
     ]
-    for titulo, resumen, contenido, fecha_evento in noticias:
+    for titulo, resumen, contenido, imagen_url, fecha_evento in noticias:
         ejecutar(
             "INSERT INTO noticias (titulo, resumen, contenido, imagen_url, fecha_evento, "
-            "fecha_publicacion, publicado) VALUES (?, ?, ?, '', ?, ?, 1)",
-            (titulo, resumen, contenido, fecha_evento, ahora),
+            "fecha_publicacion, publicado) VALUES (?, ?, ?, ?, ?, ?, 1)",
+            (titulo, resumen, contenido, imagen_url, fecha_evento, ahora),
         )
 
     proyectos = [
@@ -585,6 +650,7 @@ def _crear_datos_ejemplo():
             "Fondo de Desarrollo Vecinal (FONDEVE)",
             8500000,
             "Actual",
+            "/static/img/noticia_plaza.jpg",
         ),
         (
             "Cámaras de seguridad comunitarias",
@@ -594,6 +660,7 @@ def _crear_datos_ejemplo():
             "Fondo Nacional de Seguridad Pública",
             4200000,
             "Actual",
+            "/static/img/proyecto_seguridad.jpg",
         ),
         (
             "Ampliación de la sede vecinal",
@@ -603,6 +670,7 @@ def _crear_datos_ejemplo():
             "Municipalidad",
             15000000,
             "Actual",
+            "/static/img/proyecto_sede.jpg",
         ),
         (
             "Internet comunitario en la sede",
@@ -613,6 +681,7 @@ def _crear_datos_ejemplo():
             "Por definir",
             900000,
             "Actual",
+            "",
         ),
         (
             "Escaleras y pasamanos del cerro",
@@ -622,6 +691,7 @@ def _crear_datos_ejemplo():
             "Por definir",
             6000000,
             "Futuro",
+            "",
         ),
         (
             "Techado del patio de la sede",
@@ -631,13 +701,14 @@ def _crear_datos_ejemplo():
             "Por definir",
             3500000,
             "Futuro",
+            "",
         ),
     ]
-    for nombre, desc, estado, eje, fuente, monto, horizonte in proyectos:
+    for nombre, desc, estado, eje, fuente, monto, horizonte, imagen_url in proyectos:
         ejecutar(
             "INSERT INTO proyectos (nombre, descripcion, estado, eje, fuente_financiamiento, "
-            "monto, horizonte, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (nombre, desc, estado, eje, fuente, monto, horizonte, ahora),
+            "monto, horizonte, imagen_url, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (nombre, desc, estado, eje, fuente, monto, horizonte, imagen_url, ahora),
         )
 
     # Rendición de cuentas anual con sus movimientos
@@ -775,17 +846,17 @@ def _crear_datos_ejemplo():
 
     # Directiva
     directiva = [
-        ("María Elena Cabello Montesinos", "Presidenta", "presidencia@jv2esperanza.cl", 1),
-        ("José Miguel Saldaña Gaete", "Secretario", "secretaria@jv2esperanza.cl", 2),
-        ("Tesorero/a de la junta", "Tesorería", "tesoreria@jv2esperanza.cl", 3),
-        ("Encargado/a de la sede", "Coordinación de sede", "sede@jv2esperanza.cl", 4),
-        ("Delegado/a de seguridad", "Seguridad", "seguridad@jv2esperanza.cl", 5),
+        ("María Elena Cabello Montesinos", "Presidenta", "presidencia@jv2esperanza.cl", "/static/img/directiva_presidenta.jpg", 1),
+        ("José Miguel Saldaña Gaete", "Secretario", "secretaria@jv2esperanza.cl", "/static/img/directiva_secretario.jpg", 2),
+        ("Tesorero/a de la junta", "Tesorería", "tesoreria@jv2esperanza.cl", "/static/img/directiva_tesorera.jpg", 3),
+        ("Encargado/a de la sede", "Coordinación de sede", "sede@jv2esperanza.cl", "", 4),
+        ("Delegado/a de seguridad", "Seguridad", "seguridad@jv2esperanza.cl", "", 5),
     ]
-    for nombre, cargo, email, orden in directiva:
+    for nombre, cargo, email, foto_url, orden in directiva:
         ejecutar(
             "INSERT INTO directiva (nombre, cargo, email, telefono, foto_url, orden) "
-            "VALUES (?, ?, ?, '', '', ?)",
-            (nombre, cargo, email, orden),
+            "VALUES (?, ?, ?, '', ?, ?)",
+            (nombre, cargo, email, foto_url, orden),
         )
 
     for clave, valor in CONFIG_POR_DEFECTO.items():

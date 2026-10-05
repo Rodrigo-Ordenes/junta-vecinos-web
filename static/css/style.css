@@ -216,27 +216,33 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 /* --- Botones ------------------------------------------------------------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  min-height: 48px; padding: 0.5rem 1.1rem; border-radius: 0.6rem;
+  min-height: 48px; padding: 0.5rem 1.15rem; border-radius: 0.65rem;
   border: 2px solid transparent; font-weight: 600; font-size: 1rem;
   text-decoration: none; cursor: pointer; background: #e9edf3; color: var(--azul-oscuro);
-  line-height: 1.2; text-align: center;
-  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  line-height: 1.25; text-align: center;
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease;
+  user-select: none;
 }
 .btn:hover { filter: brightness(0.98); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(23,60,73,0.12); }
-.btn-sm { min-height: 48px; padding: 0.4rem 0.75rem; font-size: 0.9rem; }
-.btn-lg { min-height: 52px; padding: 0.7rem 1.5rem; font-size: 1.08rem; }
+.btn:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(23,60,73,0.15); }
+.btn:focus-visible {
+  outline: 3px solid var(--dorado);
+  outline-offset: 2px;
+}
+.btn-sm { min-height: 44px; padding: 0.35rem 0.85rem; font-size: 0.88rem; border-radius: 0.5rem; }
+.btn-lg { min-height: 52px; padding: 0.75rem 1.6rem; font-size: 1.08rem; border-radius: 0.75rem; }
 .btn-primary { background: var(--azul-medio); border-color: var(--azul-medio); color: #fff; }
 .btn-primary:hover { background: var(--azul-oscuro); border-color: var(--azul-oscuro); }
 .btn-success { background: var(--verde-cerro); border-color: var(--verde-cerro); color: #fff; }
-.btn-light { background: #fff; border-color: #fff; color: var(--azul-oscuro); }
+.btn-light { background: #fff; border-color: var(--borde); color: var(--azul-oscuro); }
 .btn-outline-primary { background: #fff; border-color: var(--azul-medio); color: var(--azul-medio); }
 .btn-outline-primary:hover { background: var(--azul-medio); color: #fff; }
 .btn-outline-secondary { background: #fff; border-color: var(--gris); color: var(--gris); }
 .btn-outline-secondary:hover { background: var(--gris); color: #fff; }
 .btn-outline-danger { background: #fff; border-color: var(--rojo); color: var(--rojo); }
 .btn-outline-danger:hover { background: var(--rojo); color: #fff; }
-.btn-whatsapp { background: #d8eddf; border-color: #d8eddf; color: #194d35; }
-.btn-whatsapp:hover { background: #c4e4cf; border-color: #c4e4cf; color: #123d2a; }
+.btn-whatsapp { background: #d8eddf; border-color: #b7ddc4; color: #194d35; }
+.btn-whatsapp:hover { background: #c4e4cf; border-color: #9eccad; color: #123d2a; }
 
 .btn-close {
   background: transparent; border: 0; font-size: 1.4rem; line-height: 1;
@@ -609,3 +615,827 @@ html.alto-contraste .table tbody tr:hover { background: #000; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
+
+/* --- Imágenes y miniaturas de noticias y proyectos ----------------------- */
+.hero-card-foto {
+  width: 100%;
+  border-radius: 0.9rem;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+.hero-img-comunidad {
+  width: 100%;
+  height: 145px;
+  object-fit: cover;
+  display: block;
+}
+
+.card-img-wrap {
+  width: 100%;
+  height: 190px;
+  overflow: hidden;
+  background: #eef2f0;
+  border-top-left-radius: 1.15rem;
+  border-top-right-radius: 1.15rem;
+}
+.card-img-wrap-proyecto {
+  height: 200px;
+}
+.card-img-top {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 220ms ease;
+}
+.card:hover .card-img-top {
+  transform: scale(1.025);
+}
+
+/* --- Calendario interactivo y selección de reservas --------------------- */
+.reserva-modulo {
+  background: var(--papel);
+}
+.reserva-calendario-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.12fr);
+  gap: 1.8rem;
+  align-items: start;
+}
+.reserva-col-calendario {
+  background: #fbfbf9;
+  border: 1px solid var(--borde);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+.reserva-col-horarios {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+.reserva-cal-semana-cabecera {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: var(--azul-oscuro);
+  padding: 0.4rem 0;
+  margin-bottom: 0.35rem;
+  background: #eef4f1;
+  border-radius: 0.5rem;
+}
+
+.reserva-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.3rem;
+}
+.cal-dia-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  aspect-ratio: 1 / 1;
+  min-height: 44px;
+  padding: 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: var(--texto);
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.cal-dia-btn:hover:not(:disabled) {
+  background: #eef7f4;
+  border-color: var(--verde-cerro);
+  transform: scale(1.04);
+}
+.cal-dia-btn:focus-visible {
+  outline: 2px solid var(--terracota);
+  outline-offset: 1px;
+}
+
+.cal-dia-fuera {
+  opacity: 0.3;
+  background: transparent;
+}
+.cal-dia-pasado {
+  background: #f5f6f7;
+  color: #a0a6ab;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.cal-dia-hoy {
+  font-weight: 800;
+  border-color: #d1b876;
+  box-shadow: inset 0 0 0 1px #d1b876;
+}
+.cal-dia-disponible {
+  border-color: #c9e0d4;
+  background: #f4faf6;
+  font-weight: 600;
+}
+.cal-dia-completo {
+  background: #faf4ef;
+  color: #7b746f;
+}
+.cal-dia-seleccionado, .cal-dia-seleccionado:hover {
+  background: var(--azul-medio) !important;
+  color: #fff !important;
+  border-color: var(--azul-oscuro) !important;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgba(40, 122, 117, 0.35);
+}
+
+.cal-dia-indicador {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--verde-cerro);
+  margin-top: 2px;
+}
+.cal-dia-seleccionado .cal-dia-indicador {
+  background: #fff;
+}
+
+.reserva-cal-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  font-size: 0.78rem;
+  color: var(--gris);
+}
+.leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.leyenda-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot-disponible { background: var(--verde-cerro); }
+.dot-ocupado { background: #b0b8bd; }
+.dot-seleccionado { background: var(--azul-medio); }
+
+.reserva-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.slot-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1.5px solid var(--borde);
+  background: #fff;
+  min-height: 52px;
+  cursor: pointer;
+  transition: all 140ms ease;
+  font-family: inherit;
+  text-align: left;
+  color: var(--texto);
+}
+.slot-btn:hover:not(:disabled) {
+  border-color: var(--verde-cerro);
+  background: #f2f9f5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(57, 123, 89, 0.12);
+}
+.slot-horas {
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+.slot-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 2rem;
+  background: #e4f5ec;
+  color: #1b6c47;
+}
+.slot-seleccionado, .slot-seleccionado:hover {
+  background: #edf6f5 !important;
+  border-color: var(--azul-medio) !important;
+  box-shadow: 0 0 0 2px var(--azul-medio);
+}
+.slot-seleccionado .slot-badge {
+  background: var(--azul-medio);
+  color: #fff;
+}
+.slot-ocupado {
+  background: #f7f9fa;
+  border-color: #e5ece9;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.slot-badge-ocupado {
+  background: #fbeee9;
+  color: #a44f36;
+}
+
+.reserva-seleccion-resumen {
+  padding: 0.75rem 1rem;
+  border-radius: 0.7rem;
+  background: #e8f5ee;
+  border: 1px solid #c2e2d0;
+  color: #175234;
+  font-size: 0.92rem;
+}
+.resumen-icono {
+  display: inline-grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--verde-cerro);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 899px) {
+  .reserva-calendario-layout {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+}
+
+/* Alto contraste para calendario de reserva */
+html.alto-contraste .reserva-col-calendario,
+html.alto-contraste .reserva-col-horarios,
+html.alto-contraste .slot-btn,
+html.alto-contraste .cal-dia-btn {
+  background: #000;
+  color: #fff;
+  border-color: #ffdf00;
+}
+html.alto-contraste .cal-dia-seleccionado,
+html.alto-contraste .slot-seleccionado {
+  background: #ffdf00 !important;
+  color: #000 !important;
+  border-color: #ffdf00 !important;
+}
+html.alto-contraste .reserva-cal-semana-cabecera {
+  background: #000;
+  color: #ffdf00;
+  border: 1px solid #ffdf00;
+}
+html.alto-contraste .reserva-seleccion-resumen {
+  background: #000;
+  color: #ffdf00;
+  border-color: #ffdf00;
+}
+html.alto-contraste .card-img-wrap {
+  border-bottom: 1px solid #ffdf00;
+}
+
+/* --- Sede Vecinal Hero Grid Card ---------------------------------------- */
+.sede-hero-card {
+  display: grid;
+  grid-template-columns: minmax(280px, 42%) 1fr;
+  background: var(--papel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+  box-shadow: var(--sombra-suave);
+  align-items: stretch;
+}
+.sede-hero-card:not(:has(.sede-hero-media)) {
+  grid-template-columns: 1fr;
+}
+.sede-hero-media {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+  height: 100%;
+  overflow: hidden;
+  background: #eef2ef;
+}
+.sede-hero-media img,
+.sede-hero-foto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+.sede-hero-info {
+  padding: clamp(1.4rem, 3.2vw, 2.75rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.sede-hero-title {
+  font-size: clamp(1.4rem, 2.4vw, 1.85rem);
+  font-weight: 700;
+  color: var(--azul-oscuro);
+  line-height: 1.25;
+  margin: 0 0 0.75rem;
+}
+.sede-hero-lead {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--texto);
+  margin: 0 0 1rem;
+}
+.sede-hero-ubicacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  color: var(--gris);
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  margin: 0 0 1.25rem;
+  align-self: flex-start;
+  max-width: 100%;
+}
+.sede-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .sede-hero-card {
+    grid-template-columns: 1fr;
+  }
+  .sede-hero-media {
+    position: relative;
+    min-height: 220px;
+    height: 250px;
+    max-height: 300px;
+  }
+  .sede-hero-media img,
+  .sede-hero-foto {
+    position: static;
+  }
+}
+
+/* --- Directorio: Barra de filtros y chips ------------------------------- */
+.directorio-filtro-caja {
+  border: 1px solid var(--borde);
+  box-shadow: var(--sombra-suave);
+}
+.directorio-chips-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+.directorio-chips-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.chip-rubro {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  border: 1px solid var(--borde);
+  background: var(--papel);
+  color: var(--texto);
+  cursor: pointer;
+  transition: all 160ms ease;
+  user-select: none;
+}
+.chip-rubro:hover {
+  background: #ebf1ee;
+  border-color: var(--azul-medio);
+}
+.chip-rubro:focus-visible {
+  outline: 2px solid var(--dorado);
+  outline-offset: 1px;
+}
+.chip-rubro.activo {
+  background: var(--azul-medio);
+  border-color: var(--azul-medio);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* --- Directorio: Avatares y Tarjetas ------------------------------------- */
+.directorio-card {
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.directorio-card:hover {
+  box-shadow: var(--sombra-suave);
+  transform: translateY(-2px);
+}
+.directorio-avatar-img {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  border-radius: var(--radio);
+  object-fit: cover;
+  border: 2px solid var(--borde);
+  background: #eee;
+  box-shadow: 0 2px 8px rgba(23, 60, 73, 0.08);
+}
+.directorio-avatar-placeholder {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  border-radius: var(--radio);
+  background: var(--crema);
+  border: 2px dashed var(--borde);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.directorio-avatar-icono {
+  font-size: 1.8rem;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* --- Directiva: Retratos uniformes --------------------------------------- */
+.directiva-foto-wrap {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: var(--sombra-suave);
+}
+.directiva-foto-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid var(--borde);
+  display: block;
+}
+.directiva-foto-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--crema);
+  border: 2px dashed var(--borde);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.directiva-placeholder-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* --- Grupo de Accesibilidad: Tamaño de Texto ----------------------------- */
+.accesibilidad-tamanio-grupo {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.accesibilidad-tamanio-grupo .btn-accesible {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  min-width: 32px;
+}
+.accesibilidad-tamanio-grupo .btn-accesible:last-child {
+  border-right: none;
+}
+.accesibilidad-tamanio-grupo .btn-accesible:hover,
+.accesibilidad-tamanio-grupo .btn-accesible:focus-visible {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Alto contraste para componentes */
+html.alto-contraste .sede-hero-card,
+html.alto-contraste .directorio-card,
+html.alto-contraste .directorio-filtro-caja {
+  background: #000;
+  border-color: #ffdf00;
+}
+html.alto-contraste .sede-hero-title,
+html.alto-contraste .sede-hero-lead,
+html.alto-contraste .sede-hero-ubicacion {
+  color: #ffdf00;
+  background: #000;
+  border-color: #ffdf00;
+}
+html.alto-contraste .chip-rubro {
+  background: #000;
+  color: #ffdf00;
+  border-color: #ffdf00;
+}
+html.alto-contraste .chip-rubro.activo {
+  background: #ffdf00;
+  color: #000;
+}
+html.alto-contraste .directorio-avatar-img,
+html.alto-contraste .directiva-foto-img {
+  border-color: #ffdf00;
+}
+html.alto-contraste .directorio-avatar-placeholder,
+html.alto-contraste .directiva-foto-placeholder {
+  background: #000;
+  border-color: #ffdf00;
+  color: #ffdf00;
+}
+html.alto-contraste .accesibilidad-tamanio-grupo {
+  border-color: #ffdf00;
+}
+html.alto-contraste .accesibilidad-tamanio-grupo .btn-accesible {
+  color: #ffdf00;
+  border-right-color: #ffdf00;
+}
+
+/* --------------------------------------------------------------------------
+   Tarjetas horizontales de 3 columnas (Noticias y Proyectos)
+   -------------------------------------------------------------------------- */
+.tarjeta-horizontal {
+  display: grid;
+  grid-template-columns: 180px 1fr auto;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  background: #ffffff;
+  border: 1px solid var(--crema-borde);
+  border-radius: var(--radio-card, 12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+}
+
+.tarjeta-horizontal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.tarjeta-horizontal-media {
+  width: 180px;
+  height: 130px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--crema-fondo, #f9f7f2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tarjeta-horizontal-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tarjeta-horizontal-placeholder {
+  font-size: 2.5rem;
+  opacity: 0.6;
+}
+
+.tarjeta-horizontal-cuerpo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tarjeta-horizontal-meta {
+  margin-bottom: 0.35rem;
+}
+
+.tarjeta-horizontal-titulo {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--verde-cerro);
+  margin-bottom: 0.35rem;
+  line-height: 1.35;
+}
+
+.tarjeta-horizontal-desc {
+  font-size: 0.92rem;
+  color: var(--color-texto);
+  margin-bottom: 0;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tarjeta-horizontal-accion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+  padding-left: 0.5rem;
+}
+
+.tarjeta-horizontal-accion .btn {
+  white-space: nowrap;
+}
+
+/* Responsividad para tablets */
+@media (max-width: 860px) {
+  .tarjeta-horizontal {
+    grid-template-columns: 140px 1fr auto;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .tarjeta-horizontal-media {
+    width: 140px;
+    height: 110px;
+  }
+}
+
+/* Responsividad para celulares */
+@media (max-width: 640px) {
+  .tarjeta-horizontal {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    align-items: stretch;
+    padding: 1rem;
+  }
+  .tarjeta-horizontal-media {
+    width: 100%;
+    height: 170px;
+  }
+  .tarjeta-horizontal-accion {
+    align-items: stretch;
+    padding-left: 0;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--crema-borde);
+  }
+  .tarjeta-horizontal-accion .btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Tarjetas de Directiva
+   -------------------------------------------------------------------------- */
+.directiva-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.75rem 1.25rem 1.25rem;
+  background: #ffffff;
+  border: 1px solid var(--crema-borde);
+  border-radius: var(--radio-card, 12px);
+  height: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.directiva-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+}
+
+.directiva-foto-wrap {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 1.15rem;
+  flex-shrink: 0;
+  border: 3px solid var(--crema-borde);
+  background: var(--crema-fondo, #f9f7f2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.directiva-foto-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.directiva-foto-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--crema-fondo, #f9f7f2);
+  color: var(--verde-cerro);
+  font-size: 2.5rem;
+}
+
+.directiva-cuerpo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+
+.directiva-nombre {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-texto);
+  margin-bottom: 0.4rem;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.directiva-cargo {
+  font-size: 0.82rem;
+  display: inline-block;
+  margin-bottom: 0.25rem;
+}
+
+.directiva-contacto {
+  width: 100%;
+  padding-top: 0.85rem;
+  margin-top: auto;
+  border-top: 1px solid var(--crema-borde);
+  font-size: 0.88rem;
+  word-break: break-all;
+}
+
+.directiva-email {
+  color: var(--verde-cerro);
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.directiva-email:hover,
+.directiva-email:focus-visible {
+  text-decoration: underline;
+  color: var(--verde-oscuro);
+}
+
+/* --------------------------------------------------------------------------
+   Paneles de búsqueda y filtros en el Panel de Administración
+   -------------------------------------------------------------------------- */
+.panel-filtro-caja {
+  background: #ffffff;
+  border: 1px solid var(--crema-borde);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+/* Alto contraste para nuevos componentes */
+html.alto-contraste .tarjeta-horizontal,
+html.alto-contraste .directiva-card,
+html.alto-contraste .panel-filtro-caja {
+  background: #000000;
+  border-color: #ffdf00;
+}
+
+html.alto-contraste .tarjeta-horizontal-titulo,
+html.alto-contraste .directiva-nombre {
+  color: #ffdf00;
+}
+
+html.alto-contraste .tarjeta-horizontal-desc,
+html.alto-contraste .directiva-contacto {
+  color: #ffffff;
+}
+
+html.alto-contraste .directiva-email {
+  color: #ffdf00;
+}
+
+

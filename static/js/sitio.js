@@ -2,7 +2,16 @@
    de accesibilidad pensados para vecinas y vecinos mayores. No usa librerías. */
 (function () {
   var raiz = document.documentElement;
-  var CLAVES = { texto: "jv-texto-grande", contraste: "jv-alto-contraste" };
+  var CLAVES = { texto: "jv-texto-grande", contraste: "jv-alto-contraste", fuente: "jv-escala-fuente" };
+  var NIVELES_FUENTE = {
+    "-1": "14.5px",
+    "0": "16px",
+    "1": "18px",
+    "2": "20.5px",
+    "3": "23px"
+  };
+  var MIN_NIVEL = -1;
+  var MAX_NIVEL = 3;
 
   function leer(clave) {
     try { return window.localStorage.getItem(clave) === "1"; } catch (e) { return false; }
@@ -12,8 +21,26 @@
     try { window.localStorage.setItem(clave, valor ? "1" : "0"); } catch (e) { /* sin almacenamiento */ }
   }
 
+  function leerNivelFuente() {
+    try {
+      var val = window.localStorage.getItem(CLAVES.fuente);
+      if (val !== null) {
+        var num = parseInt(val, 10);
+        if (!isNaN(num) && num >= MIN_NIVEL && num <= MAX_NIVEL) return num;
+      }
+      if (leer(CLAVES.texto)) return 2;
+    } catch (e) {}
+    return 0;
+  }
+
+  function guardarNivelFuente(nivel) {
+    try { window.localStorage.setItem(CLAVES.fuente, String(nivel)); } catch (e) {}
+  }
+
   function aplicarPreferencias() {
-    raiz.classList.toggle("texto-grande", leer(CLAVES.texto));
+    var nivel = leerNivelFuente();
+    raiz.style.fontSize = NIVELES_FUENTE[String(nivel)] || "16px";
+    raiz.classList.toggle("texto-grande", nivel >= 2);
     raiz.classList.toggle("alto-contraste", leer(CLAVES.contraste));
   }
 
@@ -31,9 +58,19 @@
     var botonAccesible = objetivo.closest("[data-accion]");
     if (botonAccesible) {
       var accion = botonAccesible.getAttribute("data-accion");
-      if (accion === "texto-grande") guardar(CLAVES.texto, !leer(CLAVES.texto));
-      else if (accion === "alto-contraste") guardar(CLAVES.contraste, !leer(CLAVES.contraste));
-      else if (accion === "reiniciar") { guardar(CLAVES.texto, false); guardar(CLAVES.contraste, false); }
+      var nivelActual = leerNivelFuente();
+      if (accion === "texto-aumentar") {
+        if (nivelActual < MAX_NIVEL) guardarNivelFuente(nivelActual + 1);
+      } else if (accion === "texto-reducir") {
+        if (nivelActual > MIN_NIVEL) guardarNivelFuente(nivelActual - 1);
+      } else if (accion === "texto-normal" || accion === "reiniciar") {
+        guardarNivelFuente(0);
+        guardar(CLAVES.texto, false);
+      } else if (accion === "texto-grande") {
+        guardarNivelFuente(nivelActual === 2 ? 0 : 2);
+      } else if (accion === "alto-contraste") {
+        guardar(CLAVES.contraste, !leer(CLAVES.contraste));
+      }
       aplicarPreferencias();
       return;
     }

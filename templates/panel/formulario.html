@@ -55,12 +55,27 @@
             </div>
             <span class="form-separador">o</span>
             <div>
-              <label class="form-label small" for="{{ c.nombre }}">Enlace a imagen</label>
-              <input class="form-control" type="url" id="{{ c.nombre }}" name="{{ c.nombre }}"
-                     value="{{ valor }}" placeholder="https://…">
+              <label class="form-label small" for="{{ c.nombre }}">Ruta o enlace a imagen</label>
+              <input class="form-control" type="text" id="{{ c.nombre }}" name="{{ c.nombre }}"
+                     value="{{ valor }}" placeholder="/static/img/… o https://…">
             </div>
           </div>
-          {% if valor %}<img class="panel-imagen-previa" src="{{ valor }}" alt="Imagen actual de la noticia" loading="lazy">{% endif %}
+          <div id="preview-box-{{ c.nombre }}" class="d-none mt-2 p-2 border rounded bg-light align-items-center gap-3">
+            <img id="preview-img-{{ c.nombre }}" src="" alt="Vista previa del archivo" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px;">
+            <div>
+              <span class="small fw-semibold d-block">Vista previa de la nueva fotografía seleccionada</span>
+              <small class="text-muted">Se guardará al enviar el formulario</small>
+            </div>
+          </div>
+          {% if valor %}
+            <div class="mt-2">
+              <img class="panel-imagen-previa" src="{{ valor }}" alt="Imagen actual" loading="lazy">
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" id="quitar_{{ c.nombre }}" name="quitar_{{ c.nombre }}" value="1">
+                <label class="form-check-label small" for="quitar_{{ c.nombre }}">Quitar la imagen actual</label>
+              </div>
+            </div>
+          {% endif %}
         {% elif c.tipo == 'clave' %}
           <input class="form-control" type="password" id="{{ c.nombre }}" name="{{ c.nombre }}" autocomplete="new-password">
         {% elif c.tipo == 'fecha' %}
@@ -82,8 +97,33 @@
   {% endfor %}
 
   <div class="col-12 d-flex gap-2">
-    <button class="btn btn-primary btn-lg" type="submit">Guardar</button>
+    <button class="btn btn-primary btn-lg" type="submit">{% if fila %}Guardar cambios{% else %}Guardar{% endif %}</button>
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('panel_listado', recurso=recurso) }}">Cancelar</a>
   </div>
 </form>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const inputImg = document.getElementById("imagen_archivo");
+  if (inputImg) {
+    inputImg.addEventListener("change", function(e) {
+      const archivo = e.target.files && e.target.files[0];
+      const previewBox = document.querySelector("[id^='preview-box-']");
+      const previewImg = document.querySelector("[id^='preview-img-']");
+      if (archivo && previewBox && previewImg) {
+        const lector = new FileReader();
+        lector.onload = function(evt) {
+          previewImg.src = evt.target.result;
+          previewBox.classList.remove("d-none");
+          previewBox.classList.add("d-flex");
+        };
+        lector.readAsDataURL(archivo);
+      } else if (previewBox) {
+        previewBox.classList.add("d-none");
+        previewBox.classList.remove("d-flex");
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

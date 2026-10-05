@@ -2,53 +2,196 @@
 {% block title %}Directorio vecinal · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container my-4 my-md-5">
-  <h1 class="section-title">Directorio de servicios del cerro</h1>
-  <p class="lead">
-    Vecinas y vecinos que ofrecen sus servicios en el barrio. Compra en el cerro y apoya a tu comunidad.
-  </p>
-  <a class="btn btn-primary mb-4" href="{{ url_for('inscribir_servicio') }}">Inscribir mi servicio</a>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+      <h1 class="section-title mb-1">Directorio de servicios del cerro</h1>
+      <p class="lead mb-0">
+        Vecinas y vecinos que ofrecen sus oficios, comercio y servicios en el barrio. Compra en el cerro y apoya a tu comunidad.
+      </p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('inscribir_servicio') }}">
+      ➕ Inscribir mi servicio
+    </a>
+  </div>
 
-  <form class="row g-2 align-items-end mb-4" method="get">
-    <div class="col-md-5">
-      <label class="form-label" for="q">Buscar</label>
-      <input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}" placeholder="Pan, gasfíter, fletes…">
-    </div>
-    <div class="col-md-4">
-      <label class="form-label" for="rubro">Rubro</label>
-      <select class="form-select" id="rubro" name="rubro">
-        <option value="">Todos los rubros</option>
-        {% for r in rubros %}
-          <option value="{{ r }}" {% if filtro_rubro == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <button class="btn btn-outline-primary w-100" type="submit">Buscar</button>
-    </div>
-  </form>
+  <!-- Panel optimizado de búsqueda y filtros -->
+  <div class="caja directorio-filtro-caja mb-4">
+    <form class="row g-2 align-items-end" method="get" id="form-filtro-directorio">
+      <div class="col-md-5 col-sm-6">
+        <label class="form-label small fw-semibold" for="q">Buscar por nombre o palabra clave</label>
+        <div class="input-grupo-busqueda">
+          <input class="form-control" type="search" id="q" name="q" value="{{ busqueda }}"
+                 placeholder="Panadería, costura, gasfitería, fletes…" autocomplete="off">
+        </div>
+      </div>
+      <div class="col-md-4 col-sm-6">
+        <label class="form-label small fw-semibold" for="rubro">Filtrar por rubro</label>
+        <select class="form-select" id="rubro" name="rubro">
+          <option value="">Todos los rubros</option>
+          {% for r in rubros %}
+            <option value="{{ r }}" {% if filtro_rubro == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-12 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit" id="btn-submit-busqueda">
+          🔍 Buscar
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-filtros" title="Limpiar búsqueda y filtros" aria-label="Limpiar filtros">
+          Restablecer
+        </button>
+      </div>
+    </form>
 
-  <div class="row g-3">
+    <!-- Barra de estado con contador dinámico -->
+    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small text-muted">
+      <span id="contador-directorio" class="fw-semibold text-dark">
+        Mostrando {{ servicios|length }} servicio{{ 's' if servicios|length != 1 else '' }}
+      </span>
+      <span class="small text-muted">Actualización inmediata</span>
+    </div>
+  </div>
+
+  <!-- Rejilla de tarjetas de servicios -->
+  <div class="row g-3" id="directorio-grid">
     {% for s in servicios %}
-      <div class="col-md-6 col-lg-4">
-        <div class="caja h-100">
-          <p class="small text-muted mb-1">{{ s.rubro }}</p>
-          <h2 class="h6 mb-1">{{ s.nombre_servicio }}</h2>
-          <p class="small mb-2">{{ s.vecino }}</p>
-          {% if s.descripcion %}<p class="small">{{ s.descripcion }}</p>{% endif %}
-          {% if s.direccion %}<p class="small mb-2"><strong>Dirección:</strong> {{ s.direccion }}</p>{% endif %}
-          <div class="d-flex flex-wrap gap-2">
+      <div class="col-md-6 col-lg-4 directorio-col"
+           data-nombre="{{ s.nombre_servicio|lower }}"
+           data-vecino="{{ s.vecino|lower }}"
+           data-rubro="{{ s.rubro }}"
+           data-descripcion="{{ (s.descripcion or '')|lower }}">
+        <article class="caja h-100 d-flex flex-column justify-content-between directorio-card">
+          <div>
+            <div class="directorio-card-header d-flex align-items-center gap-3 mb-3 pb-2 border-bottom">
+              {% if s.foto_url %}
+                <img src="{{ s.foto_url }}" alt="{{ s.vecino }} · {{ s.nombre_servicio }}" class="directorio-avatar-img" loading="lazy">
+              {% else %}
+                <div class="directorio-avatar-placeholder" aria-hidden="true" title="Sin fotografía asignada">
+                  <span class="directorio-avatar-icono">👤</span>
+                </div>
+              {% endif %}
+              <div class="min-w-0 flex-grow-1">
+                <span class="badge-estado badge-fija mb-1 d-inline-block">{{ s.rubro }}</span>
+                <h2 class="h6 mb-0 text-truncate" title="{{ s.nombre_servicio }}">{{ s.nombre_servicio }}</h2>
+                <p class="small text-muted mb-0 text-truncate"><strong>{{ s.vecino }}</strong></p>
+              </div>
+            </div>
+            {% if s.descripcion %}
+              <p class="small mb-2 directorio-card-desc">{{ s.descripcion }}</p>
+            {% endif %}
+            {% if s.direccion %}
+              <p class="small text-muted mb-3">📍 <strong>Dirección:</strong> {{ s.direccion }}</p>
+            {% endif %}
+          </div>
+          <div class="d-flex flex-wrap gap-2 pt-3 border-top mt-auto">
             {% if s.telefono %}
-              <a class="btn btn-sm btn-outline-primary" href="tel:{{ s.telefono|solo_digitos }}">Llamar</a>
+              <a class="btn btn-sm btn-outline-primary" href="tel:{{ s.telefono|solo_digitos }}">📞 Llamar</a>
             {% endif %}
             {% if s.whatsapp %}
               <a class="btn btn-sm btn-whatsapp" href="https://wa.me/{{ s.whatsapp|solo_digitos }}" target="_blank" rel="noopener">WhatsApp</a>
             {% endif %}
+            {% if s.email %}
+              <a class="btn btn-sm btn-outline-secondary" href="mailto:{{ s.email }}">✉️ Correo</a>
+            {% endif %}
           </div>
-        </div>
+        </article>
       </div>
-    {% else %}
-      <p>No encontramos servicios con esa búsqueda.</p>
     {% endfor %}
+
+    <!-- Estado vacío cuando no hay coincidencias -->
+    <div id="directorio-vacio" class="col-12 {{ 'd-none' if servicios else '' }}">
+      <div class="caja text-center py-5">
+        <span class="fs-1 d-block mb-2" aria-hidden="true">🔍</span>
+        <h2 class="h5 mb-1">No encontramos servicios con esa búsqueda</h2>
+        <p class="small text-muted mb-3">Intenta cambiar las palabras clave o elegir otro rubro en el selector.</p>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-vaciar-busqueda">
+          Ver todos los servicios
+        </button>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const inputQ = document.getElementById("q");
+  const selectRubro = document.getElementById("rubro");
+  const tarjetas = document.querySelectorAll(".directorio-col");
+  const contenedorVacio = document.getElementById("directorio-vacio");
+  const contador = document.getElementById("contador-directorio");
+  const btnLimpiar = document.getElementById("btn-limpiar-filtros");
+  const btnVaciar = document.getElementById("btn-vaciar-busqueda");
+
+  function normalizar(texto) {
+    if (!texto) return "";
+    return texto
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function filtrarDirectorio() {
+    const query = normalizar(inputQ ? inputQ.value : "");
+    const rubroSel = (selectRubro ? selectRubro.value : "").trim();
+    let visibles = 0;
+
+    tarjetas.forEach(function(col) {
+      const nombre = normalizar(col.getAttribute("data-nombre"));
+      const vecino = normalizar(col.getAttribute("data-vecino"));
+      const descripcion = normalizar(col.getAttribute("data-descripcion"));
+      const rubro = (col.getAttribute("data-rubro") || "").trim();
+
+      const coincideQuery = !query ||
+        nombre.includes(query) ||
+        vecino.includes(query) ||
+        descripcion.includes(query);
+
+      const coincideRubro = !rubroSel || rubro.toLowerCase() === rubroSel.toLowerCase();
+
+      if (coincideQuery && coincideRubro) {
+        col.classList.remove("d-none");
+        visibles++;
+      } else {
+        col.classList.add("d-none");
+      }
+    });
+
+    // Contador y estado vacío
+    if (contador) {
+      contador.textContent = `Mostrando ${visibles} servicio${visibles !== 1 ? 's' : ''}`;
+    }
+
+    if (contenedorVacio) {
+      if (visibles === 0) {
+        contenedorVacio.classList.remove("d-none");
+      } else {
+        contenedorVacio.classList.add("d-none");
+      }
+    }
+  }
+
+  // Eventos de entrada en tiempo real
+  if (inputQ) {
+    inputQ.addEventListener("input", filtrarDirectorio);
+  }
+
+  if (selectRubro) {
+    selectRubro.addEventListener("change", filtrarDirectorio);
+  }
+
+  function resetearFiltros() {
+    if (inputQ) inputQ.value = "";
+    if (selectRubro) selectRubro.value = "";
+    filtrarDirectorio();
+    if (inputQ) inputQ.focus();
+  }
+
+  if (btnLimpiar) btnLimpiar.addEventListener("click", resetearFiltros);
+  if (btnVaciar) btnVaciar.addEventListener("click", resetearFiltros);
+
+  // Inicialización
+  filtrarDirectorio();
+});
+</script>
 {% endblock %}

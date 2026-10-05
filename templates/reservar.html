@@ -3,56 +3,487 @@
 {% block content %}
 
 <div class="container my-4 my-md-5">
-  <h1 class="section-title">Pedir la sede vecinal</h1>
-  <p class="lead">
-    Completa este formulario y la directiva te confirmará la reserva.
-    Los campos con <span class="obligatorio">*</span> son obligatorios.
-  </p>
-  <p><a href="{{ url_for('sede') }}">Ver primero qué días están disponibles</a></p>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h1 class="section-title mb-1">Pedir la sede vecinal</h1>
+      <p class="lead mb-0">
+        Elige en el calendario interactivo el día y horario que necesitas para tu actividad comunitaria o familiar.
+      </p>
+    </div>
+    <a href="{{ url_for('sede') }}" class="btn btn-outline-primary">&larr; Ver agenda semanal de la sede</a>
+  </div>
 
-  <form method="post" class="row g-3 caja">
-    <div class="col-md-4">
-      <label class="form-label" for="fecha">Día que necesitas <span class="obligatorio">*</span></label>
-      <input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha }}" required>
+  <!-- Contenedor interactivo del calendario y selección de horarios -->
+  <section class="reserva-modulo caja mb-4" aria-label="Selector de día y horario para la reserva">
+    <div class="reserva-calendario-layout">
+      <!-- Columna izquierda: Calendario mensual -->
+      <div class="reserva-col-calendario">
+        <div class="reserva-cal-header d-flex justify-content-between align-items-center mb-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="cal-btn-prev" aria-label="Mes anterior">
+            &larr; Anterior
+          </button>
+          <div class="text-center">
+            <h2 class="h5 mb-0 fw-bold" id="cal-titulo-mes">{{ disponibilidad_mes.mes_nombre }} {{ disponibilidad_mes.anio }}</h2>
+            <small class="text-muted" id="cal-subtitulo-mes">Lunes a Domingo</small>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="cal-btn-next" aria-label="Mes siguiente">
+            Siguiente &rarr;
+          </button>
+        </div>
+
+        <div class="reserva-cal-semana-cabecera" aria-hidden="true">
+          <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+        </div>
+
+        <div class="reserva-cal-grid" id="cal-grid-dias" role="grid" aria-label="Días del mes">
+          <!-- Se renderiza dinámicamente con JavaScript -->
+        </div>
+
+        <div class="reserva-cal-leyenda mt-3 pt-2 border-top">
+          <span class="leyenda-item"><span class="leyenda-dot dot-disponible"></span> Con disponibilidad</span>
+          <span class="leyenda-item"><span class="leyenda-dot dot-ocupado"></span> Sin cupos / Pasado</span>
+          <span class="leyenda-item"><span class="leyenda-dot dot-seleccionado"></span> Seleccionado</span>
+        </div>
+      </div>
+
+      <!-- Columna derecha: Horarios de la fecha seleccionada -->
+      <div class="reserva-col-horarios">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-2 pb-2 border-bottom">
+          <div>
+            <h2 class="h6 text-uppercase text-muted mb-1">Horarios para el día</h2>
+            <h3 class="h5 mb-0 fw-bold" id="horarios-dia-texto">Selecciona un día en el calendario</h3>
+          </div>
+          <span class="badge-estado badge-fija" id="horario-sede-rango">
+            Atención: {{ disponibilidad_mes.horario_inicio }} a {{ disponibilidad_mes.horario_fin }}
+          </span>
+        </div>
+
+        <!-- Contenedor discreto de estado sin saltos de pantalla -->
+        <div id="resumen-seleccion-activa" class="reserva-seleccion-resumen mb-3 d-none">
+          <div class="d-flex align-items-center gap-2">
+            <span class="resumen-icono" aria-hidden="true">✓</span>
+            <div>
+              <strong>Horario elegido:</strong>
+              <span id="texto-resumen-slot">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista / Bloques de horarios seleccionables -->
+        <div class="reserva-slots-wrap">
+          <label class="form-label small text-muted mb-2">Bloques horarios disponibles (haz clic para elegir):</label>
+          <div class="reserva-slots-grid" id="slots-grid-contenedor">
+            <p class="small text-muted py-3">Haz clic en un día del calendario para ver los horarios disponibles.</p>
+          </div>
+        </div>
+
+        <!-- Opción manual alternativa -->
+        <details class="mt-3 pt-2 border-top small text-muted">
+          <summary class="cursor-pointer fw-semibold py-1">¿Necesitas un rango horario personalizado?</summary>
+          <div class="row g-2 mt-2">
+            <div class="col-6">
+              <label class="form-label small" for="manual_hora_inicio">Desde las:</label>
+              <input class="form-control form-control-sm" type="time" id="manual_hora_inicio"
+                     min="{{ disponibilidad_mes.horario_inicio }}" max="{{ disponibilidad_mes.horario_fin }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label small" for="manual_hora_fin">Hasta las:</label>
+              <input class="form-control form-control-sm" type="time" id="manual_hora_fin"
+                     min="{{ disponibilidad_mes.horario_inicio }}" max="{{ disponibilidad_mes.horario_fin }}">
+            </div>
+            <div class="col-12 mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" id="btn-aplicar-horas-manuales">
+                Aplicar horario personalizado
+              </button>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
-    <div class="col-md-4">
-      <label class="form-label" for="hora_inicio">Desde las <span class="obligatorio">*</span></label>
-      <input class="form-control" type="time" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio or '' }}" min="{{ conf.horario_sede_inicio }}" max="{{ conf.horario_sede_fin }}" required>
+  </section>
+
+  <!-- Formulario de datos del solicitante -->
+  <form method="post" id="formulario-reserva" class="caja">
+    <h2 class="h5 mb-3">Tus datos para confirmar la solicitud</h2>
+    <p class="small text-muted mb-4">
+      Una vez enviada la solicitud, el encargado o encargada de la sede revisará los datos y se pondrá en contacto para confirmar.
+      Los campos con <span class="obligatorio">*</span> son obligatorios.
+    </p>
+
+    <!-- Campos ocultos sincronizados con la selección del calendario -->
+    <input type="hidden" id="fecha" name="fecha" value="{{ datos.fecha }}">
+    <input type="hidden" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio }}">
+    <input type="hidden" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin }}">
+
+    <!-- Resumen visual en formulario -->
+    <div class="caja mb-4 p-3 border-start border-4 border-warning">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <span class="text-muted small d-block">Fecha y horario solicitados:</span>
+          <strong class="fs-5 text-dark" id="display-fecha-hora">
+            {% if datos.fecha and datos.hora_inicio and datos.hora_fin %}
+              {{ datos.fecha }} de {{ datos.hora_inicio }} a {{ datos.hora_fin }}
+            {% else %}
+              Por favor selecciona día y hora en el calendario de arriba
+            {% endif %}
+          </strong>
+        </div>
+        <span class="badge-estado badge-en-ejecucion" id="badge-estado-seleccion">Pendiente de selección</span>
+      </div>
     </div>
-    <div class="col-md-4">
-      <label class="form-label" for="hora_fin">Hasta las <span class="obligatorio">*</span></label>
-      <input class="form-control" type="time" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin or '' }}" min="{{ conf.horario_sede_inicio }}" max="{{ conf.horario_sede_fin }}" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="actividad">¿Para qué la necesitas? <span class="obligatorio">*</span></label>
-      <input class="form-control" type="text" id="actividad" name="actividad" value="{{ datos.actividad or '' }}"
-             placeholder="Cumpleaños, reunión, taller…" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="personas">¿Cuántas personas aproximadamente?</label>
-      <input class="form-control" type="number" min="1" id="personas" name="personas" value="{{ datos.personas or '' }}">
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="solicitante">Tu nombre <span class="obligatorio">*</span></label>
-      <input class="form-control" type="text" id="solicitante" name="solicitante" value="{{ datos.solicitante or '' }}" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="telefono">Teléfono o WhatsApp <span class="obligatorio">*</span></label>
-      <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="email">Correo (opcional)</label>
-      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
-      <p class="ayuda-campo mb-0">Inicia sesión antes de reservar para que la solicitud quede asociada a «Mis solicitudes».</p>
-    </div>
-    <div class="col-12">
-      <label class="form-label" for="observacion">¿Algo más que debamos saber?</label>
-      <textarea class="form-control" id="observacion" name="observacion" rows="3">{{ datos.observacion or '' }}</textarea>
-    </div>
-    <div class="col-12">
-      <button class="btn btn-primary btn-lg" type="submit">Enviar solicitud</button>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label" for="actividad">¿Para qué la necesitas? <span class="obligatorio">*</span></label>
+        <input class="form-control" type="text" id="actividad" name="actividad" value="{{ datos.actividad }}"
+               placeholder="Ej: Cumpleaños familiar, reunión comunitaria, taller…" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="personas">¿Cuántas personas asistirán aproximadamente?</label>
+        <input class="form-control" type="number" min="1" id="personas" name="personas" value="{{ datos.personas }}" placeholder="Ej: 15">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="solicitante">Tu nombre completo <span class="obligatorio">*</span></label>
+        <input class="form-control" type="text" id="solicitante" name="solicitante" value="{{ datos.solicitante }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="telefono">Teléfono o WhatsApp <span class="obligatorio">*</span></label>
+        <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono }}" placeholder="+56 9 …" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="email">Correo electrónico (opcional)</label>
+        <input class="form-control" type="email" id="email" name="email" value="{{ datos.email }}">
+        <p class="ayuda-campo mb-0">Si tienes una cuenta vecinal en el portal, inicia sesión antes de reservar para vincularla a tu perfil.</p>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="observacion">Observaciones o requerimientos especiales</label>
+        <textarea class="form-control" id="observacion" name="observacion" rows="3"
+                  placeholder="Detalles sobre mesas, sillas o consultas para la directiva…">{{ datos.observacion }}</textarea>
+      </div>
+      <div class="col-12 mt-4 d-flex flex-wrap gap-2 align-items-center">
+        <button class="btn btn-primary btn-lg" type="submit" id="btn-confirmar-reserva">
+          Confirmar solicitud de reserva
+        </button>
+        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('sede') }}">Cancelar</a>
+      </div>
     </div>
   </form>
 </div>
 
+<script>
+(function() {
+  // Datos iniciales entregados por el servidor
+  let datosMes = {{ disponibilidad_json|safe }};
+  let fechaSeleccionada = "{{ datos.fecha or '' }}";
+  let horaInicioSeleccionada = "{{ datos.hora_inicio or '' }}";
+  let horaFinSeleccionada = "{{ datos.hora_fin or '' }}";
+
+  const MESES_NOMBRES = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  const gridDias = document.getElementById("cal-grid-dias");
+  const tituloMes = document.getElementById("cal-titulo-mes");
+  const btnPrev = document.getElementById("cal-btn-prev");
+  const btnNext = document.getElementById("cal-btn-next");
+  const tituloHorarios = document.getElementById("horarios-dia-texto");
+  const slotsContenedor = document.getElementById("slots-grid-contenedor");
+  const resumenActiva = document.getElementById("resumen-seleccion-activa");
+  const textoResumenSlot = document.getElementById("texto-resumen-slot");
+  const displayFechaHora = document.getElementById("display-fecha-hora");
+  const badgeSeleccion = document.getElementById("badge-estado-seleccion");
+
+  const inputFecha = document.getElementById("fecha");
+  const inputHoraInicio = document.getElementById("hora_inicio");
+  const inputHoraFin = document.getElementById("hora_fin");
+  const inputManualIni = document.getElementById("manual_hora_inicio");
+  const inputManualFin = document.getElementById("manual_hora_fin");
+  const btnManual = document.getElementById("btn-aplicar-horas-manuales");
+  const formReserva = document.getElementById("formulario-reserva");
+
+  function buscarDia(fechaIso) {
+    if (!datosMes || !datosMes.semanas) return null;
+    for (const sem of datosMes.semanas) {
+      for (const d of sem) {
+        if (d.fecha === fechaIso) return d;
+      }
+    }
+    return null;
+  }
+
+  function renderizarCalendario() {
+    tituloMes.textContent = `${datosMes.mes_nombre} ${datosMes.anio}`;
+    gridDias.innerHTML = "";
+
+    // Si no hay fecha seleccionada, buscar la primera fecha disponible futura del mes
+    if (!fechaSeleccionada) {
+      for (const sem of datosMes.semanas) {
+        for (const d of sem) {
+          if (d.en_mes && !d.pasado && d.disponible) {
+            fechaSeleccionada = d.fecha;
+            break;
+          }
+        }
+        if (fechaSeleccionada) break;
+      }
+    }
+
+    // Renderizar cada día de cada semana
+    datosMes.semanas.forEach(semana => {
+      semana.forEach(dia => {
+        const celda = document.createElement("button");
+        celda.type = "button";
+        celda.className = "cal-dia-btn";
+        celda.setAttribute("data-fecha", dia.fecha);
+
+        if (!dia.en_mes) {
+          celda.classList.add("cal-dia-fuera");
+        }
+        if (dia.pasado) {
+          celda.classList.add("cal-dia-pasado");
+          celda.disabled = true;
+          celda.title = "Fecha pasada";
+        } else if (dia.disponible) {
+          celda.classList.add("cal-dia-disponible");
+          celda.title = `${dia.slots_disponibles} horarios disponibles`;
+        } else if (dia.en_mes) {
+          celda.classList.add("cal-dia-completo");
+          celda.title = "Sin horarios disponibles";
+        }
+
+        if (dia.hoy) {
+          celda.classList.add("cal-dia-hoy");
+        }
+
+        if (dia.fecha === fechaSeleccionada) {
+          celda.classList.add("cal-dia-seleccionado");
+          celda.setAttribute("aria-selected", "true");
+        }
+
+        const numSpan = document.createElement("span");
+        numSpan.className = "cal-dia-numero";
+        numSpan.textContent = dia.dia;
+        celda.appendChild(numSpan);
+
+        if (!dia.pasado && dia.disponible && dia.en_mes) {
+          const dot = document.createElement("span");
+          dot.className = "cal-dia-indicador";
+          celda.appendChild(dot);
+        }
+
+        if (!dia.pasado && dia.en_mes) {
+          celda.addEventListener("click", () => {
+            seleccionarDia(dia.fecha);
+          });
+        }
+
+        gridDias.appendChild(celda);
+      });
+    });
+
+    actualizarPanelHorarios();
+  }
+
+  function seleccionarDia(fechaIso) {
+    fechaSeleccionada = fechaIso;
+    inputFecha.value = fechaIso;
+
+    // Actualizar clases activas en calendario
+    document.querySelectorAll(".cal-dia-btn").forEach(btn => {
+      if (btn.getAttribute("data-fecha") === fechaIso) {
+        btn.classList.add("cal-dia-seleccionado");
+        btn.setAttribute("aria-selected", "true");
+      } else {
+        btn.classList.remove("cal-dia-seleccionado");
+        btn.removeAttribute("aria-selected");
+      }
+    });
+
+    actualizarPanelHorarios();
+  }
+
+  function formatearFechaBonita(fechaIso) {
+    if (!fechaIso) return "";
+    const partes = fechaIso.split("-");
+    if (partes.length !== 3) return fechaIso;
+    const y = parseInt(partes[0], 10);
+    const m = parseInt(partes[1], 10);
+    const d = parseInt(partes[2], 10);
+    return `${d} de ${MESES_NOMBRES[m - 1]} de ${y}`;
+  }
+
+  function actualizarPanelHorarios() {
+    const dia = buscarDia(fechaSeleccionada);
+    if (!dia) {
+      tituloHorarios.textContent = "Elige un día en el calendario";
+      slotsContenedor.innerHTML = '<p class="small text-muted py-3 mb-0">Selecciona un día para revisar disponibilidad.</p>';
+      return;
+    }
+
+    const diaBonito = formatearFechaBonita(dia.fecha);
+
+    // Si el día ya pasó, indicar discretamente en el título sin bloques de error
+    if (dia.pasado) {
+      tituloHorarios.innerHTML = `${dia.nombre_dia}, ${diaBonito} <span class="badge-estado badge-fija ms-1">No disponible</span>`;
+      slotsContenedor.innerHTML = '<p class="small text-muted py-2 mb-0">Fecha no habilitada para nuevas solicitudes.</p>';
+      return;
+    }
+
+    const slots = dia.slots || [];
+    const tieneDisponibles = slots.some(s => s.disponible);
+
+    if (tieneDisponibles) {
+      tituloHorarios.innerHTML = `${dia.nombre_dia}, ${diaBonito}`;
+    } else {
+      tituloHorarios.innerHTML = `${dia.nombre_dia}, ${diaBonito} <span class="badge-estado badge-rechazada ms-1">Sin disponibilidad</span>`;
+    }
+
+    slotsContenedor.innerHTML = "";
+
+    if (slots.length === 0 || !tieneDisponibles) {
+      slotsContenedor.innerHTML = '<p class="small text-muted py-2 mb-0">Día ocupado. Revisa otro día en el calendario para encontrar cupos libres.</p>';
+      return;
+    }
+    slots.forEach(slot => {
+      const botonSlot = document.createElement("button");
+      botonSlot.type = "button";
+      botonSlot.className = "slot-btn";
+
+      const esElSeleccionado = (
+        fechaSeleccionada === inputFecha.value &&
+        horaInicioSeleccionada === slot.hora_inicio &&
+        horaFinSeleccionada === slot.hora_fin
+      );
+
+      if (slot.disponible) {
+        botonSlot.classList.add("slot-disponible");
+        if (esElSeleccionado) {
+          botonSlot.classList.add("slot-seleccionado");
+        }
+        botonSlot.innerHTML = `
+          <span class="slot-horas"><strong>${slot.hora_inicio}</strong> a <strong>${slot.hora_fin}</strong></span>
+          <span class="slot-badge">${esElSeleccionado ? "✓ Elegido" : "Disponible"}</span>
+        `;
+        botonSlot.addEventListener("click", () => {
+          seleccionarSlot(slot.hora_inicio, slot.hora_fin);
+        });
+      } else {
+        botonSlot.classList.add("slot-ocupado");
+        botonSlot.disabled = true;
+        botonSlot.title = slot.motivo || "Horario reservado";
+        botonSlot.innerHTML = `
+          <span class="slot-horas text-decoration-line-through">${slot.hora_inicio} a ${slot.hora_fin}</span>
+          <span class="slot-badge slot-badge-ocupado">Ocupado</span>
+        `;
+      }
+
+      slotsContenedor.appendChild(botonSlot);
+    });
+
+    actualizarResumenSeleccion();
+  }
+
+  function seleccionarSlot(hIni, hFin) {
+    horaInicioSeleccionada = hIni;
+    horaFinSeleccionada = hFin;
+    inputFecha.value = fechaSeleccionada;
+    inputHoraInicio.value = hIni;
+    inputHoraFin.value = hFin;
+
+    // Actualizar clases de botones de slots
+    document.querySelectorAll(".slot-btn").forEach(btn => {
+      btn.classList.remove("slot-seleccionado");
+      const badge = btn.querySelector(".slot-badge:not(.slot-badge-ocupado)");
+      if (badge) badge.textContent = "Disponible";
+    });
+
+    event.currentTarget.classList.add("slot-seleccionado");
+    const badgeActivo = event.currentTarget.querySelector(".slot-badge");
+    if (badgeActivo) badgeActivo.textContent = "✓ Elegido";
+
+    actualizarResumenSeleccion();
+  }
+
+  function actualizarResumenSeleccion() {
+    if (fechaSeleccionada && horaInicioSeleccionada && horaFinSeleccionada) {
+      const fechaTxt = formatearFechaBonita(fechaSeleccionada);
+      textoResumenSlot.innerHTML = `<strong>${fechaTxt}</strong>, de <strong>${horaInicioSeleccionada}</strong> a <strong>${horaFinSeleccionada}</strong>`;
+      resumenActiva.classList.remove("d-none");
+      displayFechaHora.textContent = `${fechaTxt}, de ${horaInicioSeleccionada} a ${horaFinSeleccionada}`;
+      displayFechaHora.classList.remove("text-muted");
+      badgeSeleccion.className = "badge-estado badge-aprobado";
+      badgeSeleccion.textContent = "Horario reservable seleccionado";
+    } else {
+      resumenActiva.classList.add("d-none");
+      displayFechaHora.textContent = "Por favor selecciona día y hora en el calendario de arriba";
+      badgeSeleccion.className = "badge-estado badge-en-ejecucion";
+      badgeSeleccion.textContent = "Pendiente de selección";
+    }
+  }
+
+  // Aplicar horarios manuales
+  if (btnManual) {
+    btnManual.addEventListener("click", () => {
+      const ini = inputManualIni.value;
+      const fin = inputManualFin.value;
+      if (!fechaSeleccionada) {
+        alert("Primero selecciona un día en el calendario.");
+        return;
+      }
+      if (!ini || !fin) {
+        alert("Indica la hora de inicio y de término.");
+        return;
+      }
+      if (fin <= ini) {
+        alert("La hora de término debe ser posterior a la de inicio.");
+        return;
+      }
+      seleccionarSlot(ini, fin);
+      actualizarPanelHorarios();
+    });
+  }
+
+  // Cargar mes vía API
+  async function cargarMes(mesIso) {
+    try {
+      tituloMes.textContent = "Cargando…";
+      const resp = await fetch(`{{ url_for('api_sede_disponibilidad') }}?mes=${mesIso}`);
+      if (!resp.ok) throw new Error("Error al obtener disponibilidad");
+      datosMes = await resp.json();
+      renderizarCalendario();
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo cargar la disponibilidad de ese mes. Intenta nuevamente.");
+    }
+  }
+
+  btnPrev.addEventListener("click", () => {
+    if (datosMes && datosMes.mes_anterior) {
+      cargarMes(datosMes.mes_anterior);
+    }
+  });
+
+  btnNext.addEventListener("click", () => {
+    if (datosMes && datosMes.mes_siguiente) {
+      cargarMes(datosMes.mes_siguiente);
+    }
+  });
+
+  // Validación previa al enviar el formulario
+  formReserva.addEventListener("submit", function(e) {
+    if (!inputFecha.value || !inputHoraInicio.value || !inputHoraFin.value) {
+      e.preventDefault();
+      alert("Por favor selecciona un día y un horario disponible en el calendario antes de continuar.");
+      window.scrollTo({ top: document.querySelector(".reserva-modulo").offsetTop - 40, behavior: "smooth" });
+    }
+  });
+
+  // Inicializar vista
+  renderizarCalendario();
+  if (fechaSeleccionada && horaInicioSeleccionada && horaFinSeleccionada) {
+    actualizarResumenSeleccion();
+  }
+})();
+</script>
 {% endblock %}

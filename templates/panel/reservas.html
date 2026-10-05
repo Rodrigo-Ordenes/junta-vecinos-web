@@ -30,7 +30,10 @@
         {% if r.observacion %}<p class="small text-muted mb-0">Observación: {{ r.observacion }}</p>{% endif %}
         {% if r.revisada_por %}<p class="small text-muted mb-0">Revisada por {{ r.revisada_por }}</p>{% endif %}
       </div>
-      <span class="badge-estado {{ r.estado|clase_estado }}">{{ r.estado }}</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge-estado {{ r.estado|clase_estado }}">{{ r.estado }}</span>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('panel_reserva_editar', reserva_id=r.id) }}">Editar</a>
+      </div>
     </div>
 
     <form method="post" action="{{ url_for('panel_reserva_estado', reserva_id=r.id) }}" class="row g-2 mt-2">

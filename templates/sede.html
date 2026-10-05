@@ -3,11 +3,35 @@
 {% block content %}
 
 <div class="container my-4 my-md-5">
-  <h1 class="section-title">Sede vecinal: disponibilidad y reservas</h1>
-  <p class="lead">
-    Aquí puedes ver qué días está ocupada la sede y pedir un día para tu actividad.
-    El encargado o encargada revisa cada solicitud y confirma la reserva.
-  </p>
+  <!-- Presentación destacada de la Sede Vecinal con contenedor estructurado -->
+  <section class="sede-hero-card mb-4" aria-label="Información y reservas de la Sede Vecinal">
+    {% if conf.imagen_sede_url %}
+      <div class="sede-hero-media">
+        <img src="{{ conf.imagen_sede_url }}" alt="Sede comunitaria Junta de Vecinos N.° 2" class="sede-hero-foto" loading="lazy">
+      </div>
+    {% endif %}
+    <div class="sede-hero-info">
+      <div class="sede-hero-badge-wrap mb-2">
+        <span class="badge-estado badge-fija">Espacio Comunitario</span>
+      </div>
+      <h1 class="sede-hero-title">Sede vecinal: disponibilidad y reservas</h1>
+      <p class="sede-hero-lead">
+        Aquí puedes ver qué días está ocupada la sede y pedir un día para tu actividad.
+        El encargado o encargada revisa cada solicitud y confirma la reserva.
+      </p>
+      {% if conf.direccion_sede %}
+        <p class="sede-hero-ubicacion mb-3">
+          <span class="sede-icono-pin" aria-hidden="true">📍</span>
+          <span><strong>Ubicación:</strong> {{ conf.direccion_sede }}</span>
+        </p>
+      {% endif %}
+      <div class="sede-hero-actions">
+        <a href="{{ url_for('reservar') }}" class="btn btn-primary btn-lg">
+          Pedir la sede vecinal
+        </a>
+      </div>
+    </div>
+  </section>
 
   <div class="caja mb-4">
     <h2 class="h5">Horario habitual de la sede</h2>
@@ -96,7 +120,7 @@
             <h3>{{ dia.nombre }}</h3>
             <div class="fecha">{{ dia.fecha|fecha_larga }}</div>
             {% if dia.pasado %}
-              <p class="mt-3 mb-2 text-muted">Esta fecha ya pasó.</p>
+              <div class="mt-2 mb-1"><span class="badge-estado badge-fija">Fecha pasada</span></div>
             {% else %}
               {% if dia.actividades %}
                 <h4 class="h6 mt-3">Horarios ocupados</h4>
@@ -117,7 +141,7 @@
                   {% endfor %}
                 </div>
               {% else %}
-                <p class="mt-3 mb-2 text-muted">No quedan horarios disponibles dentro del horario de atención.</p>
+                <div class="mt-2 mb-1"><span class="badge-estado badge-rechazada">Sin horarios libres</span></div>
               {% endif %}
             {% endif %}
             {% if not dia.pasado and not solo_disponibles %}

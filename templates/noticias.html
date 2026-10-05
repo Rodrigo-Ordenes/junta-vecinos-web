@@ -3,22 +3,37 @@
 {% block content %}
 <div class="container my-4 my-md-5">
   <h1 class="section-title">Noticias y actividades</h1>
-  <div class="row g-4">
+  <div class="row g-3">
     {% for n in noticias %}
-      <div class="col-md-6 col-lg-4">
-        <div class="card">
-          <div class="card-body">
-            {% if n.fecha_evento %}
-              <p class="small text-muted mb-1">Actividad: {{ n.fecha_evento|fecha_larga }}</p>
+      <div class="col-12">
+        <article class="tarjeta-horizontal">
+          <div class="tarjeta-horizontal-media">
+            {% if n.imagen_url %}
+              <img src="{{ n.imagen_url }}" class="tarjeta-horizontal-img" alt="{{ n.titulo }}" loading="lazy">
+            {% else %}
+              <div class="tarjeta-horizontal-placeholder" aria-hidden="true">
+                <span>📢</span>
+              </div>
             {% endif %}
-            <h2 class="card-title h5">{{ n.titulo }}</h2>
-            <p class="card-text">{{ n.resumen }}</p>
+          </div>
+          <div class="tarjeta-horizontal-cuerpo">
+            <div class="tarjeta-horizontal-meta">
+              {% if n.fecha_evento %}
+                <span class="badge-estado badge-fija">Actividad: {{ n.fecha_evento|fecha_larga }}</span>
+              {% elif n.fecha_publicacion %}
+                <span class="small text-muted">{{ n.fecha_publicacion|fecha_larga }}</span>
+              {% endif %}
+            </div>
+            <h2 class="tarjeta-horizontal-titulo h5">{{ n.titulo }}</h2>
+            <p class="tarjeta-horizontal-desc">{{ n.resumen }}</p>
+          </div>
+          <div class="tarjeta-horizontal-accion">
             <a href="{{ url_for('noticia_detalle', noticia_id=n.id) }}" class="btn btn-sm btn-primary">Leer más</a>
           </div>
-        </div>
+        </article>
       </div>
     {% else %}
-      <p>Aún no hay noticias publicadas.</p>
+      <p class="text-muted">Aún no hay noticias publicadas.</p>
     {% endfor %}
   </div>
 </div>

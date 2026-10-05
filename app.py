@@ -6,6 +6,7 @@ certificado de residencia) y un panel de administración en español con tres
 perfiles: administrador, coordinador y vecino.
 """
 
+import json
 import os
 import calendar
 import secrets
@@ -20,6 +21,7 @@ from flask import (
     Flask,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -328,6 +330,8 @@ RECURSOS = {
                   ayuda="Por ejemplo: Seguridad, Espacios públicos, Sede vecinal."),
             campo("fuente_financiamiento", "Fuente de financiamiento"),
             campo("monto", "Monto en pesos", "numero"),
+            campo("imagen_url", "Fotografía o imagen del proyecto (opcional)", "imagen",
+                  ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
         ],
         "extra_siempre": {"fecha_actualizacion": lambda: datetime.now().isoformat(timespec="seconds")},
     },
@@ -380,6 +384,8 @@ RECURSOS = {
             campo("whatsapp", "WhatsApp (solo números, con 56)"),
             campo("email", "Correo"),
             campo("direccion", "Dirección"),
+            campo("foto_url", "Fotografía o imagen del servicio (opcional)", "imagen",
+                  ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
             campo("aprobado", "Publicado en el directorio", "casilla"),
         ],
         "extra_nuevo": {"fecha_solicitud": lambda: datetime.now().isoformat(timespec="seconds")},
@@ -396,7 +402,8 @@ RECURSOS = {
             campo("cargo", "Cargo", requerido=True),
             campo("email", "Correo del cargo"),
             campo("telefono", "Teléfono"),
-            campo("foto_url", "Enlace a la foto"),
+            campo("foto_url", "Fotografía del integrante (opcional)", "imagen",
+                  ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
             campo("orden", "Orden en la página", "numero", defecto=0),
         ],
     },
@@ -889,15 +896,181 @@ def sede():
     )
 
 
+def hay_choque(fecha, inicio, fin, excluir_id=None):
+    """True si el horario pedido se cruza con una actividad fija o una reserva vigente."""
+    for b in consultar(
+        "SELECT * FROM bloques_fijos WHERE activo = 1 AND dia_semana = ?", (fecha.weekday(),)
+    ):
+        if inicio < b["hora_fin"] and fin > b["hora_inicio"]:
+            return True
+    sql = ("SELECT * FROM reservas WHERE fecha = ? AND estado IN ('Aprobada', 'Pendiente')")
+    params = [fecha.isoformat()]
+    if excluir_id:
+        sql += " AND id != ?"
+        params.append(excluir_id)
+    for r in consultar(sql, params):
+        if inicio < r["hora_fin"] and fin > r["hora_inicio"]:
+            return True
+    return False
+
+
+def obtener_disponibilidad_mes(anio, mes):
+    """Devuelve la matriz mensual de días y bloques horarios para la reserva interactiva."""
+    conf = obtener_config()
+    apertura = conf.get("horario_sede_inicio", "09:00")
+    cierre = conf.get("horario_sede_fin", "21:00")
+    apertura_min = minutos_de_hora(apertura) or 540
+    cierre_min = minutos_de_hora(cierre) or 1260
+    hoy = fecha_hoy()
+    ahora_santiago = datetime.now(ZONA_SANTIAGO)
+    minuto_actual = ahora_santiago.hour * 60 + ahora_santiago.minute
+
+    cal = calendar.Calendar(firstweekday=0)
+    semanas_fechas = cal.monthdatescalendar(anio, mes)
+
+    bloques_fijos = consultar(
+        "SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY hora_inicio"
+    )
+
+    primer_dia = semanas_fechas[0][0].isoformat()
+    ultimo_dia = semanas_fechas[-1][-1].isoformat()
+
+    reservas = consultar(
+        "SELECT * FROM reservas WHERE fecha BETWEEN ? AND ? AND estado IN ('Aprobada', 'Pendiente') ORDER BY hora_inicio",
+        (primer_dia, ultimo_dia),
+    )
+    reservas_por_fecha = {}
+    for r in reservas:
+        reservas_por_fecha.setdefault(r["fecha"], []).append(r)
+
+    semanas_resultado = []
+    for semana in semanas_fechas:
+        dias_res = []
+        for dia in semana:
+            dia_iso = dia.isoformat()
+            pasado = dia < hoy
+            es_hoy = dia == hoy
+            en_mes = dia.month == mes
+
+            acts = [
+                {
+                    "tipo": "fija",
+                    "hora_inicio": b["hora_inicio"],
+                    "hora_fin": b["hora_fin"],
+                    "titulo": b["actividad"],
+                }
+                for b in bloques_fijos
+                if b["dia_semana"] == dia.weekday()
+            ]
+            acts += [
+                {
+                    "tipo": "reserva",
+                    "hora_inicio": r["hora_inicio"],
+                    "hora_fin": r["hora_fin"],
+                    "titulo": r["actividad"],
+                }
+                for r in reservas_por_fecha.get(dia_iso, [])
+            ]
+
+            libres = intervalos_disponibles(dia, acts, apertura, cierre) if not pasado else []
+
+            # Crear bloques estándar (de 2 horas)
+            slots = []
+            duracion = 120
+            cur = apertura_min
+            while cur + 60 <= cierre_min:
+                fin_cur = min(cur + duracion, cierre_min)
+                h_ini = hora_desde_minutos(cur)
+                h_fin = hora_desde_minutos(fin_cur)
+                choca = False
+                motivo = "Disponible"
+                if pasado:
+                    choca = True
+                    motivo = "Fecha pasada"
+                elif es_hoy and cur <= minuto_actual:
+                    choca = True
+                    motivo = "Hora pasada"
+                elif hay_choque(dia, h_ini, h_fin):
+                    choca = True
+                    motivo = "Horario reservado"
+
+                slots.append({
+                    "hora_inicio": h_ini,
+                    "hora_fin": h_fin,
+                    "disponible": not choca,
+                    "motivo": motivo,
+                })
+                cur = fin_cur
+
+            # Incluir también los intervalos libres si no coinciden exactamente con los bloques
+            for lib_ini, lib_fin in libres:
+                if not any(s["hora_inicio"] == lib_ini and s["hora_fin"] == lib_fin for s in slots):
+                    slots.append({
+                        "hora_inicio": lib_ini,
+                        "hora_fin": lib_fin,
+                        "disponible": True,
+                        "motivo": "Intervalo libre disponible",
+                    })
+
+            slots.sort(key=lambda s: s["hora_inicio"])
+            total_disponibles = sum(1 for s in slots if s["disponible"])
+
+            dias_res.append({
+                "fecha": dia_iso,
+                "dia": dia.day,
+                "dia_semana": dia.weekday(),
+                "nombre_dia": DIAS_SEMANA[dia.weekday()],
+                "en_mes": en_mes,
+                "hoy": es_hoy,
+                "pasado": pasado,
+                "disponible": bool(not pasado and total_disponibles > 0),
+                "slots": slots,
+                "slots_disponibles": total_disponibles,
+                "intervalos_libres": libres,
+                "total_actividades": len(acts),
+            })
+        semanas_resultado.append(dias_res)
+
+    mes_ant = (date(anio, mes, 1) - timedelta(days=1))
+    mes_sig = (date(anio, mes, 28) + timedelta(days=4)).replace(day=1)
+
+    return {
+        "anio": anio,
+        "mes": mes,
+        "mes_nombre": MESES[mes - 1].capitalize(),
+        "mes_anterior": mes_ant.strftime("%Y-%m"),
+        "mes_siguiente": mes_sig.strftime("%Y-%m"),
+        "horario_inicio": apertura,
+        "horario_fin": cierre,
+        "semanas": semanas_resultado,
+    }
+
+
+@app.route("/api/sede/disponibilidad")
+def api_sede_disponibilidad():
+    mes_str = request.args.get("mes")
+    ref = fecha_del_mes(mes_str) if mes_str else fecha_hoy()
+    data = obtener_disponibilidad_mes(ref.year, ref.month)
+    return jsonify(data)
+
+
 @app.route("/sede/reservar", methods=["GET", "POST"])
 def reservar():
     usuario = usuario_actual()
+    conf = obtener_config()
+    fecha_param = request.args.get("fecha", "")
+    hora_ini_param = request.args.get("hora_inicio", "")
+    hora_fin_param = request.args.get("hora_fin", "")
     datos = {
-        "fecha": request.args.get("fecha", ""),
-        "hora_inicio": request.args.get("hora_inicio", ""),
-        "hora_fin": request.args.get("hora_fin", ""),
+        "fecha": fecha_param,
+        "hora_inicio": hora_ini_param,
+        "hora_fin": hora_fin_param,
         "solicitante": usuario["nombre"] if usuario else "",
         "email": (usuario["email"] if usuario else "") or "",
+        "telefono": "",
+        "actividad": "",
+        "personas": "",
+        "observacion": "",
     }
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip() for k in
@@ -908,7 +1081,6 @@ def reservar():
         fecha = a_fecha(datos["fecha"])
         hora_inicio = minutos_de_hora(datos["hora_inicio"])
         hora_fin = minutos_de_hora(datos["hora_fin"])
-        conf = obtener_config()
         apertura = minutos_de_hora(conf.get("horario_sede_inicio", "09:00"))
         cierre = minutos_de_hora(conf.get("horario_sede_fin", "21:00"))
         if faltan:
@@ -953,25 +1125,15 @@ def reservar():
                 "success",
             )
             return redirect(url_for("sede", semana=fecha.isoformat()))
-    return render_template("reservar.html", datos=datos)
 
-
-def hay_choque(fecha, inicio, fin, excluir_id=None):
-    """True si el horario pedido se cruza con una actividad fija o una reserva vigente."""
-    for b in consultar(
-        "SELECT * FROM bloques_fijos WHERE activo = 1 AND dia_semana = ?", (fecha.weekday(),)
-    ):
-        if inicio < b["hora_fin"] and fin > b["hora_inicio"]:
-            return True
-    sql = ("SELECT * FROM reservas WHERE fecha = ? AND estado IN ('Aprobada', 'Pendiente')")
-    params = [fecha.isoformat()]
-    if excluir_id:
-        sql += " AND id != ?"
-        params.append(excluir_id)
-    for r in consultar(sql, params):
-        if inicio < r["hora_fin"] and fin > r["hora_inicio"]:
-            return True
-    return False
+    ref_fecha = a_fecha(datos["fecha"]) or fecha_hoy()
+    disponibilidad_mes = obtener_disponibilidad_mes(ref_fecha.year, ref_fecha.month)
+    return render_template(
+        "reservar.html",
+        datos=datos,
+        disponibilidad_mes=disponibilidad_mes,
+        disponibilidad_json=json.dumps(disponibilidad_mes),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1012,15 +1174,18 @@ def inscribir_servicio():
         if not datos["nombre_servicio"] or not datos["vecino"] or not datos["telefono"]:
             flash("Completa el nombre del servicio, tu nombre y un teléfono.", "error")
         else:
+            subida = guardar_archivo("foto", extensiones={"jpg", "jpeg", "png", "webp"})
+            foto_url = url_for("static", filename=f"uploads/{subida}") if subida else ""
             ejecutar(
                 "INSERT INTO servicios (nombre_servicio, vecino, rubro, descripcion, telefono, "
-                "whatsapp, email, direccion, aprobado, fecha_solicitud) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+                "whatsapp, email, direccion, foto_url, aprobado, fecha_solicitud) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
                 (
                     datos["nombre_servicio"], datos["vecino"],
                     datos["rubro"] if datos["rubro"] in RUBROS_SERVICIO else "Otros",
                     datos["descripcion"], datos["telefono"],
                     solo_digitos(datos["whatsapp"]), datos["email"], datos["direccion"],
+                    foto_url,
                     datetime.now().isoformat(timespec="seconds"),
                 ),
             )
@@ -1549,6 +1714,60 @@ def panel_reserva_nueva():
     return render_template("panel/reserva_nueva.html", datos=datos)
 
 
+@app.route("/panel/reservas/<int:reserva_id>/editar", methods=["GET", "POST"])
+@permiso_requerido("reservas")
+def panel_reserva_editar(reserva_id):
+    reserva = consultar("SELECT * FROM reservas WHERE id = ?", (reserva_id,), uno=True)
+    if not reserva:
+        abort(404)
+    if request.method == "POST":
+        datos = {
+            k: (request.form.get(k) or "").strip()
+            for k in (
+                "fecha", "hora_inicio", "hora_fin", "actividad",
+                "solicitante", "telefono", "email", "personas",
+                "estado", "observacion",
+            )
+        }
+        fecha = a_fecha(datos["fecha"])
+        if not fecha or not datos["hora_inicio"] or not datos["hora_fin"] or not datos["actividad"] or not datos["solicitante"]:
+            flash("Completa fecha, horarios, actividad y nombre del solicitante.", "error")
+            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+        if datos["estado"] not in ESTADOS_RESERVA:
+            flash("El estado seleccionado no es válido.", "error")
+            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+        if hay_choque(fecha, datos["hora_inicio"], datos["hora_fin"], excluir_id=reserva_id):
+            flash("Ese horario choca con otra actividad fija o reserva en la sede.", "error")
+            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+        usuario = usuario_actual()
+        ejecutar(
+            "UPDATE reservas SET fecha = ?, hora_inicio = ?, hora_fin = ?, actividad = ?, "
+            "solicitante = ?, telefono = ?, email = ?, personas = ?, estado = ?, observacion = ?, "
+            "revisada_por = ? WHERE id = ?",
+            (
+                fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
+                datos["actividad"], datos["solicitante"], datos["telefono"],
+                datos["email"], int(datos["personas"] or 0) or None,
+                datos["estado"], datos["observacion"],
+                usuario["nombre"], reserva_id,
+            ),
+        )
+        flash("Los cambios en la reserva fueron guardados.", "success")
+        return redirect(url_for("panel_reservas", estado=datos["estado"]))
+    return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+
+
+@app.route("/panel/reservas/<int:reserva_id>/eliminar", methods=["POST"])
+@permiso_requerido("reservas")
+def panel_reserva_eliminar(reserva_id):
+    reserva = consultar("SELECT id FROM reservas WHERE id = ?", (reserva_id,), uno=True)
+    if not reserva:
+        abort(404)
+    ejecutar("DELETE FROM reservas WHERE id = ?", (reserva_id,))
+    flash("La reserva fue eliminada.", "success")
+    return redirect(url_for("panel_reservas"))
+
+
 # --- Certificados ---------------------------------------------------------
 @app.route("/panel/certificados")
 @permiso_requerido("certificados")
@@ -1682,13 +1901,17 @@ def valores_desde_formulario(recurso, fila_actual=None):
             else:
                 valores[nombre] = ""
         elif c["tipo"] == "imagen":
-            subida = guardar_archivo(
-                "imagen_archivo", extensiones={"jpg", "jpeg", "png", "webp"}
-            )
-            valores[nombre] = (
-                url_for("static", filename=f"uploads/{subida}")
-                if subida else (request.form.get(nombre) or "").strip()
-            )
+            if request.form.get("quitar_" + nombre):
+                valores[nombre] = ""
+            else:
+                subida = guardar_archivo(
+                    "imagen_archivo", extensiones={"jpg", "jpeg", "png", "webp"}
+                )
+                if subida:
+                    valores[nombre] = url_for("static", filename=f"uploads/{subida}")
+                else:
+                    campo_texto = (request.form.get(nombre) or "").strip()
+                    valores[nombre] = campo_texto if campo_texto else (fila_actual[nombre] if fila_actual else "")
         elif c["tipo"] == "clave":
             clave = request.form.get(nombre) or ""
             if clave:
@@ -1739,13 +1962,98 @@ def panel_listado(recurso):
     if not puede(recurso):
         flash("Tu perfil no tiene permiso para esta sección.", "error")
         return redirect(url_for("panel"))
+
     sql = f"SELECT * FROM {definicion['tabla']}"
+    condiciones = []
+    parametros = []
+
     if recurso == "documentos" and coordinador_actual():
-        sql += " WHERE categoria != 'Rendiciones de cuentas'"
-    filas = consultar(f"{sql} ORDER BY {definicion['orden']}")
+        condiciones.append("categoria != 'Rendiciones de cuentas'")
+
+    filtro_q = (request.args.get("q") or "").strip()
+    filtro_rubro = (request.args.get("rubro") or "").strip()
+    filtro_estado = (request.args.get("estado") or "").strip()
+    filtro_periodo = (request.args.get("periodo") or "").strip()
+    filtro_orden = (request.args.get("orden") or "recientes").strip()
+    filtro_anio = (request.args.get("anio") or "").strip()
+
+    if recurso == "servicios":
+        if filtro_q:
+            condiciones.append("(nombre_servicio LIKE ? OR vecino LIKE ? OR descripcion LIKE ?)")
+            patron = f"%{filtro_q}%"
+            parametros.extend([patron, patron, patron])
+        if filtro_rubro:
+            condiciones.append("rubro = ?")
+            parametros.append(filtro_rubro)
+
+    elif recurso == "proyectos":
+        if filtro_q:
+            condiciones.append("(nombre LIKE ? OR descripcion LIKE ? OR eje LIKE ?)")
+            patron = f"%{filtro_q}%"
+            parametros.extend([patron, patron, patron])
+        if filtro_estado:
+            condiciones.append("estado = ?")
+            parametros.append(filtro_estado)
+
+    elif recurso == "rendiciones":
+        if filtro_q:
+            condiciones.append("(titulo LIKE ? OR descripcion LIKE ? OR periodo LIKE ?)")
+            patron = f"%{filtro_q}%"
+            parametros.extend([patron, patron, patron])
+        if filtro_periodo:
+            condiciones.append("periodo = ?")
+            parametros.append(filtro_periodo)
+
+    elif recurso == "eventos":
+        if filtro_q:
+            condiciones.append("(nombre LIKE ? OR descripcion LIKE ?)")
+            patron = f"%{filtro_q}%"
+            parametros.extend([patron, patron])
+        if filtro_anio:
+            condiciones.append("strftime('%Y', fecha) = ?")
+            parametros.append(filtro_anio)
+
+    if condiciones:
+        sql += " WHERE " + " AND ".join(condiciones)
+
+    if recurso == "eventos" and filtro_orden == "antiguos":
+        orden_sql = "fecha ASC"
+    else:
+        orden_sql = definicion["orden"]
+
+    filas = consultar(f"{sql} ORDER BY {orden_sql}", tuple(parametros))
+
+    contexto_extra = {
+        "filtro_q": filtro_q,
+    }
+
+    if recurso == "servicios":
+        contexto_extra["rubros"] = RUBROS_SERVICIO
+        contexto_extra["filtro_rubro"] = filtro_rubro
+    elif recurso == "proyectos":
+        contexto_extra["estados"] = ESTADOS_PROYECTO
+        contexto_extra["filtro_estado"] = filtro_estado
+    elif recurso == "rendiciones":
+        periodos_db = consultar(
+            "SELECT DISTINCT periodo FROM rendiciones WHERE periodo IS NOT NULL AND periodo != '' ORDER BY periodo DESC"
+        )
+        contexto_extra["periodos"] = [p["periodo"] for p in periodos_db]
+        contexto_extra["filtro_periodo"] = filtro_periodo
+    elif recurso == "eventos":
+        anios_db = consultar(
+            "SELECT DISTINCT strftime('%Y', fecha) as anio FROM eventos WHERE fecha IS NOT NULL AND fecha != '' ORDER BY anio DESC"
+        )
+        contexto_extra["anios"] = [a["anio"] for a in anios_db if a["anio"]]
+        contexto_extra["filtro_anio"] = filtro_anio
+        contexto_extra["filtro_orden"] = filtro_orden
+
     return render_template(
-        "panel/listado.html", recurso=recurso, definicion=definicion, filas=filas,
+        "panel/listado.html",
+        recurso=recurso,
+        definicion=definicion,
+        filas=filas,
         dias_semana=DIAS_SEMANA,
+        **contexto_extra
     )
 
 

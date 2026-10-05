@@ -6,6 +6,107 @@
   <a class="btn btn-primary" href="{{ url_for('panel_nuevo', recurso=recurso) }}">+ Agregar</a>
 </div>
 
+{% if recurso == 'servicios' %}
+  <div class="caja p-3 my-3 panel-filtro-caja">
+    <form method="get" action="{{ url_for('panel_listado', recurso='servicios') }}" class="row g-2 align-items-end">
+      <div class="col-md-5 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-q-servicios">Buscar por nombre o palabra clave</label>
+        <input class="form-control form-control-sm" type="text" id="filtro-q-servicios" name="q"
+               value="{{ filtro_q }}" placeholder="Panadería, costura, gasfitería…">
+      </div>
+      <div class="col-md-4 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-rubro-servicios">Filtrar por rubro</label>
+        <select class="form-select form-select-sm" id="filtro-rubro-servicios" name="rubro">
+          <option value="">Todos los rubros</option>
+          {% for r in rubros %}
+            <option value="{{ r }}" {% if filtro_rubro == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-12 d-flex gap-2">
+        <button class="btn btn-sm btn-primary flex-grow-1" type="submit">🔍 Buscar</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('panel_listado', recurso='servicios') }}">Restablecer</a>
+      </div>
+    </form>
+  </div>
+{% elif recurso == 'proyectos' %}
+  <div class="caja p-3 my-3 panel-filtro-caja">
+    <form method="get" action="{{ url_for('panel_listado', recurso='proyectos') }}" class="row g-2 align-items-end">
+      <div class="col-md-5 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-q-proyectos">Buscar por nombre o palabra clave</label>
+        <input class="form-control form-control-sm" type="text" id="filtro-q-proyectos" name="q"
+               value="{{ filtro_q }}" placeholder="Nombre del proyecto o palabra clave…">
+      </div>
+      <div class="col-md-4 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-estado-proyectos">Filtrar por estado</label>
+        <select class="form-select form-select-sm" id="filtro-estado-proyectos" name="estado">
+          <option value="">Todos los estados</option>
+          {% for e in estados %}
+            <option value="{{ e }}" {% if filtro_estado == e %}selected{% endif %}>{{ e }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-12 d-flex gap-2">
+        <button class="btn btn-sm btn-primary flex-grow-1" type="submit">🔍 Buscar</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('panel_listado', recurso='proyectos') }}">Restablecer</a>
+      </div>
+    </form>
+  </div>
+{% elif recurso == 'rendiciones' %}
+  <div class="caja p-3 my-3 panel-filtro-caja">
+    <form method="get" action="{{ url_for('panel_listado', recurso='rendiciones') }}" class="row g-2 align-items-end">
+      <div class="col-md-5 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-q-rendiciones">Buscar por concepto o actividad</label>
+        <input class="form-control form-control-sm" type="text" id="filtro-q-rendiciones" name="q"
+               value="{{ filtro_q }}" placeholder="Concepto, actividad o descripción…">
+      </div>
+      <div class="col-md-4 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-periodo-rendiciones">Filtrar por período</label>
+        <select class="form-select form-select-sm" id="filtro-periodo-rendiciones" name="periodo">
+          <option value="">Todos los períodos</option>
+          {% for p in periodos %}
+            <option value="{{ p }}" {% if filtro_periodo == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-12 d-flex gap-2">
+        <button class="btn btn-sm btn-primary flex-grow-1" type="submit">🔍 Buscar</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('panel_listado', recurso='rendiciones') }}">Restablecer</a>
+      </div>
+    </form>
+  </div>
+{% elif recurso == 'eventos' %}
+  <div class="caja p-3 my-3 panel-filtro-caja">
+    <form method="get" action="{{ url_for('panel_listado', recurso='eventos') }}" class="row g-2 align-items-end">
+      <div class="col-md-4 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-q-eventos">Buscar por nombre de la actividad o concepto</label>
+        <input class="form-control form-control-sm" type="text" id="filtro-q-eventos" name="q"
+               value="{{ filtro_q }}" placeholder="Nombre o descripción…">
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-anio-eventos">Filtrar por año</label>
+        <select class="form-select form-select-sm" id="filtro-anio-eventos" name="anio">
+          <option value="">Todos los años</option>
+          {% for a in anios %}
+            <option value="{{ a }}" {% if filtro_anio == a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <label class="form-label small fw-semibold" for="filtro-orden-eventos">Ordenar por fecha</label>
+        <select class="form-select form-select-sm" id="filtro-orden-eventos" name="orden">
+          <option value="recientes" {% if filtro_orden != 'antiguos' %}selected{% endif %}>Más recientes primero</option>
+          <option value="antiguos" {% if filtro_orden == 'antiguos' %}selected{% endif %}>Más antiguos primero</option>
+        </select>
+      </div>
+      <div class="col-md-2 col-12 d-flex gap-2">
+        <button class="btn btn-sm btn-primary flex-grow-1" type="submit">🔍 Buscar</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('panel_listado', recurso='eventos') }}">Restablecer</a>
+      </div>
+    </form>
+  </div>
+{% endif %}
+
 <div class="table-responsive mt-3">
   <table class="table align-middle">
     <thead>
@@ -54,7 +155,16 @@
         </tr>
       {% else %}
         <tr>
-          <td colspan="{{ definicion.columnas|length + 1 }}">Todavía no hay registros.</td>
+          <td colspan="{{ definicion.columnas|length + 1 }}" class="py-4 text-center text-muted">
+            {% if filtro_q or filtro_rubro or filtro_estado or filtro_periodo or filtro_anio %}
+              No se encontraron registros que coincidan con los criterios de búsqueda.
+              <div class="mt-2">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('panel_listado', recurso=recurso) }}">Restablecer filtros</a>
+              </div>
+            {% else %}
+              Todavía no hay registros.
+            {% endif %}
+          </td>
         </tr>
       {% endfor %}
     </tbody>

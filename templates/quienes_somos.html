@@ -40,20 +40,34 @@
   <div class="row g-3">
     {% for m in miembros %}
       <div class="col-md-6 col-lg-4">
-        <div class="caja h-100 text-center">
-          {% if m.foto_url %}
-            <img class="img-fluid rounded-circle mb-2" style="max-width: 120px;" src="{{ m.foto_url }}" alt="{{ m.nombre }}">
-          {% else %}
-            <div class="stat-number" aria-hidden="true">👤</div>
-          {% endif %}
-          <h3 class="h6 mb-1">{{ m.nombre }}</h3>
-          <p class="small text-muted mb-1">{{ m.cargo }}</p>
-          {% if m.email %}<p class="small mb-0"><a href="mailto:{{ m.email }}">{{ m.email }}</a></p>{% endif %}
-          {% if m.telefono %}<p class="small mb-0">{{ m.telefono }}</p>{% endif %}
-        </div>
+        <article class="directiva-card">
+          <div class="directiva-foto-wrap mx-auto">
+            {% if m.foto_url %}
+              <img class="directiva-foto-img" src="{{ m.foto_url }}" alt="{{ m.nombre }}" loading="lazy">
+            {% else %}
+              <div class="directiva-foto-placeholder" aria-hidden="true" title="Sin fotografía asignada">
+                <span class="directiva-placeholder-icon">👤</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="directiva-cuerpo">
+            <h3 class="directiva-nombre">{{ m.nombre }}</h3>
+            <span class="badge-estado badge-fija directiva-cargo">{{ m.cargo }}</span>
+          </div>
+          <div class="directiva-contacto">
+            {% if m.email %}
+              <a class="directiva-email text-break" href="mailto:{{ m.email }}">
+                <span class="me-1" aria-hidden="true">✉️</span>{{ m.email }}
+              </a>
+            {% endif %}
+            {% if m.telefono %}
+              <p class="small text-muted mb-0 mt-1">📞 {{ m.telefono }}</p>
+            {% endif %}
+          </div>
+        </article>
       </div>
     {% else %}
-      <p>Aún no se ha publicado la directiva.</p>
+      <p class="text-muted">Aún no se ha publicado la directiva.</p>
     {% endfor %}
   </div>
 

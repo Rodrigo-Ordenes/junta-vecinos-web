@@ -568,3 +568,153 @@ def test_montos_y_documentos_financieros_solo_se_muestran_con_cuenta(cliente, ap
 
 def test_pagina_inexistente_muestra_error(cliente):
     assert cliente.get("/esta-pagina-no-existe").status_code == 404
+
+
+def test_api_disponibilidad_sede(cliente):
+    res = cliente.get("/api/sede/disponibilidad")
+    assert res.status_code == 200
+    datos = res.get_json()
+    assert "semanas" in datos
+    assert "mes_nombre" in datos
+    assert len(datos["semanas"]) > 0
+    # Comprobar que los días tienen slots
+    primer_dia = datos["semanas"][0][0]
+    assert "slots" in primer_dia
+    assert "disponible" in primer_dia
+
+
+def test_admin_puede_editar_y_eliminar_reserva(cliente, app_prueba):
+    ingresar(cliente)
+    with app_prueba.app_context():
+        reserva = base.consultar("SELECT * FROM reservas LIMIT 1", uno=True)
+    assert reserva is not None
+
+    fecha_nueva = (fecha_local() + timedelta(days=25)).isoformat()
+    resp = cliente.post(
+        f"/panel/reservas/{reserva['id']}/editar",
+        data={
+            "fecha": fecha_nueva,
+            "hora_inicio": "10:00",
+            "hora_fin": "12:00",
+            "actividad": "Actividad modificada",
+            "solicitante": "Vecina Editada",
+            "telefono": "+56 9 8888 7777",
+            "email": "editada@ejemplo.cl",
+            "personas": "20",
+            "estado": "Aprobada",
+            "observacion": "Ajuste de horario por panel",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    with app_prueba.app_context():
+        actualizada = base.consultar("SELECT * FROM reservas WHERE id = ?", (reserva["id"],), uno=True)
+        assert actualizada["actividad"] == "Actividad modificada"
+        assert actualizada["solicitante"] == "Vecina Editada"
+        assert actualizada["fecha"] == fecha_nueva
+        assert actualizada["estado"] == "Aprobada"
+
+    # Eliminar la reserva
+    resp_del = cliente.post(f"/panel/reservas/{reserva['id']}/eliminar", follow_redirects=True)
+    assert resp_del.status_code == 200
+    with app_prueba.app_context():
+        assert base.consultar("SELECT * FROM reservas WHERE id = ?", (reserva["id"],), uno=True) is None
+
+
+def test_imagenes_en_portada_y_noticias(cliente):
+    # Portada
+    portada = cliente.get("/").get_data(as_text=True)
+    assert "hero_comunidad.jpg" in portada
+    assert "noticia_asamblea.jpg" in portada
+
+    # Noticias
+    noticias = cliente.get("/noticias").get_data(as_text=True)
+    assert "noticia_asamblea.jpg" in noticias
+
+    # Proyectos
+    proyectos = cliente.get("/proyectos").get_data(as_text=True)
+    assert "noticia_plaza.jpg" in proyectos
+
+
+def test_sede_muestra_fotografia(cliente):
+    resp = cliente.get("/sede").get_data(as_text=True)
+    assert "sede_comunitaria.jpg" in resp
+    assert "sede-hero-foto" in resp
+
+
+def test_directorio_muestra_foto_y_placeholder(cliente):
+    resp = cliente.get("/directorio").get_data(as_text=True)
+    assert "directorio-card" in resp
+    # Hay al menos un servicio con foto y servicios con placeholder
+    assert "directorio-avatar-img" in resp or "directorio-avatar-placeholder" in resp
+
+
+def test_quienes_somos_directiva_fotos(cliente):
+    resp = cliente.get("/quienes-somos").get_data(as_text=True)
+    assert "directiva-card" in resp
+    assert "directiva-foto-img" in resp
+    assert "directiva_presidenta.jpg" in resp
+
+
+def test_panel_gestion_imagenes_removido(cliente):
+    ingresar(cliente, "admin", "esperanza2026")
+    resp = cliente.get("/panel/imagenes")
+    assert resp.status_code == 404
+    # Verificar que el menú no incluya la opción de fotografías e imágenes
+    panel_home = cliente.get("/panel").get_data(as_text=True)
+    assert "Fotografías e imágenes" not in panel_home
+
+
+def test_panel_filtros_servicios(cliente):
+    ingresar(cliente, "admin", "esperanza2026")
+    # Vista completa
+    resp = cliente.get("/panel/servicios")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Buscar por nombre o palabra clave" in html
+    assert "Filtrar por rubro" in html
+
+    # Búsqueda por rubro
+    resp_rubro = cliente.get("/panel/servicios?rubro=Alimentación")
+    assert resp_rubro.status_code == 200
+
+    # Búsqueda combinada
+    resp_comb = cliente.get("/panel/servicios?q=pan&rubro=Alimentación")
+    assert resp_comb.status_code == 200
+
+
+def test_panel_filtros_proyectos(cliente):
+    ingresar(cliente, "admin", "esperanza2026")
+    resp = cliente.get("/panel/proyectos")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Filtrar por estado" in html
+
+    # Filtrar por estado
+    resp_estado = cliente.get("/panel/proyectos?estado=En ejecución")
+    assert resp_estado.status_code == 200
+
+
+def test_panel_filtros_rendiciones(cliente):
+    ingresar(cliente, "admin", "esperanza2026")
+    resp = cliente.get("/panel/rendiciones")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Filtrar por período" in html
+    assert "Buscar por concepto o actividad" in html
+
+
+def test_panel_filtros_eventos(cliente):
+    ingresar(cliente, "admin", "esperanza2026")
+    resp = cliente.get("/panel/eventos")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Ordenar por fecha" in html
+    assert "Filtrar por año" in html
+    # Orden más antiguos
+    resp_ant = cliente.get("/panel/eventos?orden=antiguos")
+    assert resp_ant.status_code == 200
+
+
+
+

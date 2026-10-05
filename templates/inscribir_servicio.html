@@ -8,7 +8,7 @@
     revisa la información y la publica en el directorio vecinal.
   </p>
 
-  <form method="post" class="row g-3 caja">
+  <form method="post" enctype="multipart/form-data" class="row g-3 caja">
     <div class="col-md-6">
       <label class="form-label" for="nombre_servicio">Nombre del servicio <span class="obligatorio">*</span></label>
       <input class="form-control" type="text" id="nombre_servicio" name="nombre_servicio" value="{{ datos.nombre_servicio or '' }}" required>
@@ -46,8 +46,56 @@
       <textarea class="form-control" id="descripcion" name="descripcion" rows="3">{{ datos.descripcion or '' }}</textarea>
     </div>
     <div class="col-12">
+      <label class="form-label" for="foto">Fotografía de la persona o del servicio (opcional)</label>
+      <input class="form-control" type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp">
+      <p class="ayuda-campo mb-2">Puedes seleccionar una foto desde tu computador o celular para mostrar en el directorio (JPG, PNG o WebP).</p>
+      <div id="contenedor-preview-foto" class="d-none mt-2 align-items-center gap-3 p-2 border rounded bg-light">
+        <img id="img-preview-foto" src="" alt="Vista previa de la fotografía" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+        <div>
+          <span class="small fw-semibold d-block">Vista previa de la fotografía seleccionada</span>
+          <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="btn-quitar-foto">Cambiar o quitar fotografía</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
       <button class="btn btn-primary btn-lg" type="submit">Enviar para revisión</button>
     </div>
   </form>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const inputFoto = document.getElementById("foto");
+  const contenedorPreview = document.getElementById("contenedor-preview-foto");
+  const imgPreview = document.getElementById("img-preview-foto");
+  const btnQuitar = document.getElementById("btn-quitar-foto");
+
+  if (inputFoto && contenedorPreview && imgPreview) {
+    inputFoto.addEventListener("change", function(e) {
+      const archivo = e.target.files && e.target.files[0];
+      if (archivo) {
+        const lector = new FileReader();
+        lector.onload = function(evt) {
+          imgPreview.src = evt.target.result;
+          contenedorPreview.classList.remove("d-none");
+          contenedorPreview.classList.add("d-flex");
+        };
+        lector.readAsDataURL(archivo);
+      } else {
+        contenedorPreview.classList.add("d-none");
+        contenedorPreview.classList.remove("d-flex");
+      }
+    });
+
+    if (btnQuitar) {
+      btnQuitar.addEventListener("click", function() {
+        inputFoto.value = "";
+        imgPreview.src = "";
+        contenedorPreview.classList.add("d-none");
+        contenedorPreview.classList.remove("d-flex");
+      });
+    }
+  }
+});
+</script>
 {% endblock %}

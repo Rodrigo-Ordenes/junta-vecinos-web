@@ -13,16 +13,22 @@
 
 <div class="barra-accesibilidad">
   <div class="container d-flex flex-wrap gap-2 align-items-center justify-content-between py-1">
-    <span class="d-none d-md-inline small">¿Te cuesta leer la página? Usa estos botones.</span>
-    <div class="d-flex flex-wrap gap-2">
-      <button type="button" class="btn btn-sm btn-accesible" data-accion="texto-grande">
-        A+ Texto más grande
-      </button>
-      <button type="button" class="btn btn-sm btn-accesible" data-accion="alto-contraste">
+    <span class="d-none d-md-inline small">Accesibilidad: ajusta el tamaño de la letra o el contraste a tu preferencia.</span>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="small text-muted me-1 d-none d-sm-inline">Tamaño de letra:</span>
+      <div class="btn-group btn-group-sm accesibilidad-tamanio-grupo" role="group" aria-label="Controles de tamaño de texto">
+        <button type="button" class="btn btn-sm btn-accesible" data-accion="texto-reducir" aria-label="Disminuir tamaño de letra" title="Disminuir tamaño de letra (A−)">
+          <strong>A−</strong>
+        </button>
+        <button type="button" class="btn btn-sm btn-accesible" data-accion="texto-normal" aria-label="Restablecer tamaño original" title="Tamaño original (A)">
+          <strong>A</strong>
+        </button>
+        <button type="button" class="btn btn-sm btn-accesible" data-accion="texto-aumentar" aria-label="Aumentar tamaño de letra" title="Aumentar tamaño de letra (A+)">
+          <strong>A+</strong>
+        </button>
+      </div>
+      <button type="button" class="btn btn-sm btn-accesible ms-1" data-accion="alto-contraste" aria-label="Alternar modo de alto contraste">
         Alto contraste
-      </button>
-      <button type="button" class="btn btn-sm btn-accesible" data-accion="reiniciar">
-        Normal
       </button>
     </div>
   </div>

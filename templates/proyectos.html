@@ -15,34 +15,48 @@
     {% endfor %}
   </div>
 
-  <div class="row g-4">
+  <div class="row g-3">
     {% for p in proyectos %}
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-body">
-            <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
-            <h2 class="card-title h5 mt-2">{{ p.nombre }}</h2>
-            <p class="card-text">{{ p.descripcion }}</p>
-            {% if p.avance_porcentaje is not none %}
-              <div class="avance-resumen">
-                <span>Avance físico informado</span>
-                <strong>{{ p.avance_porcentaje }}%</strong>
+      <div class="col-12">
+        <article class="tarjeta-horizontal">
+          <div class="tarjeta-horizontal-media">
+            {% if p.imagen_url %}
+              <img src="{{ p.imagen_url }}" class="tarjeta-horizontal-img" alt="{{ p.nombre }}" loading="lazy">
+            {% else %}
+              <div class="tarjeta-horizontal-placeholder" aria-hidden="true">
+                <span>🏗️</span>
               </div>
-              <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
-                        aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
-                {{ p.avance_porcentaje }}%
-              </progress>
-              <p class="small text-muted">Actualizado {{ p.avance_fecha|fecha_larga }}</p>
+            {% endif %}
+          </div>
+          <div class="tarjeta-horizontal-cuerpo">
+            <div class="tarjeta-horizontal-meta">
+              <span class="badge-estado {{ p.estado|clase_estado }}">{{ p.estado }}</span>
+              {% if p.eje %}<span class="small text-muted ms-2">Eje: {{ p.eje }}</span>{% endif %}
+            </div>
+            <h2 class="tarjeta-horizontal-titulo h5">{{ p.nombre }}</h2>
+            <p class="tarjeta-horizontal-desc">{{ p.descripcion }}</p>
+            {% if p.avance_porcentaje is not none %}
+              <div class="tarjeta-horizontal-avance mt-2">
+                <div class="avance-resumen">
+                  <span>Avance físico informado</span>
+                  <strong>{{ p.avance_porcentaje }}%</strong>
+                </div>
+                <progress class="barra-avance" max="100" value="{{ p.avance_porcentaje }}"
+                          aria-label="Avance físico de {{ p.nombre }}: {{ p.avance_porcentaje }} por ciento">
+                  {{ p.avance_porcentaje }}%
+                </progress>
+                <p class="small text-muted mb-0">Actualizado {{ p.avance_fecha|fecha_larga }}</p>
+              </div>
             {% elif p.estado == 'En ejecución' %}
-              <p class="small text-muted">El avance físico aún no se ha informado.</p>
+              <p class="small text-muted mt-2 mb-0">El avance físico aún no se ha informado.</p>
             {% endif %}
             {% set historial = historial_por_proyecto.get(p.id, []) %}
             {% if historial %}
-              <details class="historial-avances mb-3">
-                <summary>Historial de avances ({{ historial|length }})</summary>
-                <ol class="mt-2 mb-0">
+              <details class="historial-avances mt-2 mb-1">
+                <summary class="small">Historial de avances ({{ historial|length }})</summary>
+                <ol class="mt-2 mb-0 small">
                   {% for avance in historial %}
-                    <li class="mb-2">
+                    <li class="mb-1">
                       <strong>{{ avance.porcentaje }}%</strong> · {{ avance.fecha_actualizacion|fecha_larga }}
                       <div>{{ avance.detalle }}</div>
                     </li>
@@ -50,16 +64,21 @@
                 </ol>
               </details>
             {% endif %}
-            <ul class="list-unstyled small mb-0">
-              {% if p.eje %}<li><strong>Eje:</strong> {{ p.eje }}</li>{% endif %}
-              {% if usuario and p.fuente_financiamiento %}<li><strong>Financiamiento:</strong> {{ p.fuente_financiamiento }}</li>{% endif %}
-              {% if usuario and p.monto %}<li><strong>Monto:</strong> {{ p.monto|moneda }}</li>{% endif %}
-            </ul>
+            {% if usuario and p.fuente_financiamiento %}
+              <p class="small text-muted mb-0 mt-1"><strong>Financiamiento:</strong> {{ p.fuente_financiamiento }}</p>
+            {% endif %}
+            {% if usuario and p.monto %}
+              <p class="small text-muted mb-0"><strong>Monto:</strong> {{ p.monto|moneda }}</p>
+            {% endif %}
           </div>
-        </div>
+          <div class="tarjeta-horizontal-accion">
+            <span class="badge-estado {{ p.estado|clase_estado }} mb-2 d-none d-md-inline-block">{{ p.estado }}</span>
+            <a href="{{ url_for('proyectos', estado=p.estado) }}" class="btn btn-sm btn-primary">Leer más</a>
+          </div>
+        </article>
       </div>
     {% else %}
-      <p>No hay proyectos con ese estado.</p>
+      <p class="text-muted">No hay proyectos con ese estado.</p>
     {% endfor %}
   </div>
 </div>
