@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Censo Infantil / Entrega de Juguetes · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="section-title mb-1">Censo Infantil / Juguetes de Navidad</h1>
+      <p class="lead mb-0">Registra a tus hijas, hijos o menores de 10 años a tu cargo para la entrega municipal navideña.</p>
+    </div>
+    <a href="{{ url_for('mis_solicitudes') }}" class="btn btn-outline-secondary">← Volver a Mi Cuenta</a>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-5">
+      <div class="caja">
+        <h2 class="h5 mb-3">Registrar Menor (hasta 9 años)</h2>
+        <form method="post" class="row g-3">
+          <div class="col-12">
+            <label for="nombre" class="form-label">Nombre completo del menor <span class="obligatorio">*</span></label>
+            <input type="text" class="form-control" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" required>
+          </div>
+          <div class="col-12">
+            <label for="rut" class="form-label">RUT del menor (opcional)</label>
+            <input type="text" class="form-control" id="rut" name="rut" value="{{ datos.rut or '' }}" placeholder="25.123.456-7">
+            <div class="form-text">Si aún no tiene o no lo recuerdas, puedes dejarlo vacío.</div>
+          </div>
+          <div class="col-12">
+            <label for="fecha_nacimiento" class="form-label">Fecha de nacimiento <span class="obligatorio">*</span></label>
+            <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ datos.fecha_nacimiento or '' }}" required>
+            <div class="form-text">Debe tener menos de 10 años cumplidos al 25 de diciembre de {{ corte.year }}.</div>
+          </div>
+          <div class="col-12 mt-3">
+            <button type="submit" class="btn btn-primary w-100">Registrar en el Censo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="caja">
+        <h2 class="h5 mb-3">Menores Inscritos</h2>
+        {% if menores %}
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>RUT</th>
+                  <th>F. Nacimiento</th>
+                  <th>Edad estimada</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in menores %}
+                  {% set m = item.datos %}
+                  <tr>
+                    <td><strong>{{ m.nombre }}</strong></td>
+                    <td>{{ m.rut or '-' }}</td>
+                    <td>{{ m.fecha_nacimiento|fecha_corta }}</td>
+                    <td><span class="badge bg-info text-dark">{{ item.edad }} años</span></td>
+                    <td class="text-end">
+                      <form method="post" action="{{ url_for('mis_menores_eliminar', menor_id=m.id) }}" onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Aún no has registrado menores en tu cuenta.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

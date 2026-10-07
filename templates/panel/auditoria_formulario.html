@@ -1,0 +1,50 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Subir Informe de Auditoría · Panel{% endblock %}
+{% block panel %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="section-title h3 mb-1">Subir Informe de Auditoría</h1>
+    <p class="text-muted">Facultad de la Comisión Revisora de Cuentas (Ley 19.418).</p>
+  </div>
+  <a href="{{ url_for('panel_auditorias') }}" class="btn btn-outline-secondary">← Volver</a>
+</div>
+
+<div class="caja">
+  <div class="alert alert-warning mb-4">
+    <strong>⚠️ Advertencia:</strong> Este documento se publicará directamente en la sección de Transparencia Económica y es <strong>inmutable</strong>. Asegúrate de que el archivo y los datos sean definitivos antes de guardarlo.
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="row g-3">
+    <div class="col-md-8">
+      <label for="titulo" class="form-label fw-bold">Título del Informe <span class="obligatorio">*</span></label>
+      <input type="text" class="form-control" id="titulo" name="titulo" value="{{ datos.titulo or '' }}" placeholder="Ej: Balance Auditado Ejercicio Anual 2025" required>
+    </div>
+
+    <div class="col-md-4">
+      <label for="tipo" class="form-label fw-bold">Tipo de Informe <span class="obligatorio">*</span></label>
+      <select class="form-select" id="tipo" name="tipo" required>
+        {% for t in tipos %}
+          <option value="{{ t }}" {% if datos.tipo == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12">
+      <label for="descripcion" class="form-label">Descripción o Hallazgos Principales (opcional)</label>
+      <textarea class="form-control" id="descripcion" name="descripcion" rows="3" placeholder="Resumen o consideraciones de la revisión realizada...">{{ datos.descripcion or '' }}</textarea>
+    </div>
+
+    <div class="col-12">
+      <label for="archivo" class="form-label fw-bold">Archivo del Informe <span class="obligatorio">*</span></label>
+      <input type="file" class="form-control" id="archivo" name="archivo" accept=".pdf, .doc, .docx, .xls, .xlsx, .jpg, .jpeg, .png, application/pdf" required>
+      <div class="form-text">PDF, Word, Excel o imagen (máx. 16 MB). Se almacenará en la sección protegida para socios.</div>
+    </div>
+
+    <div class="col-12 mt-4 text-end">
+      <button type="submit" class="btn btn-primary btn-lg">
+        🔒 Publicar Informe Inmutable
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

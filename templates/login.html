@@ -3,52 +3,38 @@
 {% block content %}
 <div class="container auth-page">
   <section class="auth-card" aria-labelledby="titulo-login">
-    <div class="auth-visual">
-      <div class="auth-orbit auth-orbit-uno" aria-hidden="true"></div>
-      <div class="auth-orbit auth-orbit-dos" aria-hidden="true"></div>
-      <div class="auth-visual-content">
-        <a class="auth-monograma" href="{{ url_for('index') }}" aria-label="Volver al inicio">CE</a>
+    <header class="auth-cabecera">
+      <a class="auth-monograma" href="{{ url_for('index') }}" aria-label="Volver al inicio">CE</a>
+      <div>
         <p class="auth-etiqueta">Junta de Vecinos N.° 2 · Cerro Esperanza</p>
-        <h1>Un barrio más cerca.</h1>
-        <p class="auth-descripcion">Ingresa para revisar tus solicitudes y mantenerte al día con la vida de la comunidad.</p>
-        <div class="auth-destacado">
-          <span class="auth-destacado-icono" aria-hidden="true">✦</span>
-          <div>
-            <span class="auth-destacado-label">Tu espacio vecinal</span>
-            <strong>Información clara, comunidad conectada</strong>
-          </div>
-        </div>
-        <div class="auth-puntos" aria-label="Servicios disponibles">
-          <span>Proyectos</span><span>Sede vecinal</span><span>Trámites</span>
-        </div>
+        <h1 id="titulo-login">Ingreso de socios</h1>
       </div>
-    </div>
+    </header>
 
-    <div class="auth-content">
+    <div class="auth-cuerpo">
+      <p class="text-muted mb-3">Las cuentas son exclusivas para socias y socios acreditados en el padrón oficial.</p>
+
+      <form method="post" class="auth-form">
+        <div class="mb-3">
+          <label class="form-label" for="usuario">Nombre de usuario</label>
+          <input class="form-control" type="text" id="usuario" name="usuario"
+                 autocomplete="username" autocapitalize="none" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="clave">Clave</label>
+          <input class="form-control" type="password" id="clave" name="clave"
+                 autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-lg w-100" type="submit">Ingresar a mi cuenta <span aria-hidden="true">→</span></button>
+      </form>
+
+      <div class="auth-divider"><span>¿Aún no tienes cuenta?</span></div>
+      <div class="auth-acciones">
+        <a class="btn btn-outline-primary" href="{{ url_for('registro') }}">Solicitar cuenta de socio</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('como_asociarse') }}">Cómo asociarme</a>
+      </div>
+      <p class="auth-nota">Las solicitudes se validan contra el padrón oficial antes de activarse.</p>
       <a class="auth-volver" href="{{ url_for('index') }}">← Volver al sitio</a>
-      <div class="auth-form-wrap">
-        <span class="auth-form-kicker">Portal vecinal</span>
-        <h2 id="titulo-login">Qué bueno verte</h2>
-        <p class="text-muted">Ingresa con los datos de tu cuenta.</p>
-
-        <form method="post" class="auth-form">
-          <div class="mb-3">
-            <label class="form-label" for="usuario">Nombre de usuario</label>
-            <input class="form-control" type="text" id="usuario" name="usuario"
-                   autocomplete="username" autocapitalize="none" required autofocus>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="clave">Clave</label>
-            <input class="form-control" type="password" id="clave" name="clave"
-                   autocomplete="current-password" required>
-          </div>
-          <button class="btn btn-primary btn-lg w-100" type="submit">Ingresar a mi cuenta <span aria-hidden="true">→</span></button>
-        </form>
-
-        <div class="auth-divider"><span>¿Primera vez aquí?</span></div>
-        <a class="btn btn-outline-primary w-100" href="{{ url_for('registro') }}">Crear cuenta vecinal</a>
-        <p class="auth-nota">Las cuentas nuevas quedan pendientes hasta que la directiva las apruebe.</p>
-      </div>
     </div>
   </section>
 </div>

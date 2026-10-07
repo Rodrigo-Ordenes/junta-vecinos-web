@@ -1,66 +1,74 @@
 {% extends "base.html" %}
-{% block title %}Inscribir mi servicio · Junta de Vecinos N.° 2{% endblock %}
+{% block title %}Inscribir Emprendimiento · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container my-4 my-md-5">
-  <h1 class="section-title">Inscribe tu servicio en el directorio</h1>
-  <p class="lead">
-    Si tienes un almacén, un oficio o un emprendimiento en el cerro, cuéntanos. La directiva
-    revisa la información y la publica en el directorio vecinal.
-  </p>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="section-title mb-1">Inscribe tu Servicio o Emprendimiento</h1>
+      <p class="lead mb-0">
+        Espacio exclusivo para socias y socios acreditados. Publica tu actividad económica, oficio o negocio en el cerro.
+      </p>
+    </div>
+    <a href="{{ url_for('directorio') }}" class="btn btn-outline-secondary">← Volver a Servicios Comunales</a>
+  </div>
 
-  <form method="post" enctype="multipart/form-data" class="row g-3 caja">
-    <div class="col-md-6">
-      <label class="form-label" for="nombre_servicio">Nombre del servicio <span class="obligatorio">*</span></label>
-      <input class="form-control" type="text" id="nombre_servicio" name="nombre_servicio" value="{{ datos.nombre_servicio or '' }}" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="vecino">Tu nombre <span class="obligatorio">*</span></label>
-      <input class="form-control" type="text" id="vecino" name="vecino" value="{{ datos.vecino or '' }}" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="rubro">Rubro</label>
-      <select class="form-select" id="rubro" name="rubro">
-        {% for r in rubros %}
-          <option value="{{ r }}" {% if datos.rubro == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="telefono">Teléfono <span class="obligatorio">*</span></label>
-      <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '' }}" required>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="whatsapp">WhatsApp</label>
-      <input class="form-control" type="tel" id="whatsapp" name="whatsapp" value="{{ datos.whatsapp or '' }}" placeholder="56912345678">
-    </div>
-    <div class="col-md-6">
-      <label class="form-label" for="email">Correo</label>
-      <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
-    </div>
-    <div class="col-12">
-      <label class="form-label" for="direccion">Dirección (opcional)</label>
-      <input class="form-control" type="text" id="direccion" name="direccion" value="{{ datos.direccion or '' }}">
-    </div>
-    <div class="col-12">
-      <label class="form-label" for="descripcion">¿Qué ofreces?</label>
-      <textarea class="form-control" id="descripcion" name="descripcion" rows="3">{{ datos.descripcion or '' }}</textarea>
-    </div>
-    <div class="col-12">
-      <label class="form-label" for="foto">Fotografía de la persona o del servicio (opcional)</label>
-      <input class="form-control" type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp">
-      <p class="ayuda-campo mb-2">Puedes seleccionar una foto desde tu computador o celular para mostrar en el directorio (JPG, PNG o WebP).</p>
-      <div id="contenedor-preview-foto" class="d-none mt-2 align-items-center gap-3 p-2 border rounded bg-light">
-        <img id="img-preview-foto" src="" alt="Vista previa de la fotografía" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
-        <div>
-          <span class="small fw-semibold d-block">Vista previa de la fotografía seleccionada</span>
-          <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="btn-quitar-foto">Cambiar o quitar fotografía</button>
+  <div class="caja p-4 shadow-sm w-100 mb-4">
+    <form method="post" enctype="multipart/form-data" class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label" for="nombre_servicio">Nombre del emprendimiento o servicio <span class="obligatorio">*</span></label>
+        <input class="form-control" type="text" id="nombre_servicio" name="nombre_servicio" value="{{ datos.nombre_servicio or '' }}" placeholder="Ej: Panadería Doña Rosa" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="vecino">Nombre del socio o socia responsable <span class="obligatorio">*</span></label>
+        <input class="form-control" type="text" id="vecino" name="vecino" value="{{ datos.vecino or '' }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="rubro">Rubro comercial</label>
+        <select class="form-select" id="rubro" name="rubro">
+          {% for r in rubros %}
+            <option value="{{ r }}" {% if datos.rubro == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="telefono">Teléfono de contacto <span class="obligatorio">*</span></label>
+        <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '+569' }}" placeholder="+569XXXXXXXX" required>
+        <div class="form-text">Debe iniciar con prefijo +569.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="whatsapp">WhatsApp comercial</label>
+        <input class="form-control" type="tel" id="whatsapp" name="whatsapp" value="{{ datos.whatsapp or '+569' }}" placeholder="+569XXXXXXXX">
+        <div class="form-text">Debe iniciar con prefijo +569.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="email">Correo electrónico</label>
+        <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="direccion">Dirección en el cerro (opcional)</label>
+        <input class="form-control" type="text" id="direccion" name="direccion" value="{{ datos.direccion or '' }}" placeholder="Ej: Pasaje Miramar #45">
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="descripcion">¿Qué ofreces o cuál es tu especialidad?</label>
+        <textarea class="form-control" id="descripcion" name="descripcion" rows="3" placeholder="Describe los productos, horarios de atención, entrega a domicilio, etc...">{{ datos.descripcion or '' }}</textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="foto">Fotografía del servicio o productos (opcional)</label>
+        <input class="form-control" type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp">
+        <p class="ayuda-campo mb-2">JPG, PNG o WebP. Máximo 16 MB.</p>
+        <div id="contenedor-preview-foto" class="d-none mt-2 align-items-center gap-3 p-2 border rounded bg-light">
+          <img id="img-preview-foto" src="" alt="Vista previa" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+          <div>
+            <span class="small fw-semibold d-block">Vista previa seleccionada</span>
+            <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="btn-quitar-foto">Quitar foto</button>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="col-12">
-      <button class="btn btn-primary btn-lg" type="submit">Enviar para revisión</button>
-    </div>
-  </form>
+      <div class="col-12 mt-4">
+        <button class="btn btn-primary btn-lg" type="submit">Enviar emprendimiento para revisión</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <script>
@@ -96,6 +104,30 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     }
   }
+
+  // Forzar prefijo chileno +569
+  const inputsTel = [document.getElementById("telefono"), document.getElementById("whatsapp")];
+  inputsTel.forEach(function(input) {
+    if (!input) return;
+    input.addEventListener("focus", function() {
+      if (!this.value || this.value.trim() === "") {
+        this.value = "+569";
+      }
+    });
+    input.addEventListener("input", function() {
+      if (!this.value.startsWith("+569")) {
+        // Permitir que si escribe solo números o 9, agregue el prefijo
+        let clean = this.value.replace(/[^\d]/g, '');
+        if (clean.startsWith("569")) {
+          this.value = "+" + clean;
+        } else if (clean.startsWith("9")) {
+          this.value = "+56" + clean;
+        } else if (clean.length > 0) {
+          this.value = "+569" + clean;
+        }
+      }
+    });
+  });
 });
 </script>
 {% endblock %}

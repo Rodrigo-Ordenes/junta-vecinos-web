@@ -1,0 +1,101 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Carga Masiva del Padrón de Socios · Panel{% endblock %}
+{% block panel %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="section-title h3 mb-1">Carga Masiva del Padrón Oficial</h1>
+    <p class="text-muted">Importa o actualiza socios desde un archivo .csv o .xlsx estructurado.</p>
+  </div>
+  <a href="{{ url_for('panel_socios') }}" class="btn btn-outline-secondary">← Volver al Padrón</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="caja">
+      <h2 class="h5 mb-3">Subir Archivo de Padrón</h2>
+      <form method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label for="archivo" class="form-label fw-bold">Seleccionar archivo (.csv o .xlsx)</label>
+          <input class="form-control" type="file" id="archivo" name="archivo" accept=".csv, .xlsx, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+          <div class="form-text">Máximo 10 MB. El sistema normaliza RUTs, teléfonos y genera claves basadas en el RUT.</div>
+        </div>
+
+        <div class="form-check form-switch mb-4">
+          <input class="form-check-input" type="checkbox" id="simular" name="simular" value="on">
+          <label class="form-check-label fw-semibold" for="simular">
+            Modo Simulación (solo validar datos y reporte sin guardar en base de datos)
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg w-100">
+          🚀 Iniciar Proceso de Carga
+        </button>
+      </form>
+    </div>
+
+    {% if resultado %}
+      <div class="caja mt-4 border-start border-4 {% if resultado.errores %}border-danger{% else %}border-success{% endif %}">
+        <h3 class="h5 mb-3">Resultado de la Operación {% if resultado.simulado %}<span class="badge bg-warning text-dark">Simulación</span>{% endif %}</h3>
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-6">
+            <div class="p-3 bg-light rounded">
+              <div class="fs-3 fw-bold text-success">{{ resultado.creados }}</div>
+              <small class="text-muted">Socios Nuevos</small>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="p-3 bg-light rounded">
+              <div class="fs-3 fw-bold text-primary">{{ resultado.actualizados }}</div>
+              <small class="text-muted">Socios Actualizados</small>
+            </div>
+          </div>
+        </div>
+
+        {% if resultado.errores %}
+          <div class="alert alert-danger">
+            <h4 class="h6 fw-bold">Errores detectados ({{ resultado.errores|length }}):</h4>
+            <ul class="mb-0 small">
+              {% for err in resultado.errores %}
+                <li>{{ err }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {% if resultado.avisos %}
+          <div class="alert alert-info">
+            <h4 class="h6 fw-bold">Avisos y ajustes automáticos ({{ resultado.avisos|length }}):</h4>
+            <ul class="mb-0 small">
+              {% for av in resultado.avisos %}
+                <li>{{ av }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-5">
+    <div class="caja bg-light">
+      <h2 class="h6 text-uppercase text-muted mb-3">📋 Formato y Columnas Requeridas</h2>
+      <p class="small text-muted">El archivo debe contener una fila de encabezados con las siguientes columnas (el orden es indistinto):</p>
+      <ul class="small list-unstyled">
+        <li><strong>numero_socio</strong> <span class="badge bg-danger">Obligatorio</span></li>
+        <li><strong>rut</strong> <span class="badge bg-danger">Obligatorio</span></li>
+        <li><strong>nombre</strong> <span class="badge bg-danger">Obligatorio</span></li>
+        <li><strong>apellidos</strong> <span class="badge bg-danger">Obligatorio</span></li>
+        <li><strong>direccion</strong> <span class="badge bg-secondary">Opcional</span></li>
+        <li><strong>telefono</strong> <span class="badge bg-secondary">Opcional</span> (+569...)</li>
+        <li><strong>email</strong> <span class="badge bg-secondary">Opcional</span></li>
+        <li><strong>fecha_nacimiento</strong> <span class="badge bg-secondary">Opcional</span> (AAAA-MM-DD o DD-MM-AAAA)</li>
+        <li><strong>fallecido</strong> <span class="badge bg-secondary">Opcional</span> (1/0 o SI/NO)</li>
+      </ul>
+      <div class="border-top pt-3 mt-3">
+        <h3 class="h6 small fw-bold">Generación Automática de Accesos:</h3>
+        <p class="small text-muted mb-0">Para cada socio creado, el usuario será su RUT sin puntos ni guión (ej: <code>123456789</code>) y su clave inicial serán los dígitos del RUT completados a 8 caracteres, exigiendo cambio de clave al ingresar.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

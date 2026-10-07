@@ -1,0 +1,50 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Censo Infantil de Navidad · Panel{% endblock %}
+{% block panel %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="section-title h3 mb-1">Censo Infantil / Entrega de Juguetes Navidad</h1>
+    <p class="text-muted mb-0">Menores de 10 años asociados a socios para el listado municipal al 25 de diciembre de {{ corte.year }}.</p>
+  </div>
+  <a href="{{ url_for('panel_censo_exportar') }}" class="btn btn-success">
+    📊 Exportar Planilla Municipal (CSV)
+  </a>
+</div>
+
+<div class="caja p-0 table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th>N.º Socio</th>
+        <th>Socio Responsable</th>
+        <th>Teléfono</th>
+        <th>Nombre del Menor</th>
+        <th>RUT Menor</th>
+        <th>F. Nacimiento</th>
+        <th>Edad (al 25-Dic)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in menores %}
+        {% set m = item.datos %}
+        <tr>
+          <td><span class="badge bg-secondary">{{ m.socio_numero or 'S/N' }}</span></td>
+          <td>
+            <strong>{{ m.socio_nombre }} {{ m.socio_apellidos }}</strong><br>
+            <small class="text-muted">{{ m.socio_direccion }}</small>
+          </td>
+          <td>{{ m.socio_telefono or '-' }}</td>
+          <td class="fw-bold text-primary">🧒 {{ m.nombre }}</td>
+          <td>{{ m.rut or 'Sin RUT' }}</td>
+          <td>{{ m.fecha_nacimiento|fecha_corta }}</td>
+          <td><span class="badge bg-info text-dark">{{ item.edad }} años</span></td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">No hay menores registrados en el censo aún.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+<section class="restriccion-socios tarjeta-centrada form-card-acotado" aria-labelledby="titulo-restriccion">
+  <div class="restriccion-icono" aria-hidden="true">🔒</div>
+  <h2 id="titulo-restriccion" class="h4">Contenido exclusivo para socios acreditados</h2>
+  {% if mensaje_restringido %}
+    <p>{{ mensaje_restringido }}</p>
+  {% elif 'inscribir' in request.path %}
+    <p>Para inscribir y promocionar tu emprendimiento en la plataforma comunitaria, debes ingresar con tu Cuenta de Socio acreditada.</p>
+  {% else %}
+    <p>Esta sección está disponible exclusivamente para socias y socios acreditados en el padrón oficial de la junta de vecinos. Ingresa con tu cuenta para continuar.</p>
+  {% endif %}
+  <p class="small text-muted">Si aún no eres socio/a activo/a, puedes consultar el resto del sitio, solicitar el arriendo de la sede o pedir tu certificado de residencia sin necesidad de cuenta.</p>
+  <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+    <a class="btn btn-primary" href="{{ url_for('login', next=request.path) }}">Iniciar Sesión de Socio</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('como_asociarse') }}">Información para Asociarse</a>
+  </div>
+</section>

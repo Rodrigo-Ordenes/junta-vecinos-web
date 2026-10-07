@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Cambiar clave · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container auth-page">
+  <section class="auth-card" aria-labelledby="titulo-clave">
+    <header class="auth-cabecera">
+      <a class="auth-monograma" href="{{ url_for('index') }}" aria-label="Volver al inicio">CE</a>
+      <div>
+        <p class="auth-etiqueta">Mi cuenta</p>
+        <h1 id="titulo-clave">Cambiar clave</h1>
+      </div>
+    </header>
+    <div class="auth-cuerpo">
+      {% if obligatorio %}
+        <div class="alert alert-warning" role="status">Tu cuenta fue creada con una clave inicial. Por seguridad, elige una clave nueva para continuar.</div>
+      {% endif %}
+      <form method="post" class="auth-form">
+        <div class="mb-3">
+          <label class="form-label" for="clave_actual">Clave actual</label>
+          <input class="form-control" type="password" id="clave_actual" name="clave_actual" autocomplete="current-password" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="clave_nueva">Clave nueva (mínimo 8 caracteres)</label>
+          <input class="form-control" type="password" id="clave_nueva" name="clave_nueva" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="confirmar_clave">Repite la clave nueva</label>
+          <input class="form-control" type="password" id="confirmar_clave" name="confirmar_clave" minlength="8" autocomplete="new-password" required>
+        </div>
+        <button class="btn btn-primary btn-lg w-100" type="submit">Guardar clave</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

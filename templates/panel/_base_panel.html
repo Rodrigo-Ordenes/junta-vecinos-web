@@ -1,18 +1,40 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container my-4">
-  <div class="row g-4">
-    <aside class="col-lg-3">
+<div class="container-xl panel-container my-4 my-md-5">
+  <div class="row g-4 justify-content-center">
+    <!-- Navegación móvil ultra-compacta (<768px) -->
+    <div class="col-12 d-md-none mb-2">
+      <div class="d-flex align-items-center gap-2">
+        <label for="selectModuloPanel" class="form-label fw-bold small text-muted text-nowrap mb-0">MÓDULO:</label>
+        <select id="selectModuloPanel" class="form-select form-select-sm shadow-sm" onchange="location = this.value;">
+          <option value="{{ url_for('panel') }}" {% if request.path == url_for('panel') %}selected{% endif %}>🏠 Inicio / Resumen</option>
+          {% for categoria, enlaces in menu_panel %}
+            <optgroup label="{{ categoria }}">
+              {% for clave, etiqueta, icono in enlaces %}
+                {% set destino = url_panel(clave) %}
+                <option value="{{ destino }}" {% if request.path == destino %}selected{% endif %}>
+                  {{ icono }} {{ etiqueta }}
+                </option>
+              {% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Barra lateral para pantallas medianas y grandes -->
+    <aside class="col-md-4 col-lg-3 d-none d-md-block">
       <div class="caja">
         <h2 class="h6 text-uppercase text-muted">Panel</h2>
         <p class="small mb-2">{{ usuario.nombre }}<br><strong>{{ usuario.rol|capitalize }}</strong></p>
-        <a class="list-group-item list-group-item-action mb-3" href="{{ url_for('panel') }}">🏠 Inicio del panel</a>
+        <a class="list-group-item list-group-item-action mb-3 {% if request.path == url_for('panel') %}active fw-bold{% endif %}" href="{{ url_for('panel') }}">🏠 Inicio del panel</a>
         {% for categoria, enlaces in menu_panel %}
           <section class="panel-menu-grupo mb-3" aria-label="{{ categoria }}">
             <h3 class="h6 text-uppercase text-muted px-3">{{ categoria }}</h3>
             <div class="list-group panel-menu">
               {% for clave, etiqueta, icono in enlaces %}
-                <a class="list-group-item list-group-item-action" href="{{ url_panel(clave) }}">
+                {% set destino = url_panel(clave) %}
+                <a class="list-group-item list-group-item-action {% if request.path == destino %}active fw-bold text-primary{% endif %}" href="{{ destino }}">
                   {{ icono }} {{ etiqueta }}
                 </a>
               {% endfor %}
@@ -21,7 +43,9 @@
         {% endfor %}
       </div>
     </aside>
-    <section class="col-lg-9">
+
+    <!-- Contenido principal del panel -->
+    <section class="col-12 col-md-8 col-lg-9">
       {% block panel %}{% endblock %}
     </section>
   </div>

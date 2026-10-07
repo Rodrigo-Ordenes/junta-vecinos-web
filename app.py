@@ -1,18 +1,24 @@
 """Sitio web de la Junta de Vecinos N.° 2 · Cerro Esperanza.
 
 Aplicación Flask con SQLite. Incluye el sitio público (noticias, proyectos,
-transparencia, documentos, sede vecinal con reservas, directorio de servicios y
-certificado de residencia) y un panel de administración en español con tres
-perfiles: administrador, coordinador y vecino.
+transparencia, documentos, sede vecinal con reservas, servicios comunales y
+emprendimientos, y certificado de residencia) y un panel en español con cuatro
+perfiles: administrador, coordinador (con permisos modulares), socio acreditado y
+comisión revisora de cuentas. Los vecinos no socios consultan el sitio público,
+pero no tienen cuenta.
 """
 
 import json
 import os
 import calendar
+import csv
+import io
+import re
 import secrets
 import sqlite3
 import shutil
 import unicodedata
+from urllib.parse import quote
 from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
@@ -22,6 +28,7 @@ from flask import (
     abort,
     flash,
     jsonify,
+    Response,
     redirect,
     render_template,
     request,
@@ -33,6 +40,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 import db as base
+import padron
 from db import (
     CATEGORIAS_DOCUMENTO,
     DIAS_SEMANA,
@@ -53,6 +61,7 @@ CARPETA_COMPROBANTES_PRIVADOS = os.path.join(
 )
 ARCHIVO_PRIVADO_PREFIX = "privado-"
 ARCHIVO_CERTIFICADO_PREFIX = "privado-cert-"
+CATEGORIAS_PROTEGIDAS = ("Estatutos", "Actas de asamblea")
 EXTENSIONES_PERMITIDAS = {
     "pdf", "doc", "docx", "xls", "xlsx", "odt", "ods",
     "jpg", "jpeg", "png", "webp", "gif",
@@ -120,8 +129,8 @@ def moneda(valor):
     return "$" + f"{numero:,}".replace(",", ".")
 
 
-def solo_digitos(texto):
-    return "".join(c for c in str(texto or "") if c.isdigit())
+solo_digitos = padron.solo_digitos
+telefono_chile = padron.telefono_chile
 
 
 def sin_acentos(texto):
@@ -161,16 +170,27 @@ def usuario_actual():
 
 
 def puede(recurso, usuario=None):
+    """Indica si el usuario puede entrar al módulo ``recurso`` del panel.
+
+    El administrador entra a todo; el coordinador solo a los módulos cuyo permiso
+    modular (columna ``permiso_*``) tiene activo; la comisión revisora solo al módulo
+    de auditoría; el socio no entra al panel.
+    """
     usuario = usuario or usuario_actual()
     if not usuario:
         return False
     if usuario["rol"] == "administrador":
         return True
     if usuario["rol"] == "coordinador":
-        if recurso == "crear_vecinos":
-            return obtener_config()["coordinador_crear_vecinos"] == "1"
-        return recurso in PERMISOS_COORDINADOR
+        permiso = PERMISOS_COORDINADOR.get(recurso)
+        return permiso == "panel" or bool(permiso and usuario[permiso])
+    if usuario["rol"] == "comision_revisora":
+        return recurso in {"panel", "auditorias"}
     return False
+
+
+def puede_entrar_al_panel(usuario):
+    return bool(usuario and usuario["rol"] in ("administrador", "coordinador", "comision_revisora"))
 
 
 def login_requerido(view):
@@ -183,7 +203,12 @@ def login_requerido(view):
     return wrapper
 
 
-def permiso_requerido(recurso):
+def requiere_permiso(modulo):
+    """Deja pasar al administrador, o al coordinador con el flag del módulo activo.
+
+    Sin sesión redirige al ingreso; sin permiso responde con una redirección limpia
+    al panel (o al inicio si la cuenta no tiene panel) y un aviso.
+    """
     def decorador(view):
         @wraps(view)
         def wrapper(*args, **kwargs):
@@ -191,12 +216,17 @@ def permiso_requerido(recurso):
             if not usuario:
                 flash("Primero debes iniciar sesión.", "error")
                 return redirect(url_for("login", next=request.path))
-            if not puede(recurso, usuario):
+            if not puede(modulo, usuario):
                 flash("Tu perfil no tiene permiso para esta sección.", "error")
-                return redirect(url_for("panel"))
+                if puede_entrar_al_panel(usuario):
+                    return redirect(url_for("panel"))
+                return redirect(url_for("mis_solicitudes"))
             return view(*args, **kwargs)
         return wrapper
     return decorador
+
+
+permiso_requerido = requiere_permiso
 
 
 def carpeta_subidas():
@@ -369,24 +399,24 @@ RECURSOS = {
         ],
     },
     "servicios": {
-        "titulo": "Directorio de servicios",
-        "singular": "servicio",
+        "titulo": "Servicios comunales / Emprendimientos",
+        "singular": "emprendimiento",
         "tabla": "servicios",
         "orden": "aprobado, nombre_servicio",
-        "columnas": [("nombre_servicio", "Servicio"), ("vecino", "Vecino/a"), ("rubro", "Rubro"),
+        "columnas": [("nombre_servicio", "Servicio"), ("vecino", "Responsable"), ("rubro", "Rubro"),
                      ("aprobado", "Publicado")],
         "campos": [
             campo("nombre_servicio", "Nombre del servicio", requerido=True),
-            campo("vecino", "Vecino o vecina responsable", requerido=True),
+            campo("vecino", "Socio o socia responsable", requerido=True),
             campo("rubro", "Rubro", "opciones", opciones=RUBROS_SERVICIO, requerido=True),
             campo("descripcion", "Descripción", "textarea"),
-            campo("telefono", "Teléfono"),
-            campo("whatsapp", "WhatsApp (solo números, con 56)"),
+            campo("telefono", "Teléfono (+569…)"),
+            campo("whatsapp", "WhatsApp (+569…)"),
             campo("email", "Correo"),
             campo("direccion", "Dirección"),
             campo("foto_url", "Fotografía o imagen del servicio (opcional)", "imagen",
                   ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
-            campo("aprobado", "Publicado en el directorio", "casilla"),
+            campo("aprobado", "Publicado en servicios comunales", "casilla"),
         ],
         "extra_nuevo": {"fecha_solicitud": lambda: datetime.now().isoformat(timespec="seconds")},
     },
@@ -400,8 +430,12 @@ RECURSOS = {
         "campos": [
             campo("nombre", "Nombre", requerido=True),
             campo("cargo", "Cargo", requerido=True),
+            campo("profesion", "Profesión, oficio u ocupación"),
+            campo("periodo", "Período del cargo (ej: 2024 - 2027)"),
             campo("email", "Correo del cargo"),
             campo("telefono", "Teléfono"),
+            campo("biografia", "Reseña o biografía detallada", "textarea",
+                  ayuda="Información sobre su trayectoria comunitaria, objetivos y rol en la junta."),
             campo("foto_url", "Fotografía del integrante (opcional)", "imagen",
                   ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
             campo("orden", "Orden en la página", "numero", defecto=0),
@@ -460,17 +494,51 @@ RECURSOS = {
 }
 
 PERMISOS_COORDINADOR = {
-    "panel", "reservas", "certificados", "servicios", "servicios_pendientes",
-    "avance_proyectos", "noticias", "documentos",
+    "panel": "panel",
+    "noticias": "permiso_noticias",
+    "documentos": "permiso_noticias",
+    "avance_proyectos": "permiso_noticias",
+    "reservas": "permiso_reservas",
+    "bloques": "permiso_reservas",
+    "certificados": "permiso_certificados",
+    "directorio": "permiso_directorio",
+    "servicios": "permiso_directorio",
+    "servicios_pendientes": "permiso_directorio",
+    "socios": "permiso_socios",
+    "usuarios_pendientes": "permiso_socios",
+    "crear_socios": "permiso_socios",
+    "cargar_padron": "permiso_socios",
+    "censo": "permiso_socios",
 }
 
+# Casillas que el administrador asigna a cada coordinador: (columna, etiqueta, ayuda).
+MODULOS_COORDINADOR = [
+    ("permiso_noticias", "Noticias y documentos",
+     "Publicar noticias, documentos y avances de proyectos."),
+    ("permiso_reservas", "Reservas de la sede",
+     "Aprobar, editar y crear reservas y actividades fijas."),
+    ("permiso_certificados", "Certificados de residencia",
+     "Revisar solicitudes y su documento de domicilio."),
+    ("permiso_directorio", "Servicios comunales / Emprendimientos",
+     "Aprobar y editar emprendimientos de los socios."),
+    ("permiso_socios", "Padrón de socios",
+     "Padrón, cuentas de socio, cumpleaños, carga masiva y censo infantil."),
+]
+
 MENU_PANEL = [
-    ("Solicitudes vecinales", [
+    ("Solicitudes", [
         ("reservas", "Reservas de la sede", "🗓️"),
         ("certificados", "Certificados de residencia", "📄"),
-        ("servicios_pendientes", "Aprobar directorio", "🧰"),
-        ("mensajes", "Mensajes de vecinos", "✉️"),
-        ("servicios", "Directorio de servicios", "🧰"),
+        ("servicios_pendientes", "Aprobar emprendimientos", "🧰"),
+        ("servicios", "Servicios comunales / Emprendimientos", "🧰"),
+        ("mensajes", "Mensajes de contacto", "✉️"),
+    ]),
+    ("Socios", [
+        ("socios", "Padrón y cumpleaños", "👥"),
+        ("cargar_padron", "Carga masiva del padrón", "📥"),
+        ("crear_socios", "Crear cuenta de socio", "➕"),
+        ("usuarios_pendientes", "Aprobar cuentas de socio", "🛡️"),
+        ("censo", "Censo infantil (Navidad)", "🎁"),
     ]),
     ("Información institucional", [
         ("noticias", "Noticias y actividades", "📢"),
@@ -485,12 +553,11 @@ MENU_PANEL = [
     ("Transparencia", [
         ("rendiciones", "Rendiciones de cuentas", "💰"),
         ("eventos", "Balances de actividades", "🎉"),
+        ("auditorias", "Informes de la Comisión Revisora", "📋"),
     ]),
     ("Configuración", [
         ("bloques", "Actividades fijas de la sede", "🏛️"),
-        ("crear_vecinos", "Crear cuenta vecinal", "➕"),
-        ("permisos", "Permisos del coordinador", "🛡️"),
-        ("usuarios_pendientes", "Aprobar cuentas vecinales", "🛡️"),
+        ("permisos", "Permisos de coordinación", "🛡️"),
         ("usuarios", "Usuarios del sistema", "🔐"),
     ]),
 ]
@@ -503,9 +570,13 @@ ENDPOINTS_ESPECIALES = {
     "contenido": "panel_contenido",
     "avance_proyectos": "panel_avances_proyectos",
     "usuarios_pendientes": "panel_usuarios_pendientes",
-    "crear_vecinos": "panel_crear_vecino",
+    "crear_socios": "panel_crear_socio",
+    "socios": "panel_socios",
+    "cargar_padron": "panel_cargar_padron",
+    "censo": "panel_censo",
     "permisos": "panel_permisos_coordinador",
     "servicios_pendientes": "panel_servicios_pendientes",
+    "auditorias": "panel_auditorias",
 }
 
 
@@ -523,19 +594,26 @@ def contexto_global():
     conf = obtener_config()
     usuario = usuario_actual()
     pendientes = 0
-    if usuario and usuario["rol"] in ("administrador", "coordinador"):
-        pendientes = (
-            consultar("SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'", uno=True)["c"]
-            + consultar("SELECT COUNT(*) c FROM certificados WHERE estado = 'Recibida'", uno=True)["c"]
-            + consultar("SELECT COUNT(*) c FROM servicios WHERE aprobado = 0", uno=True)["c"]
-        )
+    if puede_entrar_al_panel(usuario):
+        if puede("reservas", usuario):
+            pendientes += consultar(
+                "SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'", uno=True
+            )["c"]
+        if puede("certificados", usuario):
+            pendientes += consultar(
+                "SELECT COUNT(*) c FROM certificados WHERE estado = 'Recibida'", uno=True
+            )["c"]
+        if puede("servicios_pendientes", usuario):
+            pendientes += consultar(
+                "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0", uno=True
+            )["c"]
         if puede("mensajes", usuario):
             pendientes += consultar(
                 "SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True
             )["c"]
-        if puede("usuarios", usuario):
+        if puede("usuarios_pendientes", usuario):
             pendientes += consultar(
-                "SELECT COUNT(*) c FROM usuarios WHERE rol = 'vecino' "
+                "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' "
                 "AND estado_aprobacion = 'Pendiente'", uno=True
             )["c"]
     menu_visible = [
@@ -547,6 +625,7 @@ def contexto_global():
         "conf": conf,
         "usuario": usuario,
         "puede": puede,
+        "puede_entrar_al_panel": puede_entrar_al_panel(usuario),
         "url_panel": url_panel,
         "anio_actual": fecha_hoy().year,
         "menu_panel": menu_visible,
@@ -664,7 +743,13 @@ def transparencia():
     rendiciones = []
     eventos = []
     documentos_financieros = []
+    informes = []
     if usuario:
+        informes = consultar(
+            "SELECT i.*, u.nombre AS autor_nombre, u.apellidos AS autor_apellidos "
+            "FROM informes_auditoria i JOIN usuarios u ON u.id = i.autor_id "
+            "ORDER BY i.fecha_publicacion DESC, i.id DESC"
+        )
         for r in consultar("SELECT * FROM rendiciones ORDER BY fecha_publicacion DESC"):
             movs = consultar(
                 "SELECT * FROM movimientos WHERE rendicion_id = ? ORDER BY fecha", (r["id"],)
@@ -684,6 +769,7 @@ def transparencia():
     return render_template(
         "transparencia.html", rendiciones=rendiciones, eventos=eventos,
         documentos_financieros=documentos_financieros, usuario=usuario,
+        informes=informes,
     )
 
 
@@ -711,7 +797,56 @@ def documentos():
         documentos=consultar(sql, params),
         categorias=categorias_publicas,
         filtro_categoria=categoria,
+        categorias_protegidas=CATEGORIAS_PROTEGIDAS,
     )
+
+
+def documento_protegido(documento_id):
+    """Estatutos y actas con archivo propio: solo se leen en pantalla."""
+    marcas = ", ".join("?" for _ in CATEGORIAS_PROTEGIDAS)
+    documento = consultar(
+        f"SELECT * FROM documentos WHERE id = ? AND categoria IN ({marcas})",
+        (documento_id, *CATEGORIAS_PROTEGIDAS), uno=True,
+    )
+    if not documento or not documento["archivo"] or es_archivo_privado(documento["archivo"]):
+        abort(404)
+    return documento
+
+
+def tipo_de_visor(nombre_archivo):
+    extension = nombre_archivo.rsplit(".", 1)[-1].lower() if "." in nombre_archivo else ""
+    if extension == "pdf":
+        return "pdf"
+    if extension in {"jpg", "jpeg", "png", "webp", "gif"}:
+        return "imagen"
+    return "no_visible"
+
+
+@app.route("/documentos/<int:documento_id>/ver")
+def visor_documento(documento_id):
+    documento = documento_protegido(documento_id)
+    return render_template(
+        "visor_documento.html", documento=documento,
+        tipo_visor=tipo_de_visor(documento["archivo"]),
+    )
+
+
+@app.route("/documentos/<int:documento_id>/contenido")
+def contenido_documento(documento_id):
+    """Entrega el archivo para el visor embebido (sin descarga directa)."""
+    documento = documento_protegido(documento_id)
+    if request.headers.get("Sec-Fetch-Dest") == "document":
+        # Abrir la dirección directamente en el navegador devuelve al visor.
+        return redirect(url_for("visor_documento", documento_id=documento_id))
+    respuesta = send_from_directory(
+        carpeta_subidas(), documento["archivo"], as_attachment=False
+    )
+    respuesta.headers["Content-Disposition"] = "inline"
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+    respuesta.headers["X-Frame-Options"] = "SAMEORIGIN"
+    respuesta.headers["Content-Security-Policy"] = "frame-ancestors 'self'"
+    return respuesta
 
 
 @app.route("/archivos/<path:nombre>")
@@ -725,6 +860,13 @@ def archivo(nombre):
             abort(404)
         nombre_privado = nombre[len(ARCHIVO_PRIVADO_PREFIX):]
     else:
+        marcas = ", ".join("?" for _ in CATEGORIAS_PROTEGIDAS)
+        if consultar(
+            f"SELECT 1 FROM documentos WHERE archivo = ? AND categoria IN ({marcas})",
+            (nombre, *CATEGORIAS_PROTEGIDAS), uno=True,
+        ):
+            # Estatutos y actas internas: sin descarga directa, solo visor.
+            abort(404)
         return send_from_directory(carpeta_subidas(), nombre)
 
     respuesta = send_from_directory(
@@ -1137,9 +1279,10 @@ def reservar():
 
 
 # ---------------------------------------------------------------------------
-# Directorio de servicios
+# Servicios comunales / Emprendimientos
 # ---------------------------------------------------------------------------
 @app.route("/directorio")
+@app.route("/servicios-comunales")
 def directorio():
     rubro = request.args.get("rubro") or ""
     busqueda = (request.args.get("q") or "").strip()
@@ -1164,15 +1307,37 @@ def directorio():
     )
 
 
+def pantalla_restringida(titulo, volver_a, mensaje=None):
+    """Bloqueo visual para quien no tiene sesión de socio acreditado."""
+    return render_template(
+        "restringido.html", titulo_restringido=titulo, volver_a=volver_a,
+        mensaje_restringido=mensaje,
+    )
+
+
+@app.route("/inscribir-servicio", methods=["GET", "POST"])
 @app.route("/directorio/inscribir", methods=["GET", "POST"])
 def inscribir_servicio():
+    if not usuario_actual():
+        respuesta = pantalla_restringida(
+            "Inscribir un emprendimiento", url_for("inscribir_servicio"),
+            mensaje="Para inscribir y promocionar tu emprendimiento en la plataforma comunitaria, debes ingresar con tu Cuenta de Socio acreditada."
+        )
+        return respuesta, (403 if request.method == "POST" else 200)
+
     datos = {}
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip() for k in
                  ("nombre_servicio", "vecino", "rubro", "descripcion", "telefono",
                   "whatsapp", "email", "direccion")}
+        telefono = telefono_chile(datos["telefono"])
+        whatsapp = telefono_chile(datos["whatsapp"]) if datos["whatsapp"] else ""
         if not datos["nombre_servicio"] or not datos["vecino"] or not datos["telefono"]:
             flash("Completa el nombre del servicio, tu nombre y un teléfono.", "error")
+        elif not telefono:
+            flash("El teléfono debe ser un móvil chileno con el formato +569 y 8 dígitos.", "error")
+        elif datos["whatsapp"] and not whatsapp:
+            flash("El WhatsApp debe ser un móvil chileno con el formato +569 y 8 dígitos.", "error")
         else:
             subida = guardar_archivo("foto", extensiones={"jpg", "jpeg", "png", "webp"})
             foto_url = url_for("static", filename=f"uploads/{subida}") if subida else ""
@@ -1183,24 +1348,46 @@ def inscribir_servicio():
                 (
                     datos["nombre_servicio"], datos["vecino"],
                     datos["rubro"] if datos["rubro"] in RUBROS_SERVICIO else "Otros",
-                    datos["descripcion"], datos["telefono"],
-                    solo_digitos(datos["whatsapp"]), datos["email"], datos["direccion"],
+                    datos["descripcion"], telefono,
+                    solo_digitos(whatsapp), datos["email"], datos["direccion"],
                     foto_url,
                     datetime.now().isoformat(timespec="seconds"),
                 ),
             )
             flash(
-                "¡Gracias! Tu servicio quedó registrado y aparecerá en el directorio una vez "
-                "que la directiva lo revise.",
+                "¡Gracias! Tu emprendimiento quedó registrado y aparecerá en Servicios "
+                "Comunales una vez que la directiva lo revise.",
                 "success",
             )
             return redirect(url_for("directorio"))
+    else:
+        usuario = usuario_actual()
+        datos = {
+            "vecino": " ".join(
+                p for p in (usuario["nombre"], usuario["apellidos"]) if p
+            ),
+            "telefono": usuario["telefono"] or "",
+        }
     return render_template("inscribir_servicio.html", rubros=RUBROS_SERVICIO, datos=datos)
 
 
 # ---------------------------------------------------------------------------
 # Certificado de residencia
 # ---------------------------------------------------------------------------
+def rut_con_cuenta(rut_crudo):
+    """True si el RUT ya está asociado a una cuenta (activa, pendiente o del padrón)."""
+    rut = padron.normalizar_rut(rut_crudo)
+    candidatos = {c for c in (rut, (rut_crudo or "").strip()) if c}
+    if not candidatos:
+        return False
+    marcas = ", ".join("?" for _ in candidatos)
+    return consultar(
+        f"SELECT 1 FROM usuarios WHERE rut IN ({marcas}) LIMIT 1", tuple(candidatos), uno=True
+    ) is not None
+
+
+
+@app.route("/certificado", methods=["GET", "POST"])
 @app.route("/certificado-residencia", methods=["GET", "POST"])
 def certificado():
     usuario = usuario_actual()
@@ -1244,6 +1431,12 @@ def certificado():
             "SELECT id FROM usuarios WHERE usuario = ?", (nuevo_usuario,), uno=True
         ):
             flash("Ese nombre de usuario ya existe. Elige otro.", "error")
+        elif crear_cuenta and rut_con_cuenta(datos["rut"]):
+            flash(
+                "Ya existe una cuenta o solicitud de socio con ese RUT. Ingresa con tu "
+                "usuario o consulta a la directiva si no recuerdas tu acceso.",
+                "error",
+            )
         else:
             codigo = secrets.token_hex(12).upper()
             while consultar(
@@ -1266,12 +1459,14 @@ def certificado():
                 if crear_cuenta:
                     cursor = db.execute(
                         "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
-                        "estado_aprobacion, fecha_creacion) "
-                        "VALUES (?, ?, ?, ?, 'vecino', 0, 'Pendiente', ?)",
+                        "estado_aprobacion, fecha_creacion, rut, direccion, telefono) "
+                        "VALUES (?, ?, ?, ?, 'socio', 0, 'Pendiente', ?, ?, ?, ?)",
                         (
                             datos["nombre"], nuevo_usuario, datos["email"],
                             generate_password_hash(nueva_clave),
                             datetime.now().isoformat(timespec="seconds"),
+                            padron.normalizar_rut(datos["rut"]) or datos["rut"],
+                            datos["direccion"], datos["telefono"],
                         ),
                     )
                     usuario_id = cursor.lastrowid
@@ -1302,8 +1497,9 @@ def certificado():
                 return redirect(url_for("certificado"))
             if crear_cuenta:
                 flash(
-                    "Tu solicitud de certificado fue recibida. La cuenta quedó pendiente "
-                    "de aprobación por la directiva; podrás ingresar cuando la aprueben.",
+                    "Tu solicitud de certificado fue recibida. La activación de tu cuenta "
+                    "de socio quedó pendiente de validación contra el padrón oficial; "
+                    "podrás ingresar cuando la directiva la apruebe.",
                     "info",
                 )
             session["codigo_seguimiento_reciente"] = codigo
@@ -1316,6 +1512,7 @@ def certificado():
     )
 
 
+@app.route("/certificado/estado", methods=["GET", "POST"])
 @app.route("/certificado-residencia/estado", methods=["GET", "POST"])
 def estado_certificado():
     codigo_nuevo = session.pop("codigo_seguimiento_reciente", "")
@@ -1352,6 +1549,37 @@ def quienes_somos():
     return render_template("quienes_somos.html", miembros=miembros)
 
 
+def hitos_de(texto):
+    """Convierte las líneas «AAAA | texto» de la configuración en una línea de tiempo."""
+    hitos = []
+    for linea in (texto or "").splitlines():
+        if "|" not in linea:
+            continue
+        anio, detalle = (parte.strip() for parte in linea.split("|", 1))
+        if anio and detalle:
+            hitos.append({"anio": anio, "texto": detalle})
+    hitos.sort(key=lambda h: (int(h["anio"]) if h["anio"].isdigit() else 10**9))
+    return hitos
+
+
+@app.route("/historia")
+def historia():
+    conf = obtener_config()
+    anio_fundacion = conf["anio_fundacion"]
+    anios = (
+        fecha_hoy().year - int(anio_fundacion) if anio_fundacion.isdigit() else None
+    )
+    return render_template(
+        "historia.html", hitos=hitos_de(conf["hitos_historia"]),
+        anios_de_historia=anios,
+    )
+
+
+@app.route("/como-asociarse")
+def como_asociarse():
+    return render_template("como_asociarse.html")
+
+
 @app.route("/contacto", methods=["GET", "POST"])
 def contacto():
     datos = {}
@@ -1376,6 +1604,24 @@ def contacto():
 # ---------------------------------------------------------------------------
 # Sesión
 # ---------------------------------------------------------------------------
+RUTAS_SIN_CAMBIO_DE_CLAVE = {"static", "cambiar_clave", "logout"}
+
+
+@app.before_request
+def exigir_cambio_de_clave():
+    """Las cuentas creadas por carga masiva deben cambiar su clave inicial."""
+    if request.endpoint is None or request.endpoint in RUTAS_SIN_CAMBIO_DE_CLAVE:
+        return None
+    usuario = usuario_actual()
+    if usuario and usuario["debe_cambiar_clave"]:
+        return redirect(url_for("cambiar_clave"))
+    return None
+
+
+def destino_seguro(destino):
+    return bool(destino) and destino.startswith("/") and not destino.startswith("//")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -1386,14 +1632,21 @@ def login():
         )
         if fila and check_password_hash(fila["clave_hash"], clave):
             if fila["estado_aprobacion"] == "Pendiente":
-                flash("Tu cuenta está pendiente de aprobación por la directiva.", "info")
+                flash(
+                    "Tu cuenta de socio está pendiente de validación contra el padrón "
+                    "oficial.", "info",
+                )
             elif not fila["activo"]:
                 flash("La cuenta está desactivada. Contacta a la directiva.", "error")
             else:
+                session.clear()
                 session["usuario_id"] = fila["id"]
                 destino = request.args.get("next")
-                if not destino or not destino.startswith("/"):
-                    destino = url_for("panel") if fila["rol"] != "vecino" else url_for("mis_solicitudes")
+                if not destino_seguro(destino):
+                    destino = (
+                        url_for("panel") if puede_entrar_al_panel(fila)
+                        else url_for("mis_solicitudes")
+                    )
                 return redirect(destino)
         else:
             flash("Usuario o clave incorrectos.", "error")
@@ -1402,34 +1655,44 @@ def login():
 
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
+    """Solicitud de activación de cuenta de socio (se valida contra el padrón)."""
     datos = {}
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip()
-                 for k in ("nombre", "usuario", "email")}
+                 for k in ("nombre", "rut", "usuario", "email")}
         clave = request.form.get("clave") or ""
         confirmar_clave = request.form.get("confirmar_clave") or ""
+        rut = padron.normalizar_rut(datos["rut"])
         if not datos["nombre"] or len(datos["usuario"]) < 3 or len(clave) < 8:
             flash(
                 "Completa tu nombre, un usuario de al menos 3 caracteres "
                 "y una clave de al menos 8 caracteres.",
                 "error",
             )
+        elif not rut:
+            flash("Ingresa un RUT válido, por ejemplo 12.345.678-5.", "error")
         elif clave != confirmar_clave:
             flash("Las claves no coinciden.", "error")
         elif consultar("SELECT id FROM usuarios WHERE usuario = ?", (datos["usuario"],), uno=True):
             flash("Ese nombre de usuario ya existe, elige otro.", "error")
+        elif rut_con_cuenta(rut):
+            flash(
+                "Ya existe una cuenta o solicitud con ese RUT. Si no recuerdas tu acceso, "
+                "consulta a la directiva.",
+                "error",
+            )
         else:
             ejecutar(
                 "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
-                "estado_aprobacion, fecha_creacion) "
-                "VALUES (?, ?, ?, ?, 'vecino', 0, 'Pendiente', ?)",
+                "estado_aprobacion, fecha_creacion, rut) "
+                "VALUES (?, ?, ?, ?, 'socio', 0, 'Pendiente', ?, ?)",
                 (datos["nombre"], datos["usuario"], datos["email"],
                  generate_password_hash(clave),
-                 datetime.now().isoformat(timespec="seconds")),
+                 datetime.now().isoformat(timespec="seconds"), rut),
             )
             flash(
-                "Recibimos tu solicitud de cuenta. La directiva debe aprobarla antes "
-                "de que puedas ingresar.",
+                "Recibimos tu solicitud de activación de cuenta de socio. La directiva "
+                "la validará contra el padrón oficial antes de que puedas ingresar.",
                 "info",
             )
             return redirect(url_for("login"))
@@ -1440,6 +1703,38 @@ def registro():
 def logout():
     session.clear()
     return redirect(url_for("index"))
+
+
+@app.route("/cuenta/clave", methods=["GET", "POST"])
+@login_requerido
+def cambiar_clave():
+    usuario = usuario_actual()
+    obligatorio = bool(usuario["debe_cambiar_clave"])
+    if request.method == "POST":
+        actual = request.form.get("clave_actual") or ""
+        nueva = request.form.get("clave_nueva") or ""
+        confirmar = request.form.get("confirmar_clave") or ""
+        if not check_password_hash(usuario["clave_hash"], actual):
+            flash("La clave actual no es correcta.", "error")
+        elif len(nueva) < 8:
+            flash("La clave nueva debe tener al menos 8 caracteres.", "error")
+        elif nueva != confirmar:
+            flash("Las claves nuevas no coinciden.", "error")
+        elif nueva == actual:
+            flash("Elige una clave distinta a la actual.", "error")
+        elif usuario["rut"] and solo_digitos(nueva) == solo_digitos(usuario["rut"].split("-")[0]):
+            flash("La clave no puede ser el número de tu RUT.", "error")
+        else:
+            ejecutar(
+                "UPDATE usuarios SET clave_hash = ?, debe_cambiar_clave = 0 WHERE id = ?",
+                (generate_password_hash(nueva), usuario["id"]),
+            )
+            flash("Tu clave fue actualizada.", "success")
+            return redirect(
+                url_for("panel") if puede_entrar_al_panel(usuario)
+                else url_for("mis_solicitudes")
+            )
+    return render_template("cambiar_clave.html", obligatorio=obligatorio)
 
 
 @app.route("/mis-solicitudes")
@@ -1461,52 +1756,267 @@ def mis_solicitudes():
 
 
 # ---------------------------------------------------------------------------
+# Censo infantil (entrega de juguetes de Navidad)
+# ---------------------------------------------------------------------------
+EDAD_LIMITE_CENSO = 10
+MAXIMO_MENORES_POR_SOCIO = 20
+
+
+def fecha_corte_censo():
+    """Las edades del censo se calculan al 25 de diciembre del año en curso."""
+    return date(fecha_hoy().year, 12, 25)
+
+
+def edad_en(nacimiento, referencia):
+    f = a_fecha(nacimiento)
+    if not f:
+        return None
+    return referencia.year - f.year - ((referencia.month, referencia.day) < (f.month, f.day))
+
+
+def menores_del_censo(socio_id=None):
+    """Menores de 10 años (al corte del censo) con los datos de su socio/a."""
+    sql = (
+        "SELECT m.*, u.nombre AS socio_nombre, u.apellidos AS socio_apellidos, "
+        "u.rut AS socio_rut, u.numero_socio AS socio_numero, u.direccion AS socio_direccion, "
+        "u.telefono AS socio_telefono FROM menores m JOIN usuarios u ON u.id = m.socio_id"
+    )
+    parametros = ()
+    if socio_id is not None:
+        sql += " WHERE m.socio_id = ?"
+        parametros = (socio_id,)
+    sql += " ORDER BY u.apellidos, u.nombre, m.fecha_nacimiento"
+    corte = fecha_corte_censo()
+    filas = []
+    for fila in consultar(sql, parametros):
+        edad = edad_en(fila["fecha_nacimiento"], corte)
+        if edad is not None and 0 <= edad < EDAD_LIMITE_CENSO:
+            filas.append({"datos": fila, "edad": edad})
+    return filas
+
+
+@app.route("/mis-menores", methods=["GET", "POST"])
+@login_requerido
+def mis_menores():
+    usuario = usuario_actual()
+    datos = {}
+    if request.method == "POST":
+        datos = {k: (request.form.get(k) or "").strip()
+                 for k in ("nombre", "rut", "fecha_nacimiento")}
+        nacimiento = a_fecha(datos["fecha_nacimiento"])
+        rut = padron.normalizar_rut(datos["rut"]) if datos["rut"] else ""
+        total = consultar(
+            "SELECT COUNT(*) c FROM menores WHERE socio_id = ?", (usuario["id"],), uno=True
+        )["c"]
+        if not datos["nombre"] or len(datos["nombre"]) > 120:
+            flash("Ingresa el nombre del menor (hasta 120 caracteres).", "error")
+        elif not nacimiento or nacimiento > fecha_hoy():
+            flash("Ingresa una fecha de nacimiento válida.", "error")
+        elif edad_en(nacimiento, fecha_corte_censo()) >= EDAD_LIMITE_CENSO:
+            flash("El censo es solo para menores de 10 años.", "error")
+        elif datos["rut"] and not rut:
+            flash("El RUT del menor no es válido. Déjalo en blanco si no lo tiene.", "error")
+        elif total >= MAXIMO_MENORES_POR_SOCIO:
+            flash("Alcanzaste el máximo de menores registrados por socio.", "error")
+        else:
+            ejecutar(
+                "INSERT INTO menores (socio_id, nombre, rut, fecha_nacimiento, fecha_registro) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (usuario["id"], datos["nombre"], rut, nacimiento.isoformat(),
+                 datetime.now().isoformat(timespec="seconds")),
+            )
+            flash("El menor quedó registrado en el censo infantil.", "success")
+            return redirect(url_for("mis_menores"))
+    return render_template(
+        "mis_menores.html", menores=menores_del_censo(usuario["id"]), datos=datos,
+        corte=fecha_corte_censo(),
+    )
+
+
+@app.route("/mis-menores/<int:menor_id>/eliminar", methods=["POST"])
+@login_requerido
+def mis_menores_eliminar(menor_id):
+    usuario = usuario_actual()
+    menor = consultar(
+        "SELECT id FROM menores WHERE id = ? AND socio_id = ?", (menor_id, usuario["id"]),
+        uno=True,
+    )
+    if not menor:
+        abort(404)
+    ejecutar("DELETE FROM menores WHERE id = ?", (menor_id,))
+    flash("El registro fue eliminado.", "success")
+    return redirect(url_for("mis_menores"))
+
+
+def celda_segura(valor):
+    """Neutraliza fórmulas al abrir el CSV en una planilla de cálculo."""
+    texto = "" if valor is None else str(valor)
+    if texto[:1] in ("=", "@", "\t", "\r"):
+        return "'" + texto
+    if texto[:1] in ("+", "-") and not re.fullmatch(r"[+\-]?[\d\s.\-]+", texto):
+        return "'" + texto
+    return texto
+
+
+@app.route("/panel/censo-infantil")
+@requiere_permiso("censo")
+def panel_censo():
+    return render_template(
+        "panel/censo.html", menores=menores_del_censo(), corte=fecha_corte_censo()
+    )
+
+
+@app.route("/panel/censo-infantil/exportar")
+@requiere_permiso("censo")
+def panel_censo_exportar():
+    salida = io.StringIO()
+    escritor = csv.writer(salida, lineterminator="\r\n")
+    escritor.writerow([
+        "numero_socio", "socio", "rut_socio", "direccion", "telefono_socio",
+        "menor", "rut_menor", "fecha_nacimiento", "edad_al_25_dic",
+    ])
+    for item in menores_del_censo():
+        m = item["datos"]
+        escritor.writerow([celda_segura(c) for c in (
+            m["socio_numero"], f"{m['socio_nombre']} {m['socio_apellidos']}".strip(),
+            m["socio_rut"], m["socio_direccion"], m["socio_telefono"],
+            m["nombre"], m["rut"], m["fecha_nacimiento"], item["edad"],
+        )])
+    return Response(
+        "\ufeff" + salida.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition":
+                 f"attachment; filename=censo_infantil_{fecha_corte_censo().year}.csv"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Padrón de socios, cumpleaños y carga masiva
+# ---------------------------------------------------------------------------
+def cumpleaneros_de(dia):
+    """Socios vivos y activos que cumplen años en el día indicado."""
+    return consultar(
+        "SELECT id, nombre, apellidos, numero_socio, telefono, fecha_nacimiento "
+        "FROM usuarios WHERE rol = 'socio' AND fallecido = 0 AND activo = 1 "
+        "AND fecha_nacimiento IS NOT NULL AND fecha_nacimiento != '' "
+        "AND strftime('%m-%d', fecha_nacimiento) = ? ORDER BY nombre, apellidos",
+        (dia.strftime("%m-%d"),),
+    )
+
+
+def enlace_cumpleanos(socio):
+    """Enlace de WhatsApp con el saludo institucional ('' si no hay móvil válido)."""
+    telefono = telefono_chile(socio["telefono"])
+    if not telefono:
+        return ""
+    texto = obtener_config()["mensaje_cumpleanos"].replace("{nombre}", socio["nombre"])
+    return f"https://wa.me/{solo_digitos(telefono)}?text={quote(texto)}"
+
+
+@app.route("/panel/socios")
+@requiere_permiso("socios")
+def panel_socios():
+    busqueda = (request.args.get("q") or "").strip()
+    sql = "FROM usuarios WHERE rol = 'socio'"
+    parametros = []
+    if busqueda:
+        sql += (" AND (nombre LIKE ? OR apellidos LIKE ? OR rut LIKE ? "
+                "OR numero_socio LIKE ? OR usuario LIKE ?)")
+        parametros = [f"%{busqueda}%"] * 5
+    total = consultar(f"SELECT COUNT(*) c {sql}", tuple(parametros), uno=True)["c"]
+    socios = consultar(
+        f"SELECT * {sql} ORDER BY apellidos, nombre LIMIT 500", tuple(parametros)
+    )
+    hoy = fecha_hoy()
+    cumpleaneros = [
+        {"datos": c, "edad": edad_en(c["fecha_nacimiento"], hoy),
+         "whatsapp": enlace_cumpleanos(c)}
+        for c in cumpleaneros_de(hoy)
+    ]
+    return render_template(
+        "panel/socios.html", socios=socios, total=total, busqueda=busqueda,
+        cumpleaneros=cumpleaneros, hoy=hoy,
+    )
+
+
+@app.route("/admin/cargar-padron", methods=["GET", "POST"])
+@app.route("/panel/cargar-padron", methods=["GET", "POST"])
+@requiere_permiso("cargar_padron")
+def panel_cargar_padron():
+    resultado = None
+    if request.method == "POST":
+        subido = request.files.get("archivo")
+        if not subido or not subido.filename:
+            flash("Selecciona el archivo .csv o .xlsx del padrón.", "error")
+        else:
+            simular = request.form.get("simular") == "on"
+            try:
+                registros = padron.leer_padron(subido.read(), subido.filename)
+                resultado = padron.importar_padron(
+                    registros, base.get_db(), simular=simular
+                )
+                resultado["simulado"] = simular
+            except padron.ErrorPadron as error:
+                flash(str(error), "error")
+    return render_template(
+        "panel/cargar_padron.html", resultado=resultado, campos=padron.CAMPOS
+    )
+
+
+# ---------------------------------------------------------------------------
 # Panel de administración
 # ---------------------------------------------------------------------------
 @app.route("/panel")
 @login_requerido
 def panel():
     usuario = usuario_actual()
-    if usuario["rol"] == "vecino":
+    if not puede_entrar_al_panel(usuario):
         return redirect(url_for("mis_solicitudes"))
+
+    def contar(modulo, sql, parametros=()):
+        if not puede(modulo, usuario):
+            return None
+        return consultar(sql, parametros, uno=True)["c"]
+
     resumen = {
-        "reservas_pendientes": consultar(
-            "SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'", uno=True)["c"],
-        "certificados_pendientes": consultar(
-            "SELECT COUNT(*) c FROM certificados WHERE estado IN ('Recibida', 'En revisión')",
-            uno=True)["c"],
-        "mensajes_nuevos": (
-            consultar("SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True)["c"]
-            if puede("mensajes", usuario) else 0
-        ),
-        "servicios_por_aprobar": consultar(
-            "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0", uno=True)["c"],
-        "proyectos_en_ejecucion": consultar(
+        "reservas_pendientes": contar(
+            "reservas", "SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'"),
+        "certificados_pendientes": contar(
+            "certificados",
+            "SELECT COUNT(*) c FROM certificados WHERE estado IN ('Recibida', 'En revisión')"),
+        "mensajes_nuevos": contar(
+            "mensajes", "SELECT COUNT(*) c FROM mensajes WHERE leido = 0"),
+        "servicios_por_aprobar": contar(
+            "servicios_pendientes", "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0"),
+        "proyectos_en_ejecucion": contar(
+            "avance_proyectos",
             "SELECT COUNT(*) c FROM proyectos WHERE horizonte = 'Actual' "
-            "AND estado = 'En ejecución'", uno=True)["c"],
-        "noticias": consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"],
-        "proyectos": consultar("SELECT COUNT(*) c FROM proyectos", uno=True)["c"],
-        "usuarios_pendientes": (
-            consultar(
-                "SELECT COUNT(*) c FROM usuarios WHERE rol = 'vecino' "
-                "AND estado_aprobacion = 'Pendiente'",
-                uno=True,
-            )["c"] if puede("usuarios", usuario) else 0
+            "AND estado = 'En ejecución'"),
+        "cuentas_por_aprobar": contar(
+            "usuarios_pendientes",
+            "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' "
+            "AND estado_aprobacion = 'Pendiente'"),
+        "informes": contar(
+            "auditorias", "SELECT COUNT(*) c FROM informes_auditoria"),
+        "cumpleaneros_hoy": (
+            len(cumpleaneros_de(fecha_hoy())) if puede("socios", usuario) else None
         ),
     }
-    proximas = consultar(
-        "SELECT * FROM reservas WHERE fecha >= ? AND estado = 'Aprobada' "
-        "ORDER BY fecha LIMIT 5", (fecha_hoy().isoformat(),)
-    )
+    proximas = []
+    if puede("reservas", usuario):
+        proximas = consultar(
+            "SELECT * FROM reservas WHERE fecha >= ? AND estado = 'Aprobada' "
+            "ORDER BY fecha LIMIT 5", (fecha_hoy().isoformat(),)
+        )
     return render_template("panel/inicio.html", resumen=resumen, proximas=proximas)
 
 
 @app.route("/panel/usuarios-pendientes")
-@permiso_requerido("usuarios")
+@requiere_permiso("usuarios_pendientes")
 def panel_usuarios_pendientes():
     usuarios_pendientes = consultar(
-        "SELECT id, nombre, usuario, email, fecha_creacion FROM usuarios "
-        "WHERE rol = 'vecino' AND estado_aprobacion = 'Pendiente' ORDER BY fecha_creacion"
+        "SELECT id, nombre, usuario, email, rut, fecha_creacion FROM usuarios "
+        "WHERE rol = 'socio' AND estado_aprobacion = 'Pendiente' ORDER BY fecha_creacion"
     )
     return render_template(
         "panel/usuarios_pendientes.html", usuarios_pendientes=usuarios_pendientes
@@ -1514,10 +2024,10 @@ def panel_usuarios_pendientes():
 
 
 @app.route("/panel/usuarios/<int:usuario_id>/aprobar", methods=["POST"])
-@permiso_requerido("usuarios")
+@requiere_permiso("usuarios_pendientes")
 def panel_usuario_aprobar(usuario_id):
     usuario = consultar(
-        "SELECT id FROM usuarios WHERE id = ? AND rol = 'vecino' "
+        "SELECT id FROM usuarios WHERE id = ? AND rol = 'socio' "
         "AND estado_aprobacion = 'Pendiente'",
         (usuario_id,), uno=True,
     )
@@ -1527,62 +2037,152 @@ def panel_usuario_aprobar(usuario_id):
         "UPDATE usuarios SET estado_aprobacion = 'Aprobada', activo = 1 WHERE id = ?",
         (usuario_id,),
     )
-    flash("La cuenta vecinal fue aprobada y ya puede ingresar.", "success")
+    flash("La cuenta de socio fue validada y ya puede ingresar.", "success")
     return redirect(url_for("panel_usuarios_pendientes"))
 
 
+@app.route("/panel/crear-socio", methods=["GET", "POST"])
 @app.route("/panel/crear-vecino", methods=["GET", "POST"])
-@permiso_requerido("crear_vecinos")
-def panel_crear_vecino():
+@requiere_permiso("crear_socios")
+def panel_crear_socio():
     datos = {}
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip()
-                 for k in ("nombre", "usuario", "email")}
+                 for k in ("nombre", "apellidos", "rut", "numero_socio", "usuario", "email")}
         clave = request.form.get("clave") or ""
         confirmar_clave = request.form.get("confirmar_clave") or ""
+        rut = padron.normalizar_rut(datos["rut"]) if datos["rut"] else ""
         if not datos["nombre"] or len(datos["usuario"]) < 3 or len(clave) < 8:
             flash("Ingresa el nombre, un usuario de 3 caracteres y una clave de 8 caracteres.", "error")
+        elif datos["rut"] and not rut:
+            flash("El RUT no es válido.", "error")
         elif clave != confirmar_clave:
             flash("Las claves no coinciden.", "error")
         elif consultar("SELECT id FROM usuarios WHERE usuario = ?", (datos["usuario"],), uno=True):
             flash("Ese nombre de usuario ya existe.", "error")
+        elif datos["numero_socio"] and consultar(
+            "SELECT id FROM usuarios WHERE numero_socio = ?", (datos["numero_socio"],), uno=True
+        ):
+            flash("Ese número de socio ya está registrado.", "error")
+        elif rut and rut_con_cuenta(rut):
+            flash("Ya existe una cuenta con ese RUT.", "error")
         else:
             actor = usuario_actual()
             aprobado = actor["rol"] == "administrador"
             ejecutar(
-                "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
-                "estado_aprobacion, fecha_creacion) VALUES (?, ?, ?, ?, 'vecino', ?, ?, ?)",
+                "INSERT INTO usuarios (nombre, apellidos, usuario, email, clave_hash, rol, activo, "
+                "estado_aprobacion, fecha_creacion, rut, numero_socio) "
+                "VALUES (?, ?, ?, ?, ?, 'socio', ?, ?, ?, ?, ?)",
                 (
-                    datos["nombre"], datos["usuario"], datos["email"],
+                    datos["nombre"], datos["apellidos"], datos["usuario"], datos["email"],
                     generate_password_hash(clave), int(aprobado),
                     "Aprobada" if aprobado else "Pendiente",
-                    datetime.now().isoformat(timespec="seconds"),
+                    datetime.now().isoformat(timespec="seconds"), rut, datos["numero_socio"],
                 ),
             )
             if aprobado:
-                flash("La cuenta vecinal fue creada y quedó activa.", "success")
+                flash("La cuenta de socio fue creada y quedó activa.", "success")
             else:
                 flash("La cuenta quedó pendiente de aprobación administrativa.", "info")
-            return redirect(url_for("panel_crear_vecino"))
-    return render_template("panel/crear_vecino.html", datos=datos)
+            return redirect(url_for("panel_crear_socio"))
+    return render_template("panel/crear_socio.html", datos=datos)
 
 
 @app.route("/panel/permisos-coordinador", methods=["GET", "POST"])
-@permiso_requerido("usuarios")
+@requiere_permiso("usuarios")
 def panel_permisos_coordinador():
+    """Solo el administrador asigna las casillas modulares de cada coordinador."""
     if request.method == "POST":
-        permitir = "1" if request.form.get("crear_vecinos") == "on" else "0"
-        base.guardar_config("coordinador_crear_vecinos", permitir)
-        flash(
-            "Permiso actualizado. El coordinador "
-            + ("puede crear cuentas vecinales." if permitir == "1" else "ya no puede crear cuentas vecinales."),
-            "success",
+        coordinador = consultar(
+            "SELECT id, nombre FROM usuarios WHERE id = ? AND rol = 'coordinador'",
+            (request.form.get("usuario_id", type=int),), uno=True,
         )
+        if not coordinador:
+            abort(404)
+        # Los nombres de columna salen de la constante MODULOS_COORDINADOR, nunca
+        # del formulario; los valores viajan como parámetros.
+        asignaciones = ", ".join(f"{columna} = ?" for columna, _, _ in MODULOS_COORDINADOR)
+        valores = [1 if request.form.get(columna) == "on" else 0
+                   for columna, _, _ in MODULOS_COORDINADOR]
+        ejecutar(
+            f"UPDATE usuarios SET {asignaciones} WHERE id = ?",
+            (*valores, coordinador["id"]),
+        )
+        flash(f"Permisos de {coordinador['nombre']} actualizados.", "success")
         return redirect(url_for("panel_permisos_coordinador"))
     return render_template(
         "panel/permisos_coordinador.html",
-        puede_crear_vecinos=obtener_config()["coordinador_crear_vecinos"] == "1",
+        coordinadores=consultar(
+            "SELECT * FROM usuarios WHERE rol = 'coordinador' ORDER BY nombre"
+        ),
+        modulos=MODULOS_COORDINADOR,
     )
+
+
+# ---------------------------------------------------------------------------
+# Comisión Revisora de Cuentas (Ley 19.418): informes inmutables
+# ---------------------------------------------------------------------------
+TIPOS_INFORME = ["Inventario", "Balance auditado", "Acta de revisión", "Informe de revisión"]
+
+
+@app.route("/panel/auditorias")
+@app.route("/panel/informes_auditoria")
+@app.route("/panel/informes-auditoria")
+@requiere_permiso("auditorias")
+def panel_auditorias():
+    informes = consultar(
+        "SELECT i.*, u.nombre AS autor_nombre, u.apellidos AS autor_apellidos "
+        "FROM informes_auditoria i JOIN usuarios u ON u.id = i.autor_id "
+        "ORDER BY i.fecha_publicacion DESC, i.id DESC"
+    )
+    return render_template(
+        "panel/auditorias.html", informes=informes,
+        puede_subir=usuario_actual()["rol"] == "comision_revisora",
+    )
+
+
+@app.route("/panel/auditorias/nuevo", methods=["GET", "POST"])
+@requiere_permiso("auditorias")
+def panel_auditoria_nueva():
+    usuario = usuario_actual()
+    if usuario["rol"] != "comision_revisora":
+        abort(403)
+    datos = {}
+    if request.method == "POST":
+        datos = {k: (request.form.get(k) or "").strip()
+                 for k in ("titulo", "descripcion", "tipo")}
+        if not datos["titulo"] or datos["tipo"] not in TIPOS_INFORME:
+            flash("Indica el título y el tipo de informe.", "error")
+        elif not request.files.get("archivo") or not request.files["archivo"].filename:
+            flash("Adjunta el documento del informe (PDF, Word, Excel o imagen).", "error")
+        else:
+            guardado = guardar_archivo(
+                "archivo", privado=True,
+                extensiones={"pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png"},
+            )
+            if guardado:
+                ejecutar(
+                    "INSERT INTO informes_auditoria (titulo, descripcion, tipo, archivo, "
+                    "fecha_publicacion, autor_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    (datos["titulo"], datos["descripcion"], datos["tipo"], guardado,
+                     datetime.now().isoformat(timespec="seconds"), usuario["id"]),
+                )
+                flash(
+                    "El informe quedó publicado en Transparencia. Por ley no puede "
+                    "editarse ni eliminarse.", "success",
+                )
+                return redirect(url_for("panel_auditorias"))
+    return render_template(
+        "panel/auditoria_formulario.html", datos=datos, tipos=TIPOS_INFORME
+    )
+
+
+@app.route("/panel/auditorias/<int:informe_id>/editar", methods=["GET", "POST"])
+@app.route("/panel/auditorias/<int:informe_id>/eliminar", methods=["GET", "POST"])
+@login_requerido
+def panel_auditoria_inmutable(informe_id):
+    """Ni la administración ni la directiva pueden alterar informes de la comisión."""
+    abort(403)
 
 
 @app.route("/panel/directorio-pendiente")
@@ -1603,7 +2203,7 @@ def panel_servicio_aprobar(servicio_id):
     if not servicio:
         abort(404)
     ejecutar("UPDATE servicios SET aprobado = 1 WHERE id = ?", (servicio_id,))
-    flash("El servicio fue aprobado y ya aparece en el directorio.", "success")
+    flash("El emprendimiento fue aprobado y ya aparece en Servicios Comunales.", "success")
     return redirect(url_for("panel_servicios_pendientes"))
 
 
@@ -1833,6 +2433,10 @@ CAMPOS_CONTENIDO = [
     ("facebook", "Enlace a Facebook", "texto"),
     ("instagram", "Enlace a Instagram", "texto"),
     ("plan_maestro_intro", "Introducción del plan maestro", "textarea"),
+    ("anio_fundacion", "Año de fundación de la organización", "texto"),
+    ("hitos_historia", "Línea de tiempo (una línea por hito: AAAA | texto)", "textarea"),
+    ("como_asociarse", "Cómo asociarse (texto para quienes aún no son socios)", "textarea"),
+    ("mensaje_cumpleanos", "Saludo de cumpleaños (use {nombre})", "textarea"),
     ("requisitos_certificado", "Requisitos del certificado (uno por línea)", "textarea"),
     ("aviso_privacidad", "Aviso de privacidad aprobado por la contraparte", "textarea"),
     ("aviso_uso", "Condiciones de uso aprobadas por la contraparte", "textarea"),
@@ -2155,7 +2759,15 @@ def panel_eliminar(recurso, fila_id):
     if recurso == "usuarios" and fila_id == usuario["id"]:
         flash("No puedes eliminar tu propio usuario.", "error")
         return redirect(url_for("panel_listado", recurso=recurso))
-    ejecutar(f"DELETE FROM {definicion['tabla']} WHERE id = ?", (fila_id,))
+    try:
+        ejecutar(f"DELETE FROM {definicion['tabla']} WHERE id = ?", (fila_id,))
+    except sqlite3.IntegrityError:
+        flash(
+            "No se puede eliminar: el registro tiene información asociada "
+            "(por ejemplo, informes de la Comisión Revisora). Desactívalo en su lugar.",
+            "error",
+        )
+        return redirect(url_for("panel_listado", recurso=recurso))
     flash("Registro eliminado.", "success")
     return redirect(url_for("panel_listado", recurso=recurso))
 
@@ -2214,6 +2826,15 @@ def panel_movimiento_eliminar(movimiento_id):
 def no_encontrado(e):
     return render_template("error.html", codigo=404,
                            mensaje="No encontramos la página que buscas."), 404
+
+
+@app.errorhandler(403)
+def prohibido(e):
+    return render_template("error.html", codigo=403,
+                           mensaje="No tienes permiso para realizar esta acción. "
+                                   "Los informes de la Comisión Revisora son inmutables."
+                           if request.path.startswith("/panel/auditorias")
+                           else "No tienes permiso para realizar esta acción."), 403
 
 
 @app.errorhandler(413)

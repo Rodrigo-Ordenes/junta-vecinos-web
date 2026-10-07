@@ -148,7 +148,7 @@
       </div>
       <div class="col-md-6">
         <label class="form-label" for="telefono">Teléfono o WhatsApp <span class="obligatorio">*</span></label>
-        <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono }}" placeholder="+56 9 …" required>
+        <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono or '+569' }}" placeholder="+569XXXXXXXX" required>
       </div>
       <div class="col-12">
         <label class="form-label" for="email">Correo electrónico (opcional)</label>

@@ -3,23 +3,42 @@
 {% block content %}
 
 <div class="container my-4 my-md-5">
-  <h1 class="section-title">Transparencia</h1>
+  <h1 class="section-title">Transparencia Económica</h1>
   <p class="lead">
-    Consulta los balances por período y actividad, con sus movimientos y documentos de respaldo.
+    Balances por período y actividad, respaldos financieros e informes oficiales de la Comisión Revisora de Cuentas (Ley 19.418).
   </p>
 
   {% if not usuario %}
-    <div class="caja caja-destacada mt-4">
-      <h2 class="h4">Información para vecinas y vecinos</h2>
-      <p>Para consultar montos, movimientos y respaldos necesitas ingresar con una cuenta vecinal aprobada.</p>
-      <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-primary" href="{{ url_for('login', next=url_for('transparencia')) }}">Ingresar</a>
-        <a class="btn btn-outline-primary" href="{{ url_for('registro') }}">Solicitar una cuenta</a>
-      </div>
-    </div>
+    {% include "_restriccion_socios.html" %}
   {% else %}
-  <h2 class="h4 mt-5">Balance por actividad realizada</h2>
-  <p>Cuánto se juntó y cuánto se gastó en cada evento.</p>
+
+  <!-- Informes Oficiales de la Comisión Revisora de Cuentas -->
+  {% if informes %}
+    <h2 class="h4 mt-5">📋 Informes de la Comisión Revisora de Cuentas (Ley 19.418)</h2>
+    <p class="text-muted small">Auditorías independientes garantizadas por ley; documentos inmutables subidos por la Comisión Revisora.</p>
+    <div class="row g-3 mb-4">
+      {% for inf in informes %}
+        <div class="col-md-6">
+          <article class="caja h-100 border-start border-4 border-primary">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge bg-primary">{{ inf.tipo }}</span>
+              <small class="text-muted">{{ inf.fecha_publicacion|fecha_corta }}</small>
+            </div>
+            <h3 class="h6 mb-1">{{ inf.titulo }}</h3>
+            {% if inf.descripcion %}<p class="small text-muted mb-2">{{ inf.descripcion }}</p>{% endif %}
+            <p class="small text-muted mb-2">Auditor/a: <strong>{{ inf.autor_nombre }} {{ inf.autor_apellidos }}</strong></p>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo', nombre=inf.archivo) }}">
+              📄 Ver Informe Oficial
+            </a>
+          </article>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Balances por Actividad -->
+  <h2 class="h4 mt-5">🎉 Balance por actividad realizada</h2>
+  <p>Ingresos recaudados y gastos incurridos en eventos comunitarios.</p>
   {% for e in eventos %}
     <div class="caja mb-4">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -66,10 +85,11 @@
       </div>
     </div>
   {% else %}
-    <p>Todavía no hay actividades con balance publicado.</p>
+    <p class="text-muted">Todavía no hay actividades con balance publicado.</p>
   {% endfor %}
 
-  <h2 class="h4 mt-5">Rendiciones de cuentas por período</h2>
+  <!-- Rendiciones Generales -->
+  <h2 class="h4 mt-5">💰 Rendiciones de cuentas por período</h2>
   {% for r in rendiciones %}
     <div class="caja mb-4">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -113,11 +133,11 @@
       </div>
     </div>
   {% else %}
-    <p>Todavía no hay rendiciones publicadas.</p>
+    <p class="text-muted">Todavía no hay rendiciones publicadas.</p>
   {% endfor %}
 
   {% if documentos_financieros %}
-    <h2 class="h4 mt-5">Documentos financieros</h2>
+    <h2 class="h4 mt-5">📚 Documentos financieros adicionales</h2>
     <div class="row g-3">
       {% for documento in documentos_financieros %}
         <div class="col-md-6">
@@ -139,8 +159,8 @@
 
   <div class="caja mt-4">
     <p class="mb-0">
-      ¿Tienes dudas sobre alguna cuenta? Escríbenos en <a href="{{ url_for('contacto') }}">Contacto</a>
-      y la directiva te responderá.
+      ¿Tienes dudas sobre alguna rendición? Escríbenos en <a href="{{ url_for('contacto') }}">Contacto</a>
+      o acércate a la asamblea general de socias y socios.
     </p>
   </div>
 </div>
