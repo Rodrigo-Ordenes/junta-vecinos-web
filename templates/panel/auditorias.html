@@ -1,0 +1,52 @@
+{% extends "panel/_base_panel.html" %}
+{% block title %}Informes de Auditoría · Comisión Revisora de Cuentas{% endblock %}
+{% block panel %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="section-title h3 mb-1">Informes de Auditoría (Ley 19.418)</h1>
+    <p class="text-muted mb-0">Informes de inventario, balances auditados y actas de la Comisión Revisora de Cuentas.</p>
+  </div>
+  {% if puede_subir %}
+    <a href="{{ url_for('panel_auditoria_nueva') }}" class="btn btn-primary">
+      📤 Subir Nuevo Informe de Auditoría
+    </a>
+  {% endif %}
+</div>
+
+<div class="alert alert-info border-info mb-4 w-100">
+  <strong>🔒 Garantía de Inmutabilidad Legal:</strong> En cumplimiento estricto con la Ley 19.418, los informes emitidos por la Comisión Revisora de Cuentas son inmutables. Ni la directiva ni la administración pueden modificarlos o eliminarlos una vez subidos.
+</div>
+
+<div class="row g-3 w-100">
+  {% for inf in informes %}
+    <div class="col-12 col-md-6">
+      <div class="caja card panel-card h-100 d-flex flex-column justify-content-between w-100">
+        <div>
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <span class="badge bg-primary">{{ inf.tipo }}</span>
+            <small class="text-muted">{{ inf.fecha_publicacion|fecha_corta }}</small>
+          </div>
+          <h2 class="h5 mb-2">{{ inf.titulo }}</h2>
+          {% if inf.descripcion %}
+            <p class="small text-muted mb-3">{{ inf.descripcion }}</p>
+          {% endif %}
+          <div class="small text-muted mb-3">
+            Auditor/a: <strong>{{ inf.autor_nombre }} {{ inf.autor_apellidos }}</strong>
+          </div>
+        </div>
+        <div class="pt-2 border-top">
+          <a href="{{ url_for('archivo', nombre=inf.archivo) }}" class="btn btn-sm btn-outline-primary w-100" target="_blank">
+            📄 Descargar Documento Auditado
+          </a>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="col-12 resultados-card w-100">
+      <div class="caja card panel-card text-center py-5 w-100">
+        <p class="text-muted mb-0">Aún no se han registrado informes de la Comisión Revisora de Cuentas.</p>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

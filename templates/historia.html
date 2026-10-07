@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Historia y Memoria del Cerro · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container-xl my-4 my-md-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-10 col-xl-9">
+      <h1 class="section-title">Historia y Memoria del Cerro</h1>
+      <p class="lead">
+        {% if anios_de_historia %}Más de {{ anios_de_historia }} años de organización vecinal en el Cerro Esperanza.{% else %}La memoria de nuestra organización vecinal.{% endif %}
+      </p>
+      <p>{{ conf.historia }}</p>
+
+      {% if hitos %}
+        <ol class="linea-tiempo" aria-label="Línea de tiempo de la junta de vecinos">
+          {% for h in hitos %}
+            <li class="linea-tiempo-item">
+              <span class="linea-tiempo-anio">{{ h.anio }}</span>
+              <p class="linea-tiempo-texto">{{ h.texto }}</p>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <div class="caja mt-4">
+          <p class="mb-0">Estamos reuniendo los hitos de nuestra historia. Si guardas fotografías, documentos o recuerdos del cerro, compártelos en la <a href="{{ url_for('contacto') }}">sede o por contacto</a>.</p>
+        </div>
+      {% endif %}
+
+      <p class="mt-4"><a class="btn btn-outline-primary" href="{{ url_for('quienes_somos') }}">← Volver a Quiénes somos</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -233,7 +233,7 @@ def test_certificado_puede_crear_cuenta_pendiente_y_vincularla(cliente, app_prue
         "/login", data={"usuario": "vecina_cert", "clave": "clave-segura-123"},
         follow_redirects=True,
     )
-    assert "pendiente de aprobación" in respuesta_login.get_data(as_text=True).lower()
+    assert "pendiente de validación" in respuesta_login.get_data(as_text=True).lower() or "pendiente de aprobación" in respuesta_login.get_data(as_text=True).lower()
     ingresar(cliente)
     cliente.post(f"/panel/usuarios/{cuenta['id']}/aprobar")
     cliente.get("/logout")
@@ -242,11 +242,31 @@ def test_certificado_puede_crear_cuenta_pendiente_y_vincularla(cliente, app_prue
 
 
 def test_inscripcion_de_servicio_queda_sin_aprobar(cliente, app_prueba):
+    # Sin sesión de socio, no permite inscribir servicio (muestra pantalla de restricción)
+    resp_anon = cliente.post(
+        "/directorio/inscribir",
+        data={
+            "nombre_servicio": "Costurería Ana", "vecino": "Ana", "rubro": "Otros",
+            "telefono": "+56912345678", "whatsapp": "+56999999999",
+        },
+        follow_redirects=True,
+    )
+    assert resp_anon.status_code in (200, 403)
+    assert "exclusivo para socios" in resp_anon.get_data(as_text=True).lower()
+
+    # Con sesión de socio acreditado
+    with app_prueba.app_context():
+        base.ejecutar(
+            "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, estado_aprobacion, fecha_creacion) "
+            "VALUES ('Ana Socia', 'ana_socia', 'ana@ejemplo.cl', ?, 'socio', 1, 'Aprobada', '2026-10-01T10:00:00')",
+            (generate_password_hash("clave-socia-123"),)
+        )
+    ingresar(cliente, "ana_socia", "clave-socia-123")
     cliente.post(
         "/directorio/inscribir",
         data={
             "nombre_servicio": "Costurería Ana", "vecino": "Ana", "rubro": "Otros",
-            "telefono": "999", "whatsapp": "56999999999",
+            "telefono": "+56912345678", "whatsapp": "+56999999999",
         },
         follow_redirects=True,
     )
@@ -260,11 +280,20 @@ def test_inscripcion_de_servicio_queda_sin_aprobar(cliente, app_prueba):
 
 
 def test_coordinador_aprueba_solicitud_del_directorio(cliente, app_prueba):
+    with app_prueba.app_context():
+        base.ejecutar(
+            "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, estado_aprobacion, fecha_creacion) "
+            "VALUES ('Socio Pan', 'socio_pan', 'pan@ejemplo.cl', ?, 'socio', 1, 'Aprobada', '2026-10-01T10:00:00')",
+            (generate_password_hash("clave-socio-123"),)
+        )
+    ingresar(cliente, "socio_pan", "clave-socio-123")
     cliente.post(
         "/directorio/inscribir",
         data={"nombre_servicio": "Pan de prueba", "vecino": "Vecino", "rubro": "Otros",
-              "telefono": "123"},
+              "telefono": "+56912345678"},
+        follow_redirects=True,
     )
+    cliente.get("/logout")
     with app_prueba.app_context():
         fila = base.consultar(
             "SELECT id FROM servicios WHERE nombre_servicio = 'Pan de prueba'", uno=True
@@ -336,7 +365,7 @@ def test_coordinador_no_ve_usuarios_ni_contenido(cliente):
 def test_vecino_se_registra_y_ve_sus_solicitudes(cliente):
     respuesta = cliente.post(
         "/registro",
-        data={"nombre": "Vecina Nueva", "usuario": "vecina", "email": "vecina@ejemplo.cl",
+        data={"nombre": "Vecina Nueva", "rut": "15.555.555-6", "usuario": "vecina", "email": "vecina@ejemplo.cl",
               "clave": "clave123", "confirmar_clave": "clave123"},
         follow_redirects=True,
     )
@@ -371,12 +400,16 @@ def test_admin_puede_crear_vecino_aprobado(cliente, app_prueba):
 
 def test_admin_controla_si_coordinador_puede_crear_vecinos(cliente, app_prueba):
     ingresar(cliente)
-    cliente.post("/panel/permisos-coordinador", data={"crear_vecinos": "on"})
+    with app_prueba.app_context():
+        coord = base.consultar("SELECT id FROM usuarios WHERE rol = 'coordinador'", uno=True)
+    # Admin asigna permiso modular permiso_socios al coordinador
+    cliente.post("/panel/permisos-coordinador", data={"usuario_id": coord["id"], "permiso_socios": "on"})
     cliente.get("/logout")
     ingresar(cliente, "coordinador", "esperanza2026")
+    assert cliente.get("/panel/crear-socio").status_code == 200
     assert cliente.get("/panel/crear-vecino").status_code == 200
     cliente.post(
-        "/panel/crear-vecino",
+        "/panel/crear-socio",
         data={"nombre": "Vecino coordinado", "usuario": "vecino_coord", "email": "",
               "clave": "clave-segura", "confirmar_clave": "clave-segura"},
     )
@@ -385,7 +418,8 @@ def test_admin_controla_si_coordinador_puede_crear_vecinos(cliente, app_prueba):
             "SELECT * FROM usuarios WHERE usuario = 'vecino_coord'", uno=True
         )
         assert fila["estado_aprobacion"] == "Pendiente" and not fila["activo"]
-    assert cliente.get("/panel/usuarios-pendientes", follow_redirects=False).status_code == 302
+    # Pero con permiso_socios ahora sí puede ver usuarios pendientes
+    assert cliente.get("/panel/usuarios-pendientes").status_code == 200
 
 
 def test_clave_incorrecta_no_inicia_sesion(cliente):
@@ -717,4 +751,184 @@ def test_panel_filtros_eventos(cliente):
 
 
 
+
+
+# ===========================================================================
+# Pruebas de Nuevos Requerimientos y Refactorización Integral
+# ===========================================================================
+
+def test_comision_revisora_informe_inmutable(cliente, app_prueba):
+    # Crear usuario de Comisión Revisora
+    with app_prueba.app_context():
+        base.ejecutar(
+            "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, estado_aprobacion, fecha_creacion) "
+            "VALUES ('Auditor Comisión', 'auditor_rev', 'auditor@ejemplo.cl', ?, 'comision_revisora', 1, 'Aprobada', '2026-10-01T10:00:00')",
+            (generate_password_hash("clave-auditor-123"),)
+        )
+    # Login como auditor
+    ingresar(cliente, "auditor_rev", "clave-auditor-123")
+    assert cliente.get("/panel/auditorias").status_code == 200
+    assert cliente.get("/panel/auditorias/nuevo").status_code == 200
+
+    # Subir informe de auditoría
+    resp_subida = cliente.post(
+        "/panel/auditorias/nuevo",
+        data={
+            "titulo": "Balance Anual Auditado 2025",
+            "tipo": "Balance auditado",
+            "descripcion": "Revisión conforme a la Ley 19.418 sin objeciones.",
+            "archivo": (BytesIO(b"contenido-balance-pdf"), "balance2025.pdf"),
+        },
+        follow_redirects=True,
+    )
+    assert resp_subida.status_code == 200
+
+    with app_prueba.app_context():
+        inf = base.consultar("SELECT * FROM informes_auditoria WHERE titulo = 'Balance Anual Auditado 2025'", uno=True)
+        assert inf is not None
+        assert inf["tipo"] == "Balance auditado"
+
+    # Verificar inmutabilidad: editar o eliminar debe responder con 403
+    assert cliente.post(f"/panel/auditorias/{inf['id']}/editar").status_code == 403
+    assert cliente.post(f"/panel/auditorias/{inf['id']}/eliminar").status_code == 403
+
+    # Incluso el Administrador no puede editar ni eliminar el informe
+    cliente.get("/logout")
+    ingresar(cliente, "admin", "esperanza2026")
+    assert cliente.post(f"/panel/auditorias/{inf['id']}/editar").status_code == 403
+    assert cliente.post(f"/panel/auditorias/{inf['id']}/eliminar").status_code == 403
+
+
+def test_visor_documentos_estatutos_protegidos(cliente, app_prueba):
+    with app_prueba.app_context():
+        # Crear documento de Estatutos con archivo
+        doc_id = base.ejecutar(
+            "INSERT INTO documentos (titulo, categoria, descripcion, archivo, fecha_publicacion) "
+            "VALUES ('Estatutos Oficiales 2026', 'Estatutos', 'Estatuto interno de la Junta', 'estatuto.pdf', '2026-10-01T10:00:00')"
+        )
+    # En listado general /documentos
+    html = cliente.get("/documentos").get_data(as_text=True)
+    assert "Estatutos Oficiales 2026" in html
+    assert f"/documentos/{doc_id}/ver" in html
+
+    # Visor en pantalla responde 200 y contiene elemento visor protegido
+    resp_visor = cliente.get(f"/documentos/{doc_id}/ver")
+    assert resp_visor.status_code == 200
+    assert "data-visor-protegido" in resp_visor.get_data(as_text=True)
+
+    # Descarga directa por /archivos/estatuto.pdf debe estar bloqueada para estatutos
+    assert cliente.get("/archivos/estatuto.pdf").status_code == 404
+
+
+def test_carga_masiva_padron_y_cumpleanos(cliente, app_prueba):
+    ingresar(cliente, "admin", "esperanza2026")
+    csv_datos = (
+        "numero_socio,rut,nombre,apellidos,direccion,telefono,email,fecha_nacimiento,fallecido\n"
+        "101,11.111.111-1,Juan,Perez Gonzalez,Cerro 123,+56911112222,juan@perez.cl,1980-10-06,0\n"
+        "102,12.222.222-2,Maria,Lopez Silva,Cerro 456,+56933334444,maria@lopez.cl,1990-05-15,0\n"
+    ).encode("utf-8")
+
+    resp_carga = cliente.post(
+        "/admin/cargar-padron",
+        data={"archivo": (BytesIO(csv_datos), "padron.csv")},
+        follow_redirects=True,
+    )
+    assert resp_carga.status_code == 200
+    assert "2" in resp_carga.get_data(as_text=True)
+
+    with app_prueba.app_context():
+        juan = base.consultar("SELECT * FROM usuarios WHERE rut = '11111111-1'", uno=True)
+        assert juan is not None
+        assert juan["numero_socio"] == "101"
+        assert juan["debe_cambiar_clave"] == 1
+        # El usuario se genera a partir del RUT sin guion
+        assert juan["usuario"] == "111111111"
+
+    # Verificar módulo de socios y cumpleaños
+    resp_socios = cliente.get("/panel/socios")
+    assert resp_socios.status_code == 200
+    assert "Juan" in resp_socios.get_data(as_text=True)
+    assert "Padrón de Socios" in resp_socios.get_data(as_text=True)
+
+
+def test_censo_infantil_flujo_socio_y_exportacion(cliente, app_prueba):
+    # Crear y loguear a un socio
+    with app_prueba.app_context():
+        socio_id = base.ejecutar(
+            "INSERT INTO usuarios (nombre, apellidos, usuario, email, clave_hash, rol, activo, estado_aprobacion, fecha_creacion, rut, numero_socio) "
+            "VALUES ('Carlos', 'Gomez', 'carlos_socio', 'carlos@ejemplo.cl', ?, 'socio', 1, 'Aprobada', '2026-10-01T10:00:00', '14.444.444-4', '555')",
+            (generate_password_hash("clave-carlos-123"),)
+        )
+    ingresar(cliente, "carlos_socio", "clave-carlos-123")
+    
+    # Socio inscribe a un menor de 5 años
+    resp_insc = cliente.post(
+        "/mis-menores",
+        data={
+            "nombre": "Carlitos Gomez",
+            "rut": "26.123.456-4",
+            "fecha_nacimiento": "2021-06-15",
+        },
+        follow_redirects=True,
+    )
+    assert resp_insc.status_code == 200
+    assert "Carlitos Gomez" in resp_insc.get_data(as_text=True)
+
+    # Administrador revisa el censo y exporta la planilla CSV
+    cliente.get("/logout")
+    ingresar(cliente, "admin", "esperanza2026")
+    resp_panel_censo = cliente.get("/panel/censo-infantil")
+    assert resp_panel_censo.status_code == 200
+    assert "Carlitos Gomez" in resp_panel_censo.get_data(as_text=True)
+
+    # Exportación CSV
+    resp_csv = cliente.get("/panel/censo-infantil/exportar")
+    assert resp_csv.status_code == 200
+    assert "text/csv" in resp_csv.headers["Content-Type"]
+    csv_text = resp_csv.get_data(as_text=True)
+    assert "Carlitos Gomez" in csv_text
+    assert "Carlos Gomez" in csv_text
+
+
+def test_historia_y_como_asociarse(cliente):
+    # Ruta de historia
+    resp_hist = cliente.get("/historia")
+    assert resp_hist.status_code == 200
+    assert "Historia y Memoria del Cerro" in resp_hist.get_data(as_text=True)
+
+    # Ruta de cómo asociarse
+    resp_asoc = cliente.get("/como-asociarse")
+    assert resp_asoc.status_code == 200
+    assert "Cómo asociarse" in resp_asoc.get_data(as_text=True)
+
+    # Quiénes somos enlaza a historia
+    resp_qs = cliente.get("/quienes-somos")
+    assert resp_qs.status_code == 200
+    assert "/historia" in resp_qs.get_data(as_text=True)
+
+
+def test_inscribir_servicio_bloqueo_no_socio_y_cargas_infantiles(cliente, app_prueba):
+    # Usuario anónimo entra a /inscribir-servicio
+    resp = cliente.get("/inscribir-servicio")
+    assert resp.status_code == 200
+    texto = resp.get_data(as_text=True)
+    assert "Para inscribir y promocionar tu emprendimiento en la plataforma comunitaria" in texto
+    assert "Iniciar Sesión de Socio" in texto
+    assert "Información para Asociarse" in texto
+
+    # Intento de POST anónimo es bloqueado con 403
+    resp_post = cliente.post("/inscribir-servicio", data={"nombre_servicio": "Test"})
+    assert resp_post.status_code == 403
+
+    # Verificación de la vista cargas_infantiles
+    with app_prueba.app_context():
+        cargas = base.consultar("SELECT * FROM cargas_infantiles")
+        assert isinstance(cargas, list)
+
+
+def test_panel_cargar_padron_alias(cliente):
+    ingresar(cliente, "admin", "esperanza2026")
+    resp = cliente.get("/panel/cargar-padron")
+    assert resp.status_code == 200
+    assert "Carga Masiva del Padrón Oficial" in resp.get_data(as_text=True)
 

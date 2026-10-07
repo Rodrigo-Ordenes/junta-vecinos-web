@@ -36,11 +36,11 @@
     </div>
   </div>
 
-  <h2 class="h4 mt-5">Directiva</h2>
+  <h2 class="h4 mt-5">Directiva Oficial</h2>
   <div class="row g-3">
     {% for m in miembros %}
       <div class="col-md-6 col-lg-4">
-        <article class="directiva-card">
+        <article class="directiva-card h-100">
           <div class="directiva-foto-wrap mx-auto">
             {% if m.foto_url %}
               <img class="directiva-foto-img" src="{{ m.foto_url }}" alt="{{ m.nombre }}" loading="lazy">
@@ -50,32 +50,121 @@
               </div>
             {% endif %}
           </div>
-          <div class="directiva-cuerpo">
-            <h3 class="directiva-nombre">{{ m.nombre }}</h3>
+          <div class="directiva-cuerpo text-center mt-3">
+            <h3 class="directiva-nombre h6 mb-1">{{ m.nombre }}</h3>
             <span class="badge-estado badge-fija directiva-cargo">{{ m.cargo }}</span>
+            {% if m.periodo %}
+              <span class="badge bg-light text-muted border mt-1 small">{{ m.periodo }}</span>
+            {% endif %}
           </div>
-          <div class="directiva-contacto">
+          <div class="directiva-contacto mt-2 text-center w-100">
             {% if m.email %}
-              <a class="directiva-email text-break" href="mailto:{{ m.email }}">
-                <span class="me-1" aria-hidden="true">✉️</span>{{ m.email }}
+              <a class="directiva-email text-break small d-block mb-1" href="mailto:{{ m.email }}">
+                ✉️ {{ m.email }}
               </a>
             {% endif %}
             {% if m.telefono %}
-              <p class="small text-muted mb-0 mt-1">📞 {{ m.telefono }}</p>
+              <p class="small text-muted mb-2">📞 {{ m.telefono }}</p>
             {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2" data-bs-toggle="modal" data-bs-target="#modalDirectiva{{ m.id }}">
+              🔍 Ver perfil completo
+            </button>
           </div>
         </article>
+      </div>
+
+      <!-- Modal de Información Detallada del Integrante -->
+      <div class="modal fade" id="modalDirectiva{{ m.id }}" tabindex="-1" aria-labelledby="modalDirectivaLabel{{ m.id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-primary text-white">
+              <h3 class="modal-title h5 mb-0" id="modalDirectivaLabel{{ m.id }}">Perfil de Directiva</h3>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+              <div class="directiva-foto-wrap mx-auto mb-3" style="width: 120px; height: 120px;">
+                {% if m.foto_url %}
+                  <img class="directiva-foto-img" src="{{ m.foto_url }}" alt="{{ m.nombre }}">
+                {% else %}
+                  <div class="directiva-foto-placeholder" aria-hidden="true">
+                    <span class="directiva-placeholder-icon">👤</span>
+                  </div>
+                {% endif %}
+              </div>
+              <h4 class="h5 mb-1">{{ m.nombre }}</h4>
+              <div class="badge-estado badge-fija fs-6 mb-2">{{ m.cargo }}</div>
+              
+              {% if m.periodo or m.profesion %}
+                <div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
+                  {% if m.periodo %}
+                    <span class="badge bg-secondary">Período: {{ m.periodo }}</span>
+                  {% endif %}
+                  {% if m.profesion %}
+                    <span class="badge bg-light text-dark border">{{ m.profesion }}</span>
+                  {% endif %}
+                </div>
+              {% endif %}
+
+              <div class="text-start bg-light p-3 rounded mb-3 border">
+                <h5 class="h6 fw-bold text-muted text-uppercase mb-2">Trayectoria y Rol en la Junta</h5>
+                {% if m.biografia %}
+                  <p class="mb-0 text-secondary" style="white-space: pre-line;">{{ m.biografia }}</p>
+                {% else %}
+                  <p class="mb-0 text-muted fst-italic">Representante activo de la directiva de la Junta de Vecinos N.° 2 Cerro Esperanza, comprometido/a con el bienestar comunitario y el desarrollo del sector.</p>
+                {% endif %}
+              </div>
+
+              <div class="text-start">
+                <h5 class="h6 fw-bold text-muted text-uppercase mb-2">Canales de Contacto Oficial</h5>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <strong>✉️ Correo:</strong> 
+                    {% if m.email %}
+                      <a href="mailto:{{ m.email }}" class="text-break">{{ m.email }}</a>
+                    {% else %}
+                      <span class="text-muted">Contacto a través de <a href="{{ url_for('contacto') }}">formulario general</a></span>
+                    {% endif %}
+                  </li>
+                  <li>
+                    <strong>📞 Teléfono:</strong> 
+                    {% if m.telefono %}
+                      <a href="tel:{{ m.telefono|solo_digitos }}">{{ m.telefono }}</a>
+                    {% else %}
+                      <span class="text-muted">Sede comunitaria en horarios de atención</span>
+                    {% endif %}
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="modal-footer bg-light">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+          </div>
+        </div>
       </div>
     {% else %}
       <p class="text-muted">Aún no se ha publicado la directiva.</p>
     {% endfor %}
   </div>
 
+  <!-- Enlace destacado a Historia y Memoria -->
+  <div class="caja bg-light border-start border-4 border-primary mt-5 p-4 shadow-sm">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <h2 class="h5 mb-1">📜 Conoce nuestros 118 años de historia comunitaria</h2>
+        <p class="text-muted mb-0">Descubre los hitos históricos, origen y cronología de nuestra organización comunitaria desde 1908.</p>
+      </div>
+      <a href="{{ url_for('historia') }}" class="btn btn-primary">
+        Ver Línea de Tiempo Completa →
+      </a>
+    </div>
+  </div>
+
   <h2 class="h4 mt-5">Cómo funcionamos</h2>
   <div class="caja">
     <ul class="mb-0">
       <li>Realizamos asambleas ordinarias y extraordinarias, cuyos acuerdos quedan en el libro de actas.</li>
-      <li>Las actas y los estatutos se publican en la sección <a href="{{ url_for('documentos') }}">Documentos</a>.</li>
+      <li>Las actas y los estatutos se publican en la sección <a href="{{ url_for('documentos') }}">Documentos y Estatutos</a>.</li>
       <li>Las cuentas de cada período y de cada actividad se publican en <a href="{{ url_for('transparencia') }}">Transparencia</a>.</li>
       <li>La sede vecinal se gestiona con el <a href="{{ url_for('sede') }}">calendario de disponibilidad</a>.</li>
     </ul>

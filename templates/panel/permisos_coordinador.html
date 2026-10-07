@@ -1,14 +1,51 @@
 {% extends "panel/_base_panel.html" %}
-{% block title %}Permisos del coordinador · Panel{% endblock %}
+{% block title %}Permisos de Coordinación · Panel{% endblock %}
 {% block panel %}
-<h1 class="section-title h3">Permisos del coordinador</h1>
-<p class="lead">Activa solo las tareas que la directiva quiera delegar.</p>
-<form method="post" class="caja permiso-toggle">
-  <label class="form-check">
-    <input class="form-check-input" type="checkbox" name="crear_vecinos" value="on" {% if puede_crear_vecinos %}checked{% endif %}>
-    <span class="form-check-label">Permitir que el coordinador cree cuentas vecinales</span>
-  </label>
-  <p class="small text-muted mt-2">Las cuentas creadas por un coordinador quedan pendientes de aprobación administrativa. Este permiso no permite editar otros usuarios ni cambiar roles.</p>
-  <button class="btn btn-primary" type="submit">Guardar permiso</button>
-</form>
+<h1 class="section-title h3">Permisos de Coordinación</h1>
+<p class="lead">Configura los accesos modulares para cada coordinador de la junta vecinal.</p>
+
+{% if not coordinadores %}
+  <div class="alert alert-info">No hay usuarios con el rol de coordinador registrados en el sistema.</div>
+{% else %}
+  <div class="row g-4">
+    {% for coord in coordinadores %}
+      <div class="col-12">
+        <div class="caja">
+          <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+            <div>
+              <h2 class="h5 mb-0 text-primary">👤 {{ coord.nombre }}</h2>
+              <span class="small text-muted">Usuario: <strong>{{ coord.usuario }}</strong></span>
+            </div>
+            <span class="badge bg-secondary">Coordinador</span>
+          </div>
+
+          <form method="post" action="{{ url_for('panel_permisos_coordinador') }}">
+            <input type="hidden" name="usuario_id" value="{{ coord.id }}">
+            <p class="small text-muted mb-3">Marca los módulos a los que este coordinador tendrá autorización para gestionar:</p>
+
+            <div class="row g-3 mb-4">
+              {% for columna, etiqueta, ayuda in modulos %}
+                <div class="col-md-6">
+                  <div class="p-3 border rounded h-100 bg-light">
+                    <div class="form-check form-switch mb-1">
+                      <input class="form-check-input" type="checkbox" id="{{ columna }}_{{ coord.id }}" name="{{ columna }}" value="on" {% if coord[columna] %}checked{% endif %}>
+                      <label class="form-check-label fw-bold" for="{{ columna }}_{{ coord.id }}">
+                        {{ etiqueta }}
+                      </label>
+                    </div>
+                    <small class="text-muted d-block ps-4">{{ ayuda }}</small>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="text-end">
+              <button class="btn btn-primary" type="submit">💾 Guardar permisos de {{ coord.nombre }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
 {% endblock %}

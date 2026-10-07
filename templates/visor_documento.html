@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ documento.titulo }} · Visor · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <p class="small mb-1"><a href="{{ url_for('documentos', categoria=documento.categoria) }}">← Volver a Documentos</a></p>
+  <h1 class="section-title">{{ documento.titulo }}</h1>
+  <p class="text-muted">{{ documento.categoria }} · Lectura en pantalla. Por seguridad de la organización, este documento no se descarga ni se imprime desde el sitio.</p>
+  {% if documento.descripcion %}<p>{{ documento.descripcion }}</p>{% endif %}
+
+  <div class="visor-documento" data-visor-protegido>
+    {% if tipo_visor == 'pdf' %}
+      <iframe class="visor-documento-marco" title="Documento: {{ documento.titulo }}"
+              src="{{ url_for('contenido_documento', documento_id=documento.id) }}#toolbar=0&navpanes=0&scrollbar=1"
+              referrerpolicy="no-referrer"></iframe>
+    {% elif tipo_visor == 'imagen' %}
+      <img class="visor-documento-imagen" draggable="false"
+           src="{{ url_for('contenido_documento', documento_id=documento.id) }}"
+           alt="Documento: {{ documento.titulo }}">
+    {% else %}
+      <p class="p-3 mb-0">Este documento no se puede mostrar en pantalla. Solicita una copia en la sede vecinal.</p>
+    {% endif %}
+    <div class="visor-escudo" aria-hidden="true"></div>
+  </div>
+  <p class="small text-muted mt-2">Si el documento no se ve, actualiza tu navegador o <a href="{{ url_for('contacto') }}">contacta a la directiva</a>.</p>
+</div>
+{% endblock %}

@@ -1,45 +1,70 @@
 {% extends "base.html" %}
-{% block title %}Mis solicitudes · Junta de Vecinos N.° 2{% endblock %}
+{% block title %}Mi Cuenta · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container my-4 my-md-5">
-  <h1 class="section-title">Hola, {{ usuario.nombre }}</h1>
-
-  <h2 class="h4">Mis reservas de la sede</h2>
-  <div class="table-responsive mb-4">
-    <table class="table align-middle">
-      <thead><tr><th>Fecha</th><th>Horario</th><th>Actividad</th><th>Estado</th></tr></thead>
-      <tbody>
-        {% for r in reservas %}
-          <tr>
-            <td>{{ r.fecha|fecha_corta }}</td>
-            <td>{{ r.hora_inicio }} a {{ r.hora_fin }}</td>
-            <td>{{ r.actividad }}{% if r.observacion %}<br><span class="small text-muted">{{ r.observacion }}</span>{% endif %}</td>
-            <td><span class="badge-estado {{ r.estado|clase_estado }}">{{ r.estado }}</span></td>
-          </tr>
-        {% else %}
-          <tr><td colspan="4">Todavía no tienes reservas enviadas desde esta cuenta.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-2 border-bottom">
+    <div>
+      <h1 class="section-title mb-1">Portal del Socio</h1>
+      <p class="lead mb-0">Bienvenido/a, <strong>{{ usuario.nombre }} {{ usuario.apellidos }}</strong> {% if usuario.numero_socio %}(Socio N.º {{ usuario.numero_socio }}){% endif %}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('mis_menores') }}" class="btn btn-outline-primary">🎁 Censo Infantil (Navidad)</a>
+      <a href="{{ url_for('cambiar_clave') }}" class="btn btn-outline-secondary">🔑 Cambiar Clave</a>
+    </div>
   </div>
 
-  <div class="caja">
-    <h2 class="h5">Certificado de residencia</h2>
-    {% if certificados %}
-      <p>Tus solicitudes asociadas a esta cuenta:</p>
-      <ul class="list-unstyled mb-3">
-        {% for c in certificados %}
-          <li class="certificado-solicitud-row">
-            <span>Enviada el {{ c.fecha_solicitud|fecha_corta }}</span>
-            <span class="badge-estado {{ c.estado|clase_estado }}">{{ c.estado }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>Aquí aparecerá el estado de los certificados que envíes con esta cuenta.</p>
-    {% endif %}
-    <p class="small text-muted">También puedes consultar una solicitud sin iniciar sesión con el código privado que recibiste al enviarla.</p>
-    <a class="btn btn-outline-primary" href="{{ url_for('estado_certificado') }}">Consultar con mi código</a>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="caja h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">🗓️ Mis Reservas de la Sede</h2>
+          <a href="{{ url_for('reservar') }}" class="btn btn-sm btn-primary">Nueva Reserva</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead><tr><th>Fecha</th><th>Horario</th><th>Actividad</th><th>Estado</th></tr></thead>
+            <tbody>
+              {% for r in reservas %}
+                <tr>
+                  <td>{{ r.fecha|fecha_corta }}</td>
+                  <td>{{ r.hora_inicio }} a {{ r.hora_fin }}</td>
+                  <td>{{ r.actividad }}{% if r.observacion %}<br><span class="small text-muted">{{ r.observacion }}</span>{% endif %}</td>
+                  <td><span class="badge-estado {{ r.estado|clase_estado }}">{{ r.estado }}</span></td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="text-muted small">No tienes solicitudes de reserva registradas.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="caja h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">📄 Certificados de Residencia</h2>
+          <a href="{{ url_for('certificado') }}" class="btn btn-sm btn-primary">Pedir Certificado</a>
+        </div>
+        {% if certificados %}
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead><tr><th>Fecha Solicitud</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for c in certificados %}
+                  <tr>
+                    <td>{{ c.fecha_solicitud|fecha_corta }}</td>
+                    <td><span class="badge-estado {{ c.estado|clase_estado }}">{{ c.estado }}</span></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted small mb-0">No has solicitado certificados de residencia desde esta cuenta.</p>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

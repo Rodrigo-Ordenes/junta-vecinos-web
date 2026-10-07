@@ -105,12 +105,130 @@
       return;
     }
 
+    // Modales (abrir)
+    var btnAbrirModal = objetivo.closest("[data-bs-toggle='modal']");
+    if (btnAbrirModal) {
+      evento.preventDefault();
+      var idModal = btnAbrirModal.getAttribute("data-bs-target");
+      if (idModal) {
+        var modal = document.querySelector(idModal);
+        if (modal) {
+          modal.classList.add("show");
+          modal.style.display = "block";
+          modal.removeAttribute("aria-hidden");
+          modal.setAttribute("aria-modal", "true");
+          document.body.classList.add("modal-open");
+          var tel = modal.querySelector("input, button");
+          if (tel) tel.focus();
+        }
+      }
+      return;
+    }
+
+    // Modales (cerrar con botón dismiss o backdrop)
+    var btnCerrarModal = objetivo.closest("[data-bs-dismiss='modal']");
+    if (btnCerrarModal) {
+      evento.preventDefault();
+      var modalCerrar = btnCerrarModal.closest(".modal");
+      if (modalCerrar) {
+        modalCerrar.classList.remove("show");
+        modalCerrar.style.display = "none";
+        modalCerrar.setAttribute("aria-hidden", "true");
+        modalCerrar.removeAttribute("aria-modal");
+        document.body.classList.remove("modal-open");
+      }
+      return;
+    }
+
+    if (objetivo.classList.contains("modal")) {
+      objetivo.classList.remove("show");
+      objetivo.style.display = "none";
+      objetivo.setAttribute("aria-hidden", "true");
+      objetivo.removeAttribute("aria-modal");
+      document.body.classList.remove("modal-open");
+      return;
+    }
+
     if (!objetivo.closest(".dropdown")) cerrarDesplegables(null);
   });
 
   document.addEventListener("keydown", function (evento) {
-    if (evento.key === "Escape") cerrarDesplegables(null);
+    if (evento.key === "Escape") {
+      cerrarDesplegables(null);
+      var modales = document.querySelectorAll(".modal.show");
+      for (var i = 0; i < modales.length; i++) {
+        modales[i].classList.remove("show");
+        modales[i].style.display = "none";
+        modales[i].setAttribute("aria-hidden", "true");
+        modales[i].removeAttribute("aria-modal");
+      }
+      document.body.classList.remove("modal-open");
+    }
   });
+
+  // Formateo automático uniforme para prefijo chileno (+569) en todos los campos telefónicos
+  function formatearTelInput(input) {
+    if (!input) return;
+    if (!input.placeholder || input.placeholder === "") {
+      input.placeholder = "+569XXXXXXXX";
+    }
+    input.addEventListener("focus", function () {
+      if (!this.value || this.value.trim() === "") {
+        this.value = "+569";
+      }
+    });
+    input.addEventListener("input", function () {
+      var val = this.value;
+      if (!val) return;
+      if (!val.startsWith("+569")) {
+        var soloNums = val.replace(/[^\d]/g, "");
+        if (soloNums.startsWith("569")) {
+          this.value = "+" + soloNums;
+        } else if (soloNums.startsWith("9")) {
+          this.value = "+56" + soloNums;
+        } else if (soloNums.length > 0) {
+          this.value = "+569" + soloNums;
+        }
+      }
+    });
+    input.addEventListener("blur", function () {
+      if (this.value.trim() === "+569" && !this.required) {
+        this.value = "";
+      }
+    });
+  }
+
+  function inicializarTelefonos() {
+    var selectores = 'input[type="tel"], input[name="telefono"], input[name="whatsapp"], input[id="telefono"], input[id="whatsapp"]';
+    var telInputs = document.querySelectorAll(selectores);
+    for (var i = 0; i < telInputs.length; i++) {
+      formatearTelInput(telInputs[i]);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inicializarTelefonos);
+  } else {
+    inicializarTelefonos();
+  }
 
   aplicarPreferencias();
 })();
+
+  // Protección anti-descarga e impresión en visor de documentos
+  var visor = document.querySelector("[data-visor-protegido]");
+  if (visor) {
+    // Inhabilitar clic derecho
+    visor.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+      return false;
+    });
+
+    // Inhabilitar combinaciones de guardado e impresión (Ctrl+S, Ctrl+P, Cmd+S, Cmd+P)
+    window.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "P" || e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        return false;
+      }
+    });
+  }

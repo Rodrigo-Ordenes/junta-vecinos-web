@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Cómo asociarse · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container-xl my-4 my-md-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-9 col-xl-8">
+      <h1 class="section-title text-center">Cómo asociarse</h1>
+      <div class="caja shadow-sm">
+        <p class="lead">{{ conf.como_asociarse }}</p>
+        <h2 class="h5 mt-4">¿Qué obtienes como socio acreditado?</h2>
+        <ul>
+          <li>Acceso al balance de transparencia económica y a los informes auditados de la Comisión Revisora de Cuentas (Ley 19.418).</li>
+          <li>Posibilidad de inscribir y promocionar tu emprendimiento en Servicios Comunales.</li>
+          <li>Participación y derecho a voto en las asambleas generales.</li>
+        </ul>
+        <p class="small text-muted">Los vecinos no socios pueden consultar el sitio público, solicitar arriendo de la sede y pedir su certificado de residencia sin necesidad de cuenta.</p>
+        <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+          <a class="btn btn-primary" href="{{ url_for('contacto') }}">Consultar en la sede</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('registro') }}">Ya soy socio: solicitar cuenta</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

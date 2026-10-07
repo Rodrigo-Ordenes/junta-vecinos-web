@@ -29,7 +29,7 @@ DIAS_SEMANA = [
     "Domingo",
 ]
 
-ROLES = ["administrador", "coordinador", "vecino"]
+ROLES = ["administrador", "coordinador", "socio", "comision_revisora"]
 
 ESTADOS_PROYECTO = ["Postulado", "Aprobado", "En ejecución", "Finalizado", "Rechazado"]
 ESTADOS_RESERVA = ["Pendiente", "Aprobada", "Rechazada", "Cancelada"]
@@ -66,10 +66,23 @@ CREATE TABLE IF NOT EXISTS usuarios (
     usuario TEXT NOT NULL UNIQUE,
     email TEXT,
     clave_hash TEXT NOT NULL,
-    rol TEXT NOT NULL DEFAULT 'vecino',
+    rol TEXT NOT NULL DEFAULT 'socio',
     activo INTEGER NOT NULL DEFAULT 1,
     estado_aprobacion TEXT NOT NULL DEFAULT 'Aprobada',
-    fecha_creacion TEXT NOT NULL
+    fecha_creacion TEXT NOT NULL,
+    rut TEXT DEFAULT '',
+    numero_socio TEXT DEFAULT '',
+    apellidos TEXT DEFAULT '',
+    direccion TEXT DEFAULT '',
+    telefono TEXT DEFAULT '',
+    fecha_nacimiento TEXT DEFAULT '',
+    fallecido INTEGER NOT NULL DEFAULT 0,
+    permiso_noticias INTEGER NOT NULL DEFAULT 0,
+    permiso_reservas INTEGER NOT NULL DEFAULT 0,
+    permiso_certificados INTEGER NOT NULL DEFAULT 0,
+    permiso_directorio INTEGER NOT NULL DEFAULT 0,
+    permiso_socios INTEGER NOT NULL DEFAULT 0,
+    debe_cambiar_clave INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS noticias (
@@ -223,8 +236,50 @@ CREATE TABLE IF NOT EXISTS directiva (
     email TEXT DEFAULT '',
     telefono TEXT DEFAULT '',
     foto_url TEXT DEFAULT '',
+    profesion TEXT DEFAULT '',
+    periodo TEXT DEFAULT '',
+    biografia TEXT DEFAULT '',
     orden INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS informes_auditoria (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    periodo TEXT NOT NULL DEFAULT '',
+    descripcion TEXT DEFAULT '',
+    tipo TEXT NOT NULL DEFAULT 'Informe de revisión',
+    archivo TEXT NOT NULL DEFAULT '',
+    archivo_pdf TEXT NOT NULL DEFAULT '',
+    fecha_publicacion TEXT NOT NULL DEFAULT '',
+    fecha_subida TEXT NOT NULL DEFAULT '',
+    autor_id INTEGER NOT NULL REFERENCES usuarios (id) ON DELETE RESTRICT
+);
+
+CREATE TRIGGER IF NOT EXISTS informes_auditoria_inmutable_update
+BEFORE UPDATE ON informes_auditoria
+BEGIN
+    SELECT RAISE(ABORT, 'Los informes de la Comisión Revisora de Cuentas son inmutables');
+END;
+
+CREATE TRIGGER IF NOT EXISTS informes_auditoria_inmutable_delete
+BEFORE DELETE ON informes_auditoria
+BEGIN
+    SELECT RAISE(ABORT, 'Los informes de la Comisión Revisora de Cuentas son inmutables');
+END;
+
+CREATE TABLE IF NOT EXISTS menores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    socio_id INTEGER NOT NULL REFERENCES usuarios (id) ON DELETE CASCADE,
+    nombre TEXT NOT NULL,
+    rut TEXT DEFAULT '',
+    fecha_nacimiento TEXT NOT NULL,
+    parentesco TEXT NOT NULL DEFAULT 'Hijo/a',
+    fecha_registro TEXT NOT NULL
+);
+
+CREATE VIEW IF NOT EXISTS cargas_infantiles AS 
+SELECT id, socio_id, nombre AS nombre_completo, rut, fecha_nacimiento, parentesco, fecha_registro
+FROM menores;
 
 CREATE TABLE IF NOT EXISTS config (
     clave TEXT PRIMARY KEY,
@@ -279,6 +334,17 @@ CONFIG_POR_DEFECTO = {
     "horario_sede_inicio": "09:00",
     "horario_sede_fin": "21:00",
     "coordinador_crear_vecinos": "0",
+    "anio_fundacion": "1908",
+    "hitos_historia": "",
+    "mensaje_cumpleanos": (
+        "¡Feliz cumpleaños, {nombre}! La Junta de Vecinos N.° 2 Cerro Esperanza "
+        "te envía un cordial saludo y los mejores deseos de parte de toda la comunidad."
+    ),
+    "como_asociarse": (
+        "Para ser socio o socia debes ser residente del territorio de la junta, "
+        "ser mayor de edad y presentar tu cédula de identidad y un comprobante de domicilio "
+        "en la sede vecinal. La directiva revisa la solicitud y te inscribe en el padrón oficial."
+    ),
     "imagen_sede_url": "/static/img/sede_comunitaria.jpg",
     "imagen_hero_url": "/static/img/hero_comunidad.jpg",
     "plan_maestro_intro": (
@@ -387,6 +453,9 @@ def _migrar_esquema():
     Permite actualizar el sitio sin perder la información ya cargada.
     """
     db = get_db()
+    venia_sin_permisos = _tabla_existe("usuarios") and "permiso_noticias" not in {
+        f["name"] for f in consultar("PRAGMA table_info(usuarios)")
+    }
     for tabla, columnas in _columnas_cache().items():
         if not _tabla_existe(tabla):
             continue
@@ -432,6 +501,36 @@ def _migrar_esquema():
         "CREATE INDEX IF NOT EXISTS idx_usuarios_aprobacion "
         "ON usuarios (rol, estado_aprobacion)"
     )
+    db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_numero_socio "
+        "ON usuarios (numero_socio) WHERE numero_socio != ''"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_menores_socio ON menores (socio_id)"
+    )
+    db.execute(
+        "CREATE VIEW IF NOT EXISTS cargas_infantiles AS "
+        "SELECT id, socio_id, nombre AS nombre_completo, rut, fecha_nacimiento, parentesco, fecha_registro "
+        "FROM menores"
+    )
+    # Las cuentas vecinales existentes se transforman en cuentas de socio para
+    # conservar sus solicitudes y aplicar el nuevo modelo de acceso.
+    db.execute("UPDATE usuarios SET rol = 'socio' WHERE rol = 'vecino'")
+    if venia_sin_permisos:
+        # Los coordinadores existentes conservan lo que podían hacer antes de la
+        # matriz modular de permisos.
+        crear_cuentas = (
+            consultar(
+                "SELECT valor FROM config WHERE clave = 'coordinador_crear_vecinos'",
+                uno=True,
+            )
+        )
+        db.execute(
+            "UPDATE usuarios SET permiso_noticias = 1, permiso_reservas = 1, "
+            "permiso_certificados = 1, permiso_directorio = 1, permiso_socios = ? "
+            "WHERE rol = 'coordinador'",
+            (1 if crear_cuentas and crear_cuentas["valor"] == "1" else 0,),
+        )
     db.commit()
 
     db.execute(
@@ -586,8 +685,9 @@ def _crear_usuarios_iniciales(app):
         ),
     )
     ejecutar(
-        "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, fecha_creacion) "
-        "VALUES (?, ?, ?, ?, ?, 1, ?)",
+        "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, fecha_creacion, "
+        "permiso_noticias, permiso_reservas, permiso_certificados, permiso_directorio, "
+        "permiso_socios) VALUES (?, ?, ?, ?, ?, 1, ?, 1, 1, 1, 1, 0)",
         (
             "Encargado/a de la sede",
             coord_user,

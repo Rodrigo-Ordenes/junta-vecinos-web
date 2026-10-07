@@ -1,21 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Directorio vecinal · Junta de Vecinos N.° 2{% endblock %}
+{% block title %}Servicios Comunales / Emprendimientos · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container my-4 my-md-5">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div>
-      <h1 class="section-title mb-1">Directorio de servicios del cerro</h1>
+      <h1 class="section-title mb-1">Servicios Comunales / Emprendimientos</h1>
       <p class="lead mb-0">
-        Vecinas y vecinos que ofrecen sus oficios, comercio y servicios en el barrio. Compra en el cerro y apoya a tu comunidad.
+        Comercio, oficios y emprendimientos de socias y socios acreditados del Cerro Esperanza. ¡Apoya a tu comunidad local!
       </p>
     </div>
     <a class="btn btn-primary" href="{{ url_for('inscribir_servicio') }}">
-      ➕ Inscribir mi servicio
+      ➕ Inscribir mi emprendimiento
     </a>
   </div>
 
-  <!-- Panel optimizado de búsqueda y filtros -->
-  <div class="caja directorio-filtro-caja mb-4">
+  <!-- Panel optimizado de búsqueda y filtros reactivos -->
+  <div class="caja directorio-filtro-caja filtro-card mb-4 w-100">
     <form class="row g-2 align-items-end" method="get" id="form-filtro-directorio">
       <div class="col-md-5 col-sm-6">
         <label class="form-label small fw-semibold" for="q">Buscar por nombre o palabra clave</label>
@@ -46,9 +46,9 @@
     <!-- Barra de estado con contador dinámico -->
     <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small text-muted">
       <span id="contador-directorio" class="fw-semibold text-dark">
-        Mostrando {{ servicios|length }} servicio{{ 's' if servicios|length != 1 else '' }}
+        Mostrando {{ servicios|length }} emprendimiento{{ 's' if servicios|length != 1 else '' }}
       </span>
-      <span class="small text-muted">Actualización inmediata</span>
+      <span class="small text-muted">Filtro instantáneo</span>
     </div>
   </div>
 
@@ -60,14 +60,14 @@
            data-vecino="{{ s.vecino|lower }}"
            data-rubro="{{ s.rubro }}"
            data-descripcion="{{ (s.descripcion or '')|lower }}">
-        <article class="caja h-100 d-flex flex-column justify-content-between directorio-card">
+        <article class="caja h-100 d-flex flex-column justify-content-between directorio-card card shadow-sm w-100">
           <div>
             <div class="directorio-card-header d-flex align-items-center gap-3 mb-3 pb-2 border-bottom">
               {% if s.foto_url %}
                 <img src="{{ s.foto_url }}" alt="{{ s.vecino }} · {{ s.nombre_servicio }}" class="directorio-avatar-img" loading="lazy">
               {% else %}
                 <div class="directorio-avatar-placeholder" aria-hidden="true" title="Sin fotografía asignada">
-                  <span class="directorio-avatar-icono">👤</span>
+                  <span class="directorio-avatar-icono">🏪</span>
                 </div>
               {% endif %}
               <div class="min-w-0 flex-grow-1">
@@ -99,8 +99,8 @@
     {% endfor %}
 
     <!-- Estado vacío cuando no hay coincidencias -->
-    <div id="directorio-vacio" class="col-12 {{ 'd-none' if servicios else '' }}">
-      <div class="caja text-center py-5">
+    <div id="directorio-vacio" class="col-12 resultados-card w-100 {{ 'd-none' if servicios else '' }}">
+      <div class="caja card text-center py-5 w-100">
         <span class="fs-1 d-block mb-2" aria-hidden="true">🔍</span>
         <h2 class="h5 mb-1">No encontramos servicios con esa búsqueda</h2>
         <p class="small text-muted mb-3">Intenta cambiar las palabras clave o elegir otro rubro en el selector.</p>
@@ -157,9 +157,8 @@ document.addEventListener("DOMContentLoaded", function() {
       }
     });
 
-    // Contador y estado vacío
     if (contador) {
-      contador.textContent = `Mostrando ${visibles} servicio${visibles !== 1 ? 's' : ''}`;
+      contador.textContent = `Mostrando ${visibles} emprendimiento${visibles !== 1 ? 's' : ''}`;
     }
 
     if (contenedorVacio) {
@@ -171,7 +170,6 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
-  // Eventos de entrada en tiempo real
   if (inputQ) {
     inputQ.addEventListener("input", filtrarDirectorio);
   }
@@ -190,7 +188,6 @@ document.addEventListener("DOMContentLoaded", function() {
   if (btnLimpiar) btnLimpiar.addEventListener("click", resetearFiltros);
   if (btnVaciar) btnVaciar.addEventListener("click", resetearFiltros);
 
-  // Inicialización
   filtrarDirectorio();
 });
 </script>

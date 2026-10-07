@@ -1,25 +1,28 @@
 {% extends "panel/_base_panel.html" %}
-{% block title %}Aprobar cuentas vecinales · Panel{% endblock %}
+{% block title %}Aprobar cuentas de socio · Panel{% endblock %}
 {% block panel %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
   <div>
-    <h1 class="section-title h3">Cuentas vecinales por aprobar</h1>
-    <p class="text-muted">Al aprobar una cuenta, la persona podrá ingresar y consultar las solicitudes de certificado asociadas.</p>
+    <h1 class="section-title h3">Cuentas de socios por validar</h1>
+    <p class="text-muted">Al aprobar una cuenta, la persona podrá ingresar al portal de socios acreditados y consultar certificados o registrar emprendimientos.</p>
   </div>
-  <a class="btn btn-outline-primary" href="{{ url_for('panel_listado', recurso='usuarios') }}">Ver usuarios</a>
+  {% if puede('usuarios', usuario) %}
+    <a class="btn btn-outline-primary" href="{{ url_for('panel_listado', recurso='usuarios') }}">Ver todos los usuarios</a>
+  {% endif %}
 </div>
 
 <div class="row g-3 mt-2">
   {% for u in usuarios_pendientes %}
     <div class="col-md-6">
       <article class="caja cuenta-pendiente">
-        <span class="badge-estado badge-pendiente">Pendiente</span>
+        <span class="badge-estado badge-pendiente">Pendiente de Acreditación</span>
         <h2 class="h5 mt-2 mb-1">{{ u.nombre }}</h2>
         <p class="mb-1"><strong>Usuario:</strong> {{ u.usuario }}</p>
+        {% if u.rut %}<p class="mb-1"><strong>RUT:</strong> {{ u.rut }}</p>{% endif %}
         {% if u.email %}<p class="mb-1"><strong>Correo:</strong> {{ u.email }}</p>{% endif %}
         <p class="small text-muted">Solicitud recibida: {{ u.fecha_creacion|fecha_corta }}</p>
         <form method="post" action="{{ url_for('panel_usuario_aprobar', usuario_id=u.id) }}">
-          <button class="btn btn-primary" type="submit">Aprobar cuenta</button>
+          <button class="btn btn-success" type="submit">✓ Validar y Activar Cuenta</button>
         </form>
       </article>
     </div>
@@ -28,7 +31,7 @@
       <div class="caja text-center py-4">
         <span class="auth-monograma auth-monograma-small" aria-hidden="true">✓</span>
         <h2 class="h5 mt-3">Todo al día</h2>
-        <p class="mb-0">No hay cuentas vecinales pendientes de aprobación.</p>
+        <p class="mb-0">No hay cuentas de socio pendientes de validación contra el padrón.</p>
       </div>
     </div>
   {% endfor %}
