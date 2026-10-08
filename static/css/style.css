@@ -1905,3 +1905,151 @@ html.alto-contraste .modal-footer {
     word-break: break-word;
   }
 }
+
+/* --- Módulo de Movilidad: Mapa Comunitario (Leaflet) --------------------- */
+.mapa-contenedor {
+  width: 100%;
+  height: 450px;
+  border-radius: 12px;
+  margin: 1.5rem auto;
+  border: 1px solid var(--borde);
+  z-index: 1;
+}
+
+/* Popups Leaflet accesibles y adaptables */
+.leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.leaflet-popup-content {
+  margin: 14px 16px;
+  line-height: 1.45;
+}
+
+.popup-hito-titulo {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  color: var(--azul-oscuro);
+}
+
+.popup-hito-categoria {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+}
+
+.popup-cat-equipamiento { background: #e3f2fd; color: #0d47a1; }
+.popup-cat-transporte { background: #e8f5e9; color: #1b5e20; }
+.popup-cat-alerta { background: #ffebee; color: #b71c1c; }
+
+/* Compatibilidad con Alto Contraste para el mapa y popups */
+html.alto-contraste .mapa-contenedor {
+  border: 2px solid #ffdf00;
+}
+
+html.alto-contraste .leaflet-popup-content-wrapper,
+html.alto-contraste .leaflet-popup-tip {
+  background: #000 !important;
+  color: #ffdf00 !important;
+  border: 2px solid #ffdf00;
+}
+
+html.alto-contraste .popup-hito-titulo {
+  color: #ffdf00 !important;
+}
+
+html.alto-contraste .popup-cat-equipamiento,
+html.alto-contraste .popup-cat-transporte,
+html.alto-contraste .popup-cat-alerta {
+  background: #000 !important;
+  color: #ffdf00 !important;
+  border: 1px solid #ffdf00;
+}
+
+html.alto-contraste .leaflet-container a.leaflet-popup-close-button {
+  color: #ffdf00 !important;
+}
+
+/* ==========================================================================
+   TARJETAS DE MOVILIDAD Y TRANSPORTE
+   ========================================================================== */
+.card-transporte {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+}
+
+.card-transporte:hover {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+}
+
+.badge-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.tarifa-caja {
+  background-color: #f8fafc;
+  border: 1px solid #eef2f6;
+}
+
+/* Alertas internas (integradas en el flujo flex, sin solapamientos ni position: absolute) */
+.alerta-servicio {
+  border: 1px solid transparent;
+}
+
+.alerta-horario {
+  background-color: #fffbeb;
+  border-color: #fef3c7;
+}
+
+.alerta-nocturna {
+  background-color: #eff6ff;
+  border-color: #dbeafe;
+}
+
+/* Compatibilidad estricta con Modo Alto Contraste */
+html.alto-contraste .card-transporte,
+body.alto-contraste .card-transporte {
+  background-color: #121212 !important;
+  border: 2px solid #ffdf00 !important;
+  color: #ffffff !important;
+}
+
+html.alto-contraste .tarifa-caja,
+body.alto-contraste .tarifa-caja,
+html.alto-contraste .alerta-horario,
+body.alto-contraste .alerta-horario,
+html.alto-contraste .alerta-nocturna,
+body.alto-contraste .alerta-nocturna {
+  background-color: #1e1e1e !important;
+  border: 1px solid #ffdf00 !important;
+  color: #ffffff !important;
+}
+
+html.alto-contraste .tarifa-caja strong,
+body.alto-contraste .tarifa-caja strong,
+html.alto-contraste .alerta-servicio strong,
+body.alto-contraste .alerta-servicio strong {
+  color: #ffdf00 !important;
+}
+

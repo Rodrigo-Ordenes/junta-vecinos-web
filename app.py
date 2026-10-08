@@ -1580,6 +1580,11 @@ def como_asociarse():
     return render_template("como_asociarse.html")
 
 
+@app.route("/movilidad")
+def movilidad():
+    return render_template("movilidad.html")
+
+
 @app.route("/contacto", methods=["GET", "POST"])
 def contacto():
     datos = {}

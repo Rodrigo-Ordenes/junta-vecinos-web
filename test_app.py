@@ -71,6 +71,20 @@ def test_paginas_publicas_responden(cliente, ruta):
     assert cliente.get(ruta).status_code == 200
 
 
+def test_pagina_movilidad_responde(cliente):
+    """Verifica que la página pública de movilidad y accesibilidad responda 200 OK y contenga la información clave."""
+    respuesta = cliente.get("/movilidad")
+    assert respuesta.status_code == 200
+    contenido = respuesta.get_data(as_text=True)
+    assert "Movilidad y Accesibilidad" in contenido
+    assert "Micro 505" in contenido or "505" in contenido
+    assert "260" in contenido
+    assert "190" in contenido
+    assert "mapa-comunitario" in contenido
+    assert "leaflet" in contenido.lower()
+
+
+
 def test_detalle_de_noticia(cliente):
     assert cliente.get("/noticias/1").status_code == 200
     assert cliente.get("/noticias/9999").status_code == 404
