@@ -1980,57 +1980,169 @@ html.alto-contraste .leaflet-container a.leaflet-popup-close-button {
 }
 
 /* ==========================================================================
-   TARJETAS DE MOVILIDAD Y TRANSPORTE
+   TARJETAS DE MOVILIDAD Y TRANSPORTE (Institucional, Formal y Cuadrado)
    ========================================================================== */
 .card-transporte {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   width: 100%;
+  box-shadow: 0 2px 8px rgba(23, 60, 73, 0.04);
 }
 
 .card-transporte:hover {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(23, 60, 73, 0.08);
 }
 
-.badge-icono {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  font-size: 1.25rem;
-  flex-shrink: 0;
+.card-transporte.transporte-bus {
+  border-top: 3px solid var(--verde-cerro);
 }
 
+.card-transporte.transporte-colectivo {
+  border-top: 3px solid #b45309;
+}
+
+/* Cabecera formal de la tarjeta */
+.badge-linea-formal {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.badge-linea-formal.linea-505 {
+  background: var(--verde-cerro);
+  color: #ffffff;
+}
+
+.badge-linea-formal.linea-colectivo {
+  background: #b45309;
+  color: #ffffff;
+}
+
+.badge-servicio-formal {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.22rem 0.6rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.servicio-troncal {
+  background: #edf7f1;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+}
+
+.servicio-colectivo {
+  background: #fefce8;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+}
+
+/* Descripción del servicio con alineación vertical simétrica */
+.transporte-descripcion {
+  line-height: 1.5;
+  color: #475569;
+}
+
+@media (min-width: 992px) {
+  .transporte-descripcion {
+    min-height: 44px;
+  }
+}
+
+/* Caja de Tarifas y Frecuencias cuadrada y formal */
 .tarifa-caja {
-  background-color: #f8fafc;
-  border: 1px solid #eef2f6;
+  background: #fbfcfc;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 1rem;
 }
 
-/* Alertas internas (integradas en el flujo flex, sin solapamientos ni position: absolute) */
+.tarifa-caja-titulo {
+  letter-spacing: 0.05em;
+  font-size: 0.76rem;
+}
+
+.tarifa-vigencia {
+  font-size: 0.74rem;
+}
+
+.tarifa-item {
+  min-height: 46px;
+}
+
+.tarifa-etiqueta {
+  font-size: 0.86rem;
+  color: #1e293b;
+}
+
+.tarifa-subtexto {
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.tarifa-item-valor {
+  text-align: right;
+  flex-shrink: 0;
+  margin-left: 0.75rem;
+}
+
+.tarifa-valor {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* Alertas internas integradas, limpias y cuadradas */
 .alerta-servicio {
-  border: 1px solid transparent;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  transition: background-color 0.2s ease;
 }
 
 .alerta-horario {
-  background-color: #fffbeb;
-  border-color: #fef3c7;
+  background-color: #fffdf5;
+  border-color: #fde68a;
+  border-left: 4px solid #d97706;
 }
 
 .alerta-nocturna {
-  background-color: #eff6ff;
-  border-color: #dbeafe;
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  border-left: 4px solid var(--azul-medio);
+}
+
+.alerta-titulo-formal {
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+}
+
+.alerta-horario .alerta-titulo-formal {
+  color: #92400e;
+}
+
+.alerta-nocturna .alerta-titulo-formal {
+  color: var(--azul-oscuro);
+}
+
+.alerta-texto {
+  line-height: 1.45;
+  font-size: 0.82rem;
 }
 
 /* Compatibilidad estricta con Modo Alto Contraste */
 html.alto-contraste .card-transporte,
 body.alto-contraste .card-transporte {
-  background-color: #121212 !important;
+  background-color: #000000 !important;
   border: 2px solid #ffdf00 !important;
   color: #ffffff !important;
 }
@@ -2041,9 +2153,26 @@ html.alto-contraste .alerta-horario,
 body.alto-contraste .alerta-horario,
 html.alto-contraste .alerta-nocturna,
 body.alto-contraste .alerta-nocturna {
-  background-color: #1e1e1e !important;
+  background: #121212 !important;
   border: 1px solid #ffdf00 !important;
   color: #ffffff !important;
+}
+
+html.alto-contraste .badge-linea-formal,
+body.alto-contraste .badge-linea-formal,
+html.alto-contraste .badge-servicio-formal,
+body.alto-contraste .badge-servicio-formal {
+  background: #000000 !important;
+  color: #ffdf00 !important;
+  border: 1px solid #ffdf00 !important;
+}
+
+html.alto-contraste .tarifa-valor,
+body.alto-contraste .tarifa-valor,
+html.alto-contraste .tarifa-etiqueta,
+html.alto-contraste .alerta-titulo-formal,
+html.alto-contraste .card-transporte h3 {
+  color: #ffdf00 !important;
 }
 
 html.alto-contraste .tarifa-caja strong,
@@ -2052,4 +2181,109 @@ html.alto-contraste .alerta-servicio strong,
 body.alto-contraste .alerta-servicio strong {
   color: #ffdf00 !important;
 }
+
+/* --- Galería Fotográfica de Territorio y Accesibilidad ------------------- */
+.galeria-card {
+  background: #ffffff;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.galeria-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(23, 60, 73, 0.1);
+}
+
+.galeria-card-img-wrap {
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+  position: relative;
+  background: #eef2ef;
+}
+
+.galeria-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.galeria-card:hover .galeria-card-img {
+  transform: scale(1.03);
+}
+
+.galeria-card-cuerpo {
+  padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+/* En popups de Leaflet: imágenes responsivas */
+.popup-foto-wrap {
+  width: 100%;
+  height: 120px;
+  margin-top: 0.5rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f0f0f0;
+}
+
+.popup-foto-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Alto contraste para la galería territorial */
+html.alto-contraste .galeria-card,
+body.alto-contraste .galeria-card {
+  background: #000 !important;
+  border: 2px solid #ffdf00 !important;
+  color: #fff !important;
+}
+
+html.alto-contraste .galeria-card h3,
+body.alto-contraste .galeria-card h3 {
+  color: #ffdf00 !important;
+}
+
+/* Ajustes de vista móvil para teléfonos pequeños */
+@media (max-width: 576px) {
+  .galeria-card-img-wrap {
+    height: 190px;
+  }
+  .card-transporte {
+    padding: 1.15rem !important;
+    border-radius: 6px;
+  }
+  .badge-linea-formal {
+    font-size: 0.72rem;
+    padding: 0.18rem 0.45rem;
+  }
+  .badge-servicio-formal {
+    font-size: 0.7rem;
+    padding: 0.18rem 0.5rem;
+  }
+  .tarifa-valor {
+    font-size: 0.88rem;
+  }
+  .tarifa-etiqueta {
+    font-size: 0.82rem;
+  }
+  .mapa-contenedor {
+    height: 350px !important;
+    margin: 1rem auto;
+  }
+}
+
+
 

@@ -750,7 +750,7 @@ def _crear_datos_ejemplo():
             "Fondo de Desarrollo Vecinal (FONDEVE)",
             6500000,
             "Actual",
-            "",
+            "/static/img/territorio/escalera_chirimoyo_terreno.jpg",
         ),
         (
             "Instalación de Luminarias Públicas en Calles Tolson y Rebolledo",
@@ -780,7 +780,7 @@ def _crear_datos_ejemplo():
             "Gobierno Regional Valparaíso",
             18000000,
             "Futuro",
-            "",
+            "/static/img/territorio/calle_barros_arana_pendiente.jpg",
         ),
         (
             "Ampliación de la sede vecinal",
