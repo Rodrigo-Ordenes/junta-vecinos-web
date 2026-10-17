@@ -7,9 +7,28 @@
 {% if not coordinadores %}
   <div class="alert alert-info">No hay usuarios con el rol de coordinador registrados en el sistema.</div>
 {% else %}
-  <div class="row g-4">
+  <div class="caja p-3 my-3 panel-filtro-caja panel-filtro-moderno" data-filtro-coordinadores>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-sm-8 col-md-9">
+        <label class="form-label small fw-semibold" for="filtro-nombre-coordinador">Buscar coordinador por nombre</label>
+        <input class="form-control filtro-input-moderno" type="search" id="filtro-nombre-coordinador"
+               placeholder="Escribe el nombre del coordinador…" autocomplete="off">
+      </div>
+      <div class="col-12 col-sm-4 col-md-3 d-flex align-items-end">
+        <button class="btn btn-outline-secondary w-100 filtro-btn-moderno" type="button" id="btn-limpiar-coordinador">
+          Limpiar búsqueda
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sin-coordinadores-filtro" class="caja p-4 my-3 text-center text-muted d-none" role="status" aria-live="polite">
+    No se encontraron coordinadores con ese nombre
+  </div>
+
+  <div class="row g-4" id="lista-coordinadores">
     {% for coord in coordinadores %}
-      <div class="col-12">
+      <div class="col-12" data-coordinador-card data-nombre="{{ coord.nombre }}">
         <div class="caja">
           <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
             <div>

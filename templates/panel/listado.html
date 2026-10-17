@@ -105,6 +105,53 @@
       </div>
     </form>
   </div>
+{% elif recurso == 'usuarios' %}
+  <div class="caja p-3 my-3 panel-filtro-caja panel-filtro-moderno" data-filtro-usuarios>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-6 col-lg-3">
+        <label class="form-label small fw-semibold" for="filtro-usuario-nombre">Buscar por nombre</label>
+        <input class="form-control filtro-input-moderno" type="search" id="filtro-usuario-nombre"
+               placeholder="Escribe un nombre…" autocomplete="off">
+      </div>
+      <div class="col-12 col-sm-6 col-md-6 col-lg-3">
+        <label class="form-label small fw-semibold" for="filtro-usuario-perfil">Perfil</label>
+        <select class="form-select filtro-select-moderno" id="filtro-usuario-perfil">
+          <option value="">Todos los perfiles</option>
+          <option value="administrador">Administrador</option>
+          <option value="coordinador">Coordinador</option>
+          <option value="socio">Socio</option>
+          <option value="comision_revisora">Comisión revisora</option>
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+        <label class="form-label small fw-semibold" for="filtro-usuario-aprobacion">Aprobación</label>
+        <select class="form-select filtro-select-moderno" id="filtro-usuario-aprobacion">
+          <option value="">Todas las aprobaciones</option>
+          <option value="Aprobada">Aprobada</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Rechazada">Rechazada</option>
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+        <label class="form-label small fw-semibold" for="filtro-usuario-activo">Estado activo</label>
+        <select class="form-select filtro-select-moderno" id="filtro-usuario-activo">
+          <option value="">Todos</option>
+          <option value="1">Activos</option>
+          <option value="0">Inactivos</option>
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4 col-lg-2 d-flex align-items-end">
+        <button class="btn btn-outline-secondary w-100 filtro-btn-moderno" type="button" id="btn-limpiar-filtros-usuarios">
+          Limpiar filtros
+        </button>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 pt-2 border-top">
+      <span id="contador-usuarios-encontrados" class="small text-muted fw-semibold" aria-live="polite">
+        Usuarios encontrados: <strong id="numero-usuarios-encontrados">{{ filas|length }}</strong>
+      </span>
+    </div>
+  </div>
 {% endif %}
 
 <div class="table-responsive mt-3">
@@ -117,7 +164,7 @@
     </thead>
     <tbody>
       {% for fila in filas %}
-        <tr>
+        <tr{% if recurso == 'usuarios' %} data-usuario-fila data-nombre="{{ fila['nombre'] }}" data-rol="{{ fila['rol'] }}" data-aprobacion="{{ fila['estado_aprobacion'] }}" data-activo="{{ '1' if fila['activo'] else '0' }}"{% endif %}>
           {% for campo, etiqueta in definicion.columnas %}
             <td>
               {% set valor = fila[campo] %}
@@ -167,6 +214,13 @@
           </td>
         </tr>
       {% endfor %}
+      {% if recurso == 'usuarios' %}
+        <tr id="fila-sin-usuarios-filtro" class="d-none">
+          <td colspan="{{ definicion.columnas|length + 1 }}" class="py-4 text-center text-muted">
+            No se encontraron usuarios con los filtros seleccionados
+          </td>
+        </tr>
+      {% endif %}
     </tbody>
   </table>
 </div>

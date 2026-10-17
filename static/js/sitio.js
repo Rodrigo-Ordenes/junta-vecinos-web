@@ -206,10 +206,139 @@
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", inicializarTelefonos);
-  } else {
+  function normalizarTextoBusqueda(texto) {
+    if (!texto) return "";
+    var str = String(texto).toLowerCase();
+    if (typeof str.normalize === "function") {
+      str = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    return str.trim();
+  }
+
+  function inicializarFiltrosPanel() {
+    // 1. Filtro en tiempo real: Permisos de Coordinación
+    var inputCoord = document.getElementById("filtro-nombre-coordinador");
+    var btnLimpiarCoord = document.getElementById("btn-limpiar-coordinador");
+    var avisoSinCoord = document.getElementById("sin-coordinadores-filtro");
+    var tarjetasCoord = document.querySelectorAll("[data-coordinador-card]");
+
+    if (inputCoord && tarjetasCoord.length > 0) {
+      var filtrarCoordinadores = function () {
+        var termino = normalizarTextoBusqueda(inputCoord.value);
+        var visibles = 0;
+        for (var i = 0; i < tarjetasCoord.length; i++) {
+          var tarjeta = tarjetasCoord[i];
+          var nombre = normalizarTextoBusqueda(tarjeta.getAttribute("data-nombre"));
+          var coincide = !termino || nombre.indexOf(termino) !== -1;
+          tarjeta.classList.toggle("d-none", !coincide);
+          if (coincide) visibles++;
+        }
+        if (avisoSinCoord) {
+          avisoSinCoord.classList.toggle("d-none", visibles > 0);
+        }
+      };
+
+      inputCoord.addEventListener("input", filtrarCoordinadores);
+      inputCoord.addEventListener("search", filtrarCoordinadores);
+
+      if (btnLimpiarCoord) {
+        btnLimpiarCoord.addEventListener("click", function () {
+          inputCoord.value = "";
+          filtrarCoordinadores();
+          inputCoord.focus();
+        });
+      }
+    }
+
+    // 2. Filtros combinados en tiempo real: Usuarios del sistema
+    var inputNombreUsuario = document.getElementById("filtro-usuario-nombre");
+    var selectPerfilUsuario = document.getElementById("filtro-usuario-perfil");
+    var selectAprobacionUsuario = document.getElementById("filtro-usuario-aprobacion");
+    var selectActivoUsuario = document.getElementById("filtro-usuario-activo");
+    var btnLimpiarUsuarios = document.getElementById("btn-limpiar-filtros-usuarios");
+    var numeroUsuariosEl = document.getElementById("numero-usuarios-encontrados");
+    var filaSinUsuarios = document.getElementById("fila-sin-usuarios-filtro");
+    var filasUsuarios = document.querySelectorAll("[data-usuario-fila]");
+
+    if (inputNombreUsuario && selectPerfilUsuario && selectAprobacionUsuario && selectActivoUsuario) {
+      // Agregar dinámicamente otros perfiles que existan en los registros si no están en el selector
+      var perfilesExistentes = {};
+      for (var p = 0; p < selectPerfilUsuario.options.length; p++) {
+        var valOpt = normalizarTextoBusqueda(selectPerfilUsuario.options[p].value);
+        if (valOpt) perfilesExistentes[valOpt] = true;
+      }
+      for (var r = 0; r < filasUsuarios.length; r++) {
+        var rolFila = (filasUsuarios[r].getAttribute("data-rol") || "").trim();
+        var rolNorm = normalizarTextoBusqueda(rolFila);
+        if (rolNorm && !perfilesExistentes[rolNorm]) {
+          perfilesExistentes[rolNorm] = true;
+          var nuevaOpcion = document.createElement("option");
+          nuevaOpcion.value = rolFila;
+          nuevaOpcion.textContent = rolFila.charAt(0).toUpperCase() + rolFila.slice(1).replace(/_/g, " ");
+          selectPerfilUsuario.appendChild(nuevaOpcion);
+        }
+      }
+
+      var filtrarUsuarios = function () {
+        var terminoNombre = normalizarTextoBusqueda(inputNombreUsuario.value);
+        var filtroPerfil = normalizarTextoBusqueda(selectPerfilUsuario.value);
+        var filtroAprobacion = normalizarTextoBusqueda(selectAprobacionUsuario.value);
+        var filtroActivo = selectActivoUsuario.value;
+        var encontrados = 0;
+
+        for (var i = 0; i < filasUsuarios.length; i++) {
+          var fila = filasUsuarios[i];
+          var nombre = normalizarTextoBusqueda(fila.getAttribute("data-nombre"));
+          var rol = normalizarTextoBusqueda(fila.getAttribute("data-rol"));
+          var aprobacion = normalizarTextoBusqueda(fila.getAttribute("data-aprobacion"));
+          var activo = fila.getAttribute("data-activo");
+
+          var coincideNombre = !terminoNombre || nombre.indexOf(terminoNombre) !== -1;
+          var coincidePerfil = !filtroPerfil || rol === filtroPerfil;
+          var coincideAprobacion = !filtroAprobacion || aprobacion === filtroAprobacion;
+          var coincideActivo = !filtroActivo || activo === filtroActivo;
+
+          var mostrar = coincideNombre && coincidePerfil && coincideAprobacion && coincideActivo;
+          fila.classList.toggle("d-none", !mostrar);
+          if (mostrar) encontrados++;
+        }
+
+        if (numeroUsuariosEl) {
+          numeroUsuariosEl.textContent = String(encontrados);
+        }
+        if (filaSinUsuarios && filasUsuarios.length > 0) {
+          filaSinUsuarios.classList.toggle("d-none", encontrados > 0);
+        }
+      };
+
+      inputNombreUsuario.addEventListener("input", filtrarUsuarios);
+      inputNombreUsuario.addEventListener("search", filtrarUsuarios);
+      selectPerfilUsuario.addEventListener("change", filtrarUsuarios);
+      selectAprobacionUsuario.addEventListener("change", filtrarUsuarios);
+      selectActivoUsuario.addEventListener("change", filtrarUsuarios);
+
+      if (btnLimpiarUsuarios) {
+        btnLimpiarUsuarios.addEventListener("click", function () {
+          inputNombreUsuario.value = "";
+          selectPerfilUsuario.value = "";
+          selectAprobacionUsuario.value = "";
+          selectActivoUsuario.value = "";
+          filtrarUsuarios();
+          inputNombreUsuario.focus();
+        });
+      }
+    }
+  }
+
+  function inicializarSitio() {
     inicializarTelefonos();
+    inicializarFiltrosPanel();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inicializarSitio);
+  } else {
+    inicializarSitio();
   }
 
   aplicarPreferencias();
