@@ -1479,9 +1479,50 @@ html.alto-contraste .accesibilidad-tamanio-grupo .btn-accesible {
    -------------------------------------------------------------------------- */
 .panel-filtro-caja {
   background: #ffffff;
-  border: 1px solid var(--crema-borde);
+  border: 1px solid var(--crema-borde, var(--borde));
   border-radius: 10px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.panel-filtro-moderno {
+  border-radius: 0.9rem;
+  border: 1px solid var(--borde);
+  box-shadow: var(--sombra-suave);
+}
+
+.filtro-input-moderno,
+.filtro-select-moderno {
+  border-radius: 0.75rem;
+  border: 1.5px solid var(--borde);
+  min-height: 44px;
+  padding: 0.45rem 0.85rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.filtro-select-moderno {
+  padding-right: 2.2rem;
+}
+
+.filtro-input-moderno:focus,
+.filtro-select-moderno:focus {
+  border-color: var(--azul-medio);
+  box-shadow: 0 0 0 3px rgba(40, 122, 117, 0.14);
+}
+
+.filtro-btn-moderno {
+  border-radius: 0.75rem;
+  min-height: 44px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.border-top {
+  border-top: 1px solid var(--borde);
+}
+
+.pt-2 {
+  padding-top: 0.6rem;
 }
 
 /* Alto contraste para nuevos componentes */
@@ -1490,6 +1531,10 @@ html.alto-contraste .directiva-card,
 html.alto-contraste .panel-filtro-caja {
   background: #000000;
   border-color: #ffdf00;
+}
+
+html.alto-contraste .border-top {
+  border-top-color: #ffdf00;
 }
 
 html.alto-contraste .tarjeta-horizontal-titulo,
