@@ -1,0 +1,53 @@
+{# Asistente del inicio. Funciona sin JavaScript (recarga la página con ?q=);
+   con JavaScript, static/js/asistente.js responde sin recargar. #}
+{% set ejemplos = [
+  "Necesito un certificado de residencia",
+  "¿La sede está libre el sábado?",
+  "¿En qué se gastó la plata?",
+  "Busco un gásfiter",
+] %}
+<div class="asistente" data-asistente data-api="{{ url_for('api_asistente') }}">
+  <div class="asistente-encabezado">
+    <span class="asistente-avatar" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M4.5 6.5A2.5 2.5 0 0 1 7 4h10a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 17 16h-6l-4.5 4v-4H7a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M8.5 9.5h.01M12 9.5h.01M15.5 9.5h.01"/></svg>
+    </span>
+    <div>
+      <strong>Asistente del sitio</strong>
+      <p class="mb-0">Escribe con tus palabras lo que buscas y te llevo a la página correcta.</p>
+    </div>
+  </div>
+
+  <div class="asistente-conversacion" data-asistente-conversacion aria-live="polite">
+    {%- if respuesta_asistente %}
+      <div class="asistente-burbuja asistente-vecino">{{ pregunta }}</div>
+      <div class="asistente-burbuja asistente-respuesta{{ ' asistente-alerta' if respuesta_asistente.tipo == 'emergencia' }}">
+        <p>{{ respuesta_asistente.mensaje }}</p>
+        {% if respuesta_asistente.destinos %}
+          <div class="asistente-destinos">
+            {% for d in respuesta_asistente.destinos %}
+              <a class="asistente-destino" href="{{ d.url }}">
+                <span><strong>{{ d.titulo }}</strong><small>{{ d.descripcion }}</small></span>
+                <span class="asistente-flecha" aria-hidden="true">→</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif -%}
+  </div>
+
+  <form class="asistente-form" action="{{ url_for('index') }}#asistente" method="get" role="search">
+    <label for="asistente-pregunta" class="visually-hidden">¿Qué necesitas?</label>
+    <input id="asistente-pregunta" name="q" type="search" maxlength="200" autocomplete="off"
+           placeholder="Ej.: necesito un papel que diga que vivo en el cerro">
+    <button class="btn btn-primary" type="submit">Preguntar</button>
+  </form>
+
+  <div class="asistente-ejemplos">
+    <span class="small text-muted">Prueba con:</span>
+    {% for ejemplo in ejemplos %}
+      <a class="asistente-ejemplo" href="{{ url_for('index', q=ejemplo) }}#asistente" data-pregunta="{{ ejemplo }}">{{ ejemplo }}</a>
+    {% endfor %}
+  </div>
+  <p class="asistente-aviso">No escribas datos personales como tu RUT, dirección o teléfono.</p>
+</div>

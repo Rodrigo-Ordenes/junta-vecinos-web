@@ -946,3 +946,63 @@ def test_panel_cargar_padron_alias(cliente):
     assert resp.status_code == 200
     assert "Carga Masiva del Padrón Oficial" in resp.get_data(as_text=True)
 
+
+
+# --- Asistente del inicio --------------------------------------------------
+@pytest.mark.parametrize(
+    "pregunta, esperado",
+    [
+        ("necesito un papel que diga que vivo aquí", "certificado"),
+        ("sertificado de residensia", "certificado"),
+        ("quiero arrendar la sede para un cumpleaños", "reservar"),
+        ("¿En qué se gastó la plata?", "transparencia"),
+        ("necesito un gásfiter", "rubro:Construcción y oficios"),
+        ("a qué hora pasa la micro", "movilidad"),
+        ("plan maestro", "plan_maestro"),
+        ("juguetes de navidad para mis hijos", "mis_menores"),
+        ("quién es la presidenta", "quienes_somos"),
+        ("ingresar a mi cuenta", "login"),
+    ],
+)
+def test_asistente_entiende_preguntas_comunes(pregunta, esperado):
+    import asistente
+
+    resultado = asistente.sugerir(pregunta)
+    assert resultado["tipo"] == "resultado"
+    assert resultado["destinos"][0]["id"] == esperado
+
+
+def test_asistente_casos_especiales():
+    import asistente
+
+    assert asistente.sugerir("")["tipo"] == "vacio"
+    assert asistente.sugerir("hola")["tipo"] == "saludo"
+    assert asistente.sugerir("muchas gracias")["tipo"] == "gracias"
+    assert asistente.sugerir("asdfgh qwerty")["tipo"] == "sin_resultado"
+    emergencia = asistente.sugerir("me robaron la cartera")
+    assert emergencia["tipo"] == "emergencia" and "133" in emergencia["mensaje"]
+
+
+def test_asistente_todos_los_destinos_existen(app_prueba):
+    import app as modulo
+    import asistente
+
+    with app_prueba.test_request_context():
+        for destino in asistente.DESTINOS:
+            modulo.url_for(destino["endpoint"], **destino.get("args", {}))
+
+
+def test_api_asistente_devuelve_enlaces(cliente):
+    datos = cliente.get("/api/asistente?q=quiero reservar la sede").get_json()
+    assert datos["tipo"] == "resultado"
+    assert datos["destinos"][0]["url"] == "/sede/reservar"
+    rubro = cliente.get("/api/asistente?q=busco un gasfiter").get_json()
+    assert "rubro=Construcci" in rubro["destinos"][0]["url"]
+
+
+def test_inicio_responde_al_asistente_sin_javascript(cliente):
+    texto = cliente.get("/?q=certificado de residencia").get_data(as_text=True)
+    assert "asistente-respuesta" in texto
+    assert 'href="/certificado-residencia"' in texto
+    escapado = cliente.get("/?q=<script>alert(1)</script>").get_data(as_text=True)
+    assert "<script>alert(1)</script>" not in escapado
