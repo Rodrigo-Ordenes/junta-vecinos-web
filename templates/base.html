@@ -6,6 +6,7 @@
 <meta name="description" content="Sitio oficial de la Junta de Vecinos N.° 2 · Cerro Esperanza: noticias, transparencia, proyectos, reservas de la sede y trámites vecinales.">
 <title>{% block title %}Junta de Vecinos N.° 2 · Cerro Esperanza{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% block extra_head %}{% endblock %}
 </head>
 <body>
 
@@ -60,6 +61,7 @@
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">Comunidad</a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('directorio') }}">Servicios Comunales / Emprendimientos</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('movilidad') }}">Movilidad y Accesibilidad</a></li>
             <li><a class="dropdown-item" href="{{ url_for('quienes_somos') }}">Quiénes somos</a></li>
             <li><a class="dropdown-item" href="{{ url_for('historia') }}">Historia y Memoria del Cerro</a></li>
             <li><a class="dropdown-item" href="{{ url_for('como_asociarse') }}">Cómo asociarse</a></li>
@@ -124,6 +126,7 @@
           <li><a href="{{ url_for('transparencia') }}">Transparencia</a></li>
           <li><a href="{{ url_for('documentos') }}">Documentos y estatutos</a></li>
           <li><a href="{{ url_for('directorio') }}">Servicios Comunales / Emprendimientos</a></li>
+          <li><a href="{{ url_for('movilidad') }}">Movilidad y Accesibilidad</a></li>
           <li><a href="{{ url_for('historia') }}">Historia y Memoria del Cerro</a></li>
           <li><a href="{{ url_for('sede') }}">Disponibilidad de la sede</a></li>
           <li><a href="{{ url_for('certificado') }}">Certificado de residencia</a></li>

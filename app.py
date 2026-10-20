@@ -39,6 +39,7 @@ from flask import (
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+import asistente
 import db as base
 import padron
 from db import (
@@ -674,9 +675,34 @@ def index():
         orden="COALESCE(a.id, 0) DESC, p.fecha_actualizacion DESC LIMIT 3",
     )
     semana = semana_de(fecha_hoy())
+    pregunta = (request.args.get("q") or "").strip()
     return render_template(
-        "index.html", noticias=noticias, proyectos=proyectos, semana=semana
+        "index.html", noticias=noticias, proyectos=proyectos, semana=semana,
+        pregunta=pregunta,
+        respuesta_asistente=respuesta_del_asistente(pregunta) if pregunta else None,
     )
+
+
+def respuesta_del_asistente(pregunta):
+    """Sugerencias del asistente del inicio, con los enlaces ya resueltos."""
+    resultado = asistente.sugerir(pregunta)
+    return {
+        "tipo": resultado["tipo"],
+        "mensaje": resultado["mensaje"],
+        "destinos": [
+            {
+                "titulo": d["titulo"],
+                "descripcion": d["respuesta"],
+                "url": url_for(d["endpoint"], **d.get("args", {})),
+            }
+            for d in resultado["destinos"]
+        ],
+    }
+
+
+@app.route("/api/asistente")
+def api_asistente():
+    return jsonify(respuesta_del_asistente(request.args.get("q", "")))
 
 
 @app.route("/noticias")
@@ -1578,6 +1604,11 @@ def historia():
 @app.route("/como-asociarse")
 def como_asociarse():
     return render_template("como_asociarse.html")
+
+
+@app.route("/movilidad")
+def movilidad():
+    return render_template("movilidad.html")
 
 
 @app.route("/contacto", methods=["GET", "POST"])

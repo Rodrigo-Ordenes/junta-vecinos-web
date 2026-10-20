@@ -1,4 +1,8 @@
 {% extends "base.html" %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/asistente.css') }}">
+<script src="{{ url_for('static', filename='js/asistente.js') }}" defer></script>
+{% endblock %}
 {% block content %}
 
 <section class="hero">
@@ -35,8 +39,10 @@
   </div>
 </section>
 
-<section class="container my-4 my-md-5">
+<section class="container my-4 my-md-5" id="asistente">
   <h2 class="section-title h4">¿Qué necesitas hacer hoy?</h2>
+  {% include "_asistente.html" %}
+  <p class="accesos-titulo">O elige un acceso directo:</p>
   <div class="row g-3">
     <div class="col-6 col-md-3">
       <a class="acceso-rapido accion-terracota" href="{{ url_for('certificado') }}">

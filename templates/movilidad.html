@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}Movilidad y Accesibilidad · Junta de Vecinos N.° 2 Cerro Esperanza{% endblock %}
+
+{% block extra_head %}
+<!-- Leaflet.js v1.9.4 CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+{% endblock %}
+
+{% block content %}
+<div class="container my-4 my-md-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="section-title mb-1">Movilidad y Accesibilidad Territorial</h1>
+      <p class="lead mb-0">
+        Información comunitaria de conectividad, transporte público, tarifas y condiciones peatonales en Cerro Esperanza, sustentada en el diagnóstico socioespacial de Geografía PUCV.
+      </p>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">← Volver al inicio</a>
+  </div>
+
+  <!-- Sección Destacada: Mapa Cartográfico Interactivo -->
+  <section class="caja p-3 p-md-4 mb-5 shadow-sm" aria-labelledby="titulo-mapa">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div>
+        <h2 id="titulo-mapa" class="h4 mb-1">Mapa Comunitario de Movilidad y Puntos Críticos</h2>
+        <p class="text-muted small mb-0">
+          Explora los principales equipamientos barriales, paraderos de transporte público y sectores con alertas territoriales identificados en terreno.
+        </p>
+      </div>
+      <div class="d-flex gap-2">
+        <span class="badge bg-primary">Equipamientos</span>
+        <span class="badge bg-success">Transporte</span>
+        <span class="badge bg-danger">Puntos Críticos</span>
+      </div>
+    </div>
+
+    <!-- Contenedor del Mapa Leaflet -->
+    <div id="mapa-comunitario" class="mapa-contenedor shadow-sm" role="region" aria-label="Mapa interactivo de Cerro Esperanza"></div>
+    <p class="text-muted small mb-0">
+      <em>Nota: Haz clic en cada marcador para ver la descripción detallada, recomendaciones y observaciones territoriales.</em>
+    </p>
+  </section>
+
+  <!-- Grilla de Transporte y Tarifas -->
+  <section class="movilidad-seccion my-4" aria-labelledby="titulo-transporte">
+    <div class="row g-4 justify-content-center">
+      
+      <!-- TARJETA 1: MICROBÚS 505 -->
+      <div class="col-12 col-lg-6">
+        <div class="card card-transporte transporte-bus shadow-sm h-100 p-4">
+          <!-- Cabecera de la tarjeta formal -->
+          <div class="card-transporte-header d-flex justify-content-between align-items-start mb-3 pb-3 border-bottom flex-wrap gap-2">
+            <div>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge-linea-formal linea-505">Línea 505</span>
+                <h3 class="h5 mb-0 fw-bold text-dark">Microbús 505</h3>
+              </div>
+              <span class="text-muted small d-block">Transporte Público Mayor · Cerro Esperanza</span>
+            </div>
+            <span class="badge-servicio-formal servicio-troncal">
+              Troncal Cerro
+            </span>
+          </div>
+
+          <!-- Descripción del servicio -->
+          <p class="transporte-descripcion text-secondary small mb-3">
+            Conecta el Cerro Esperanza con el plan de Valparaíso a través de los ejes 
+            <strong>Av. Philippi</strong> y <strong>Av. Barros Arana</strong>.
+          </p>
+
+          <!-- TABLA TARIFARIA FORMAL CUADRADA -->
+          <div class="tarifa-caja p-3 mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-light-subtle">
+              <span class="tarifa-caja-titulo text-uppercase fw-bold text-muted small">Tarifario Oficial</span>
+              <span class="tarifa-vigencia small text-muted">Vigente 2026</span>
+            </div>
+            
+            <div class="tarifa-lista">
+              <div class="tarifa-item d-flex justify-content-between align-items-center py-2 border-bottom border-light-subtle">
+                <div class="tarifa-item-info">
+                  <span class="tarifa-etiqueta fw-semibold text-dark d-block">Hacia el cerro:</span>
+                  <small class="tarifa-subtexto text-muted">Subida desde el plan</small>
+                </div>
+                <div class="tarifa-item-valor">
+                  <span class="tarifa-valor text-success fw-bold">$260</span>
+                </div>
+              </div>
+              <div class="tarifa-item d-flex justify-content-between align-items-center py-2 border-bottom border-light-subtle">
+                <div class="tarifa-item-info">
+                  <span class="tarifa-etiqueta fw-semibold text-dark d-block">Hacia el plan:</span>
+                  <small class="tarifa-subtexto text-muted">Bajada al centro de Valparaíso</small>
+                </div>
+                <div class="tarifa-item-valor">
+                  <span class="tarifa-valor text-success fw-bold">$190</span>
+                </div>
+              </div>
+              <div class="tarifa-item d-flex justify-content-between align-items-center py-2">
+                <div class="tarifa-item-info">
+                  <span class="tarifa-etiqueta fw-semibold text-dark d-block">Tarifa escolar / TNE:</span>
+                  <small class="tarifa-subtexto text-muted">Pase escolar nacional</small>
+                </div>
+                <div class="tarifa-item-valor">
+                  <span class="tarifa-valor text-muted fw-bold">$100 <small class="fw-normal">(aprox.)</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AVISO DE HORARIO INTEGRADO FORMAL -->
+          <div class="alerta-servicio alerta-horario mt-auto p-3">
+            <div class="alerta-titulo-formal fw-bold small text-uppercase mb-1">Aviso de Operación · Horario Límite</div>
+            <p class="alerta-texto text-secondary small mb-0">
+              La última máquina suele iniciar subida desde el plan a las <strong>21:30 hrs</strong>. Posterior a ese horario se recomienda coordinar transporte alternativo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TARJETA 2: LÍNEAS DE COLECTIVOS 6 Y 61 -->
+      <div class="col-12 col-lg-6">
+        <div class="card card-transporte transporte-colectivo shadow-sm h-100 p-4">
+          <!-- Cabecera de la tarjeta formal -->
+          <div class="card-transporte-header d-flex justify-content-between align-items-start mb-3 pb-3 border-bottom flex-wrap gap-2">
+            <div>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge-linea-formal linea-colectivo">Líneas 6 y 61</span>
+                <h3 class="h5 mb-0 fw-bold text-dark">Colectivos Líneas 6 y 61</h3>
+              </div>
+              <span class="text-muted small d-block">Transporte Menor Colectivo · Cerro Esperanza</span>
+            </div>
+            <span class="badge-servicio-formal servicio-colectivo">
+              Servicio Cerro - Plan
+            </span>
+          </div>
+
+          <!-- Descripción del servicio -->
+          <p class="transporte-descripcion text-secondary small mb-3">
+            Servicio continuo desde Calle Brasil / Bellavista, subiendo por 
+            <strong>Av. Barros Arana</strong> hacia las cotas media y alta de la Unidad Vecinal N.º 2.
+          </p>
+
+          <!-- TABLA FRECUENCIA Y CONEXIÓN FORMAL CUADRADA -->
+          <div class="tarifa-caja p-3 mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-light-subtle">
+              <span class="tarifa-caja-titulo text-uppercase fw-bold text-muted small">Frecuencia y Conexión</span>
+              <span class="tarifa-vigencia small text-muted">Horario Hábil</span>
+            </div>
+
+            <div class="tarifa-lista">
+              <div class="tarifa-item d-flex justify-content-between align-items-center py-2 border-bottom border-light-subtle">
+                <div class="tarifa-item-info">
+                  <span class="tarifa-etiqueta fw-semibold text-dark d-block">Horarios punta (mañana):</span>
+                  <small class="tarifa-subtexto text-muted">Mayor flujo hacia el plan</small>
+                </div>
+                <div class="tarifa-item-valor">
+                  <span class="tarifa-valor text-dark fw-bold">07:00 a 09:00 hrs</span>
+                </div>
+              </div>
+              <div class="tarifa-item d-flex justify-content-between align-items-center py-2 border-bottom border-light-subtle">
+                <div class="tarifa-item-info">
+                  <span class="tarifa-etiqueta fw-semibold text-dark d-block">Horarios punta (tarde):</span>
+                  <small class="tarifa-subtexto text-muted">Mayor flujo hacia el cerro</small>
+                </div>
+                <div class="tarifa-item-valor">
+                  <span class="tarifa-valor text-dark fw-bold">18:00 a 20:30 hrs</span>
+                </div>
+              </div>
+              <div class="tarifa-item d-flex justify-content-between align-items-center py-2">
+                <div class="tarifa-item-info">
+                  <span class="tarifa-etiqueta fw-semibold text-dark d-block">Conexión intermodal:</span>
+                  <small class="tarifa-subtexto text-muted">Red tren Limache-Puerto</small>
+                </div>
+                <div class="tarifa-item-valor">
+                  <span class="tarifa-valor text-primary fw-bold">Metro Estación Portales</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AVISO NOCTURNO INTEGRADO FORMAL -->
+          <div class="alerta-servicio alerta-nocturna mt-auto p-3">
+            <div class="alerta-titulo-formal fw-bold small text-uppercase mb-1">Aviso Tarifario · Horario Nocturno</div>
+            <p class="alerta-texto text-secondary small mb-0">
+              Posterior a las <strong>00:00 hrs</strong> rige alza de tarifa nocturna y la frecuencia de circulación disminuye.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Recomendaciones de Accesibilidad y Salud (CESFAM) -->
+  <section class="caja p-4 bg-white border-start border-4 border-danger shadow-sm mb-5" aria-labelledby="titulo-accesibilidad">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-2 border-bottom">
+      <div>
+        <h2 id="titulo-accesibilidad" class="h5 mb-1 fw-bold text-dark">Recomendaciones de Accesibilidad Peatonal y Traslados al CESFAM</h2>
+        <p class="text-secondary small mb-0">
+          Dada la fuerte pendiente topográfica del cerro y el estado actual de peldaños y pasamanos levantado por el equipo de Geografía PUCV, se solicita a la comunidad considerar:
+        </p>
+      </div>
+      <span class="badge text-danger border border-danger-subtle bg-danger-subtle">Salud y Movilidad</span>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <div class="card h-100 p-3 border rounded-2 bg-light-subtle shadow-none">
+          <h3 class="h6 fw-bold mb-2 text-dark">Adultos Mayores y Personas con Movilidad Reducida</h3>
+          <p class="small text-muted mb-0">
+            Para acudir al <strong>CESFAM Cerro Esperanza</strong>, se sugiere encarecidamente utilizar locomoción colectiva o vehículos de apoyo en los tramos de pendiente pronunciada, evitando el descenso a pie por escaleras no pavimentadas o sin baranda.
+          </p>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="card h-100 p-3 border rounded-2 bg-light-subtle shadow-none">
+          <h3 class="h6 fw-bold mb-2 text-dark">Precaución en Días de Lluvia</h3>
+          <p class="small text-muted mb-0">
+            La <strong>Escalera Chirimoyo</strong> y pasajes de adoquín presentan alto riesgo de caídas y resbalones en días húmedos. Utilice calzado con adherencia y prefiera rutas alternativas con iluminación y pavimento continuo.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fotodocumentación Territorial (Geografía PUCV) -->
+  <section class="caja p-4 shadow-sm mb-5" aria-labelledby="titulo-galeria">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div>
+        <h2 id="titulo-galeria" class="h5 mb-1">Registro Fotográfico del Territorio (Geografía PUCV)</h2>
+        <p class="text-muted small mb-0">
+          Evidencia empírica levantada en transectos participativos con vecinas y vecinos de la Unidad Vecinal N.º 2.
+        </p>
+      </div>
+      <span class="badge bg-light text-dark border">Levantamiento en Terreno</span>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="galeria-card shadow-sm">
+          <div class="galeria-card-img-wrap">
+            <img src="{{ url_for('static', filename='img/territorio/escalera_chirimoyo_terreno.jpg') }}" alt="Escalera Chirimoyo" class="galeria-card-img" loading="lazy">
+          </div>
+          <div class="galeria-card-cuerpo">
+            <h3 class="h6 fw-bold mb-1">Escalera Chirimoyo</h3>
+            <p class="small text-muted mb-0">Pendiente pronunciada y desgaste de peldaños en la principal conexión peatonal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="galeria-card shadow-sm">
+          <div class="galeria-card-img-wrap">
+            <img src="{{ url_for('static', filename='img/territorio/micro_505_recorrido.jpg') }}" alt="Recorrido Micro 505" class="galeria-card-img" loading="lazy">
+          </div>
+          <div class="galeria-card-cuerpo">
+            <h3 class="h6 fw-bold mb-1">Eje Micro 505</h3>
+            <p class="small text-muted mb-0">Microbús transitando por la calzada principal del cerro hacia el plan.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="galeria-card shadow-sm">
+          <div class="galeria-card-img-wrap">
+            <img src="{{ url_for('static', filename='img/territorio/paradero_barros_arana.jpg') }}" alt="Refugio peatonal Barros Arana" class="galeria-card-img" loading="lazy">
+          </div>
+          <div class="galeria-card-cuerpo">
+            <h3 class="h6 fw-bold mb-1">Paraderos y Refugios</h3>
+            <p class="small text-muted mb-0">Infraestructura de espera para locomoción mayor y colectivos locales.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="galeria-card shadow-sm">
+          <div class="galeria-card-img-wrap">
+            <img src="{{ url_for('static', filename='img/territorio/transecto_participativo_aspillaga.jpg') }}" alt="Transecto participativo" class="galeria-card-img" loading="lazy">
+          </div>
+          <div class="galeria-card-cuerpo">
+            <h3 class="h6 fw-bold mb-1">Transecto Participativo</h3>
+            <p class="small text-muted mb-0">Equipo de Geografía PUCV recorriendo calles y pasajes de la UV2.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Proyectos Territoriales Relacionados -->
+  <section class="caja p-4 shadow-sm" aria-labelledby="titulo-iniciativas">
+    <h2 id="titulo-iniciativas" class="h5 mb-3">Iniciativas Territoriales en Gestión</h2>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100 bg-white">
+          <span class="badge bg-warning text-dark mb-2">Postulado · FONDEVE</span>
+          <h3 class="h6 mb-1">Reparación Escalera Chirimoyo</h3>
+          <p class="small text-muted mb-0">Instalación de pasamanos ergonómicos y peldaños antideslizantes.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100 bg-white">
+          <span class="badge bg-warning text-dark mb-2">Postulado · FNSP</span>
+          <h3 class="h6 mb-1">Luminarias Tolson y Rebolledo</h3>
+          <p class="small text-muted mb-0">Eliminación de puntos ciegos y refuerzo de seguridad nocturna.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100 bg-white">
+          <span class="badge bg-success mb-2">En ejecución · Municipalidad</span>
+          <h3 class="h6 mb-1">Cortafuegos Quebrada Chirimoyo</h3>
+          <p class="small text-muted mb-0">Desmalezado y erradicación de microbasurales en zonas de ladera.</p>
+        </div>
+      </div>
+    </div>
+    <div class="text-end mt-3">
+      <a href="{{ url_for('proyectos') }}" class="btn btn-sm btn-outline-primary">Ver todos los proyectos comunitarios →</a>
+    </div>
+  </section>
+</div>
+
+<!-- Leaflet.js v1.9.4 Script -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  if (typeof L === "undefined") return;
+
+  // Inicializar el mapa centrado en Cerro Esperanza
+  const centroEsperanza = [-33.0315, -71.5850];
+  const mapa = L.map("mapa-comunitario").setView(centroEsperanza, 16);
+
+  // Capa base de OpenStreetMap
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> | UV2 Cerro Esperanza'
+  }).addTo(mapa);
+
+  // Iconos personalizados con estilos visuales
+  function crearIcono(colorHex, emoji) {
+    return L.divIcon({
+      className: "custom-leaflet-marker",
+      html: '<div style="background-color: ' + colorHex + '; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.35); border: 2px solid #ffffff;">' + emoji + '</div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -18]
+    });
+  }
+
+  const iconoEquipamiento = crearIcono("#1565c0", "🏛️");
+  const iconoSalud = crearIcono("#0d47a1", "🏥");
+  const iconoTransporte = crearIcono("#2e7d32", "🚏");
+  const iconoMetro = crearIcono("#1b5e20", "🚆");
+  const iconoAlerta = crearIcono("#c62828", "⚠️");
+
+  // Definición de hitos territoriales
+  const hitos = [
+    {
+      coords: [-33.0312, -71.5852],
+      titulo: "Sede Vecinal (Los Boldos)",
+      categoria: "Equipamiento",
+      catClass: "popup-cat-equipamiento",
+      icono: iconoEquipamiento,
+      descripcion: "Punto central de trámites vecinales, asambleas comunitarias, operativos de salud y actividades recreativas de la Junta de Vecinos N.° 2."
+    },
+    {
+      coords: [-33.0335, -71.5830],
+      titulo: "CESFAM Cerro Esperanza",
+      categoria: "Equipamiento",
+      catClass: "popup-cat-equipamiento",
+      icono: iconoSalud,
+      descripcion: "Centro de salud familiar. <strong>Aviso:</strong> Pendiente pronunciada; se sugiere transporte para adultos mayores y personas con movilidad reducida."
+    },
+    {
+      coords: [-33.0305, -71.5862],
+      titulo: "Eje Av. Philippi / Barros Arana",
+      categoria: "Transporte",
+      catClass: "popup-cat-transporte",
+      icono: iconoTransporte,
+      foto: "{{ url_for('static', filename='img/territorio/micro_505_recorrido.jpg') }}",
+      descripcion: "Paradas principales de la <strong>Micro 505</strong> ($260 hacia cerro / $190 hacia el plan, corte 21:30) y <strong>Colectivos 6 y 61</strong>."
+    },
+    {
+      coords: [-33.0280, -71.5890],
+      titulo: "Acceso Estación Portales (Metro)",
+      categoria: "Transporte",
+      catClass: "popup-cat-transporte",
+      icono: iconoMetro,
+      descripcion: "Conexión intermodal con el Metro de Valparaíso (cota baja) hacia Viña del Mar y el centro de Valparaíso."
+    },
+    {
+      coords: [-33.0298, -71.5875],
+      titulo: "Escalera Chirimoyo",
+      categoria: "Alerta Crítica",
+      catClass: "popup-cat-alerta",
+      icono: iconoAlerta,
+      foto: "{{ url_for('static', filename='img/territorio/escalera_chirimoyo_terreno.jpg') }}",
+      descripcion: "Pendiente pronunciada, escalones deteriorados y falta de pasamanos continuo. Proyecto postulado a FONDEVE para reparación ergonómica."
+    },
+    {
+      coords: [-33.0328, -71.5880],
+      titulo: "Quebrada Chirimoyo",
+      categoria: "Alerta Crítica",
+      catClass: "popup-cat-alerta",
+      icono: iconoAlerta,
+      descripcion: "Zona de ladera con riesgo de microbasurales y peligro de incendios forestales. Intervención en curso de faja cortafuego comunitaria."
+    },
+    {
+      coords: [-33.0320, -71.5840],
+      titulo: "Calle Tolson y cruce Rebolledo c/ Zambrano",
+      categoria: "Alerta Crítica",
+      catClass: "popup-cat-alerta",
+      icono: iconoAlerta,
+      foto: "{{ url_for('static', filename='img/territorio/cruce_peatonal_barros_arana.jpg') }}",
+      descripcion: "Zonas con déficit de alumbrado público y baja visibilidad nocturna. Proyecto postulado al Fondo Nacional de Seguridad Pública."
+    }
+  ];
+
+  // Añadir marcadores al mapa
+  hitos.forEach(function(h) {
+    let fotoHtml = '';
+    if (h.foto) {
+      fotoHtml = `
+        <div class="popup-foto-wrap">
+          <img src="${h.foto}" alt="${h.titulo}" class="popup-foto-img">
+        </div>
+      `;
+    }
+    const popupHtml = `
+      <div style="min-width: 190px;">
+        <span class="popup-hito-categoria ${h.catClass}">${h.categoria}</span>
+        <div class="popup-hito-titulo">${h.titulo}</div>
+        <p class="mb-1 text-secondary small">${h.descripcion}</p>
+        ${fotoHtml}
+      </div>
+    `;
+    L.marker(h.coords, { icon: h.icono })
+      .addTo(mapa)
+      .bindPopup(popupHtml);
+  });
+});
+</script>
+{% endblock %}
