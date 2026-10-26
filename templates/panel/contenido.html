@@ -20,6 +20,20 @@
   {% endfor %}
   <div class="col-12">
     <button class="btn btn-primary btn-lg" type="submit">Guardar textos</button>
+    <button class="btn btn-outline-secondary btn-lg" type="submit" form="form-correo-prueba">Enviarme un correo de prueba</button>
   </div>
 </form>
+<form id="form-correo-prueba" method="post" action="{{ url_for('panel_correo_prueba') }}"></form>
+
+{% if usuario['rol'] == 'administrador' %}
+<div class="caja mt-4">
+  <h2 class="h5">Respaldo del sitio</h2>
+  <p class="small text-muted mb-2">
+    Descarga una copia completa (base de datos, documentos privados e imágenes). Contiene datos personales de
+    los socios: guárdala en un lugar seguro, por ejemplo un pendrive o Google Drive de la junta, y no la compartas.
+    El hosting además guarda un respaldo automático cada día.
+  </p>
+  <a class="btn btn-outline-primary" href="{{ url_for('panel_respaldo') }}">⬇️ Descargar respaldo completo</a>
+</div>
+{% endif %}
 {% endblock %}

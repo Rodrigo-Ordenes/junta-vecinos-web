@@ -74,17 +74,15 @@ con datos de ejemplo la primera vez.
 > El puerto por defecto es el **5001** porque en macOS el 5000 lo ocupa el «Receptor AirPlay».
 > Para usar otro: `PORT=8000 python app.py`.
 
-### Usuarios iniciales
+### Usuarios iniciales (solo en desarrollo)
 
 | Usuario | Clave | Perfil |
 |---|---|---|
 | `admin` | `esperanza2026` | Administrador |
 | `coordinador` | `esperanza2026` | Coordinador |
 
-> **Importante:** cambiar ambas claves antes de publicar el sitio, desde
-> *Panel → Usuarios del sistema*, o definiendo las variables de entorno
-> `ADMIN_USER`, `ADMIN_PASSWORD`, `COORD_USER`, `COORD_PASSWORD` y `SECRET_KEY`
-> **antes** de la primera ejecución.
+> En producción estas cuentas de prueba no existen: el administrador se crea con las claves de
+> `.env` y el sitio no arranca si faltan (ver «Publicación»).
 
 ---
 
@@ -118,20 +116,91 @@ test_app.py            Pruebas automatizadas
 
 ---
 
-## Publicación
+## Publicación (PythonAnywhere)
 
-1. **Dominio y hosting**: el dominio propuesto es `jv2esperanza.cl`. Sirve cualquier hosting con
-   Python (PythonAnywhere, Render, Railway) o un servidor propio con Gunicorn + Nginx.
-2. Definir `SECRET_KEY`, `ADMIN_PASSWORD` y `COORD_PASSWORD` como variables de entorno.
-3. Servir con Gunicorn en producción:
+Se recomienda **PythonAnywhere, plan Developer (US$10 al mes)**: guarda los archivos de forma
+permanente (la base SQLite no se pierde al actualizar), tiene panel web en vez de consola y permite
+programar el respaldo diario. El plan gratuito sirve para una demo, pero no permite enviar correos
+ni usar un dominio propio. Un dominio `.cl` (opcional) se compra aparte en nic.cl.
+
+### Primera publicación
+
+1. Crear la cuenta en pythonanywhere.com con el correo de la junta y contratar el plan.
+2. Abrir una consola **Bash** (pestaña *Consoles*) y ejecutar:
 
    ```bash
-   pip install gunicorn
-   gunicorn -w 2 -b 0.0.0.0:8000 app:app
+   git clone https://github.com/Rodrigo-Ordenes/junta-vecinos-web.git
+   cd junta-vecinos-web
+   python3.12 -m venv venv && source venv/bin/activate
+   pip install -r requirements.txt
+   cp .env.ejemplo .env && nano .env      # completar claves, correo y DATA_DIR
+   mkdir -p ~/datos-junta
    ```
 
-4. Configurar `DATA_DIR` en un volumen persistente y respaldar periódicamente la base de datos,
-   los comprobantes privados y `static/uploads/`: contienen los datos y archivos del sitio.
+   En `.env`: `DATA_DIR=/home/TU_USUARIO/datos-junta`, una `SECRET_KEY` generada con
+   `python -c "import secrets; print(secrets.token_urlsafe(48))"`, la clave y el correo del
+   administrador y, para los avisos por correo, los datos SMTP (por ejemplo una cuenta Gmail de la
+   junta con *contraseña de aplicación*).
+3. Pestaña **Web → Add a new web app → Manual configuration → Python 3.12**. Luego:
+   - *Virtualenv*: `/home/TU_USUARIO/junta-vecinos-web/venv`
+   - *Static files*: URL `/static/` → carpeta `/home/TU_USUARIO/junta-vecinos-web/static`
+   - *Force HTTPS*: activado.
+   - Editar el *WSGI configuration file* y dejar solo:
+
+     ```python
+     import sys
+     sys.path.insert(0, "/home/TU_USUARIO/junta-vecinos-web")
+     from wsgi import application  # noqa
+     ```
+4. Botón **Reload**. Si algo falla, el motivo aparece en el *error log* de la pestaña Web (por
+   ejemplo, si falta una clave en `.env` el sitio no arranca y lo dice).
+5. Entrar a `/login` con la cuenta de administración, revisar **Textos del sitio** (correo de
+   contacto, aporte de la sede, calles) y usar **«Enviarme un correo de prueba»**.
+6. Cargar el padrón en **Panel → Carga masiva del padrón**: primero con «solo simular», revisar los
+   errores y luego cargarlo de verdad. Cada socio entra con su RUT sin puntos ni guion como usuario
+   y los dígitos del RUT sin dígito verificador como clave; en el primer ingreso debe cambiarla y
+   registrar su correo.
+7. Pestaña **Tasks**: crear una tarea diaria (por ejemplo 04:00) con
+   `cd ~/junta-vecinos-web && venv/bin/python respaldo.py --conservar 30`.
+
+### Actualizar el sitio con una nueva versión
+
+```bash
+cd ~/junta-vecinos-web && venv/bin/python respaldo.py   # respaldo antes de cambiar nada
+git pull && venv/bin/pip install -r requirements.txt
+```
+
+Luego **Reload** en la pestaña Web. Las columnas y tablas nuevas se agregan solas a la base al
+arrancar; no se borra información.
+
+---
+
+## Base de datos: cómo está y cómo cuidarla
+
+- Es **SQLite**: un solo archivo, `junta.db`, dentro de `DATA_DIR` (o `instance/` en desarrollo).
+  Para el tamaño de la junta (cientos de socios, pocas visitas simultáneas) no hace falta un
+  servidor de base de datos aparte.
+- El esquema está en `db.py`. Al iniciar, el sitio crea lo que falte y agrega columnas nuevas
+  automáticamente. Nunca borra ni renombra columnas: un cambio así requiere un script manual y un
+  respaldo previo.
+- En modo producción (`JUNTA_ENTORNO=produccion`) **no se cargan datos de ejemplo** y el sitio se
+  niega a arrancar con las claves de prueba. Sí se cargan una vez los datos base reales (puntos del
+  mapa y el enlace a la Ley 19.418), que luego se administran desde el panel.
+- Los archivos viven en tres lugares, y los tres entran en el respaldo: `junta.db`,
+  `comprobantes_privados/` (documentos de domicilio y respaldos financieros, nunca públicos) y
+  `static/uploads/` (imágenes).
+- **Respaldos**: `respaldo.py` copia la base con la función de respaldo de SQLite (segura con el
+  sitio funcionando) y comprime todo en `DATA_DIR/respaldos/`. Además, el administrador puede
+  descargar un respaldo desde *Textos del sitio*. Conviene guardar una copia fuera del hosting al
+  menos una vez al mes y **probar al menos una vez que se puede restaurar** (instrucciones dentro de
+  `respaldo.py`).
+- **Datos personales**: el padrón, las planillas y `.env` nunca se suben a GitHub (`.gitignore`
+  los excluye). El cargador solo guarda los datos que el sitio usa (no estado civil, nacionalidad
+  ni profesión). La Ley 21.719 de protección de datos rige plenamente desde diciembre de 2026:
+  publicar el aviso de privacidad en *Textos del sitio* y limitar quién tiene cuentas del panel.
+- **Registro de socios (Ley 19.418, art. 15)**: en *Padrón y cumpleaños* se dan de baja socios
+  con su motivo y se descargan el registro vigente (copia de marzo para el secretario municipal) y
+  las altas y bajas del semestre.
 
 ---
 

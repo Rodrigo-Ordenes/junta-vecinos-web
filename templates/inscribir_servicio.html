@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_campos.html" import campo_direccion %}
 {% block title %}Inscribir Emprendimiento · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container my-4 my-md-5">
@@ -21,6 +22,7 @@
       <div class="col-md-6">
         <label class="form-label" for="vecino">Nombre del socio o socia responsable <span class="obligatorio">*</span></label>
         <input class="form-control" type="text" id="vecino" name="vecino" value="{{ datos.vecino or '' }}" required>
+        <div class="form-text">Tomamos tus datos de tu cuenta de socio; puedes ajustarlos.</div>
       </div>
       <div class="col-md-6">
         <label class="form-label" for="rubro">Rubro comercial</label>
@@ -45,8 +47,7 @@
         <input class="form-control" type="email" id="email" name="email" value="{{ datos.email or '' }}">
       </div>
       <div class="col-12">
-        <label class="form-label" for="direccion">Dirección en el cerro (opcional)</label>
-        <input class="form-control" type="text" id="direccion" name="direccion" value="{{ datos.direccion or '' }}" placeholder="Ej: Pasaje Miramar #45">
+        {{ campo_direccion(datos.direccion or '', calles, requerido=false, etiqueta="Dirección en el cerro (opcional)") }}
       </div>
       <div class="col-12">
         <label class="form-label" for="descripcion">¿Qué ofreces o cuál es tu especialidad?</label>

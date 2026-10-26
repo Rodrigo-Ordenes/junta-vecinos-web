@@ -14,9 +14,11 @@ import calendar
 import csv
 import io
 import re
+import hashlib
 import secrets
 import sqlite3
 import shutil
+import tempfile
 import unicodedata
 from urllib.parse import quote
 from datetime import date, datetime, timedelta
@@ -32,24 +34,33 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     send_from_directory,
+    after_this_request,
     session,
     url_for,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 import asistente
+import correo
+import respaldo
 import db as base
 import padron
 from db import (
     CATEGORIAS_DOCUMENTO,
+    CATEGORIAS_MAPA,
     DIAS_SEMANA,
     ESTADOS_CERTIFICADO,
     ESTADOS_PROYECTO,
     ESTADOS_RESERVA,
+    MOTIVOS_BAJA,
+    MOTIVOS_CERTIFICADO,
     ROLES,
     RUBROS_SERVICIO,
+    TIPOS_AVISO,
     consultar,
     ejecutar,
     obtener_config,
@@ -68,12 +79,37 @@ EXTENSIONES_PERMITIDAS = {
     "jpg", "jpeg", "png", "webp", "gif",
 }
 
+CLAVE_SECRETA_DE_DESARROLLO = "cambia-esta-clave-en-produccion"
+CLAVE_INICIAL_DE_DESARROLLO = "esperanza2026"
+
+# Con JUNTA_ENTORNO=produccion el sitio no carga datos de ejemplo y se niega a
+# arrancar con las claves de desarrollo (ver verificar_configuracion_produccion).
+EN_PRODUCCION = os.environ.get("JUNTA_ENTORNO", "").strip().lower() == "produccion"
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "cambia-esta-clave-en-produccion")
+app.config["EN_PRODUCCION"] = EN_PRODUCCION
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", CLAVE_SECRETA_DE_DESARROLLO)
 app.config["ADMIN_USER"] = os.environ.get("ADMIN_USER", "admin")
-app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "esperanza2026")
+app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", CLAVE_INICIAL_DE_DESARROLLO)
+app.config["ADMIN_EMAIL"] = os.environ.get(
+    "ADMIN_EMAIL", "" if EN_PRODUCCION else "admin@ejemplo.cl"
+)
 app.config["COORD_USER"] = os.environ.get("COORD_USER", "coordinador")
-app.config["COORD_PASSWORD"] = os.environ.get("COORD_PASSWORD", "esperanza2026")
+app.config["COORD_PASSWORD"] = os.environ.get("COORD_PASSWORD", CLAVE_INICIAL_DE_DESARROLLO)
+app.config["COORD_EMAIL"] = os.environ.get(
+    "COORD_EMAIL", "" if EN_PRODUCCION else "coordinador@ejemplo.cl"
+)
+# En producción la cuenta de coordinación se crea solo si se definió su clave.
+app.config["CREAR_COORDINADOR"] = not EN_PRODUCCION or "COORD_PASSWORD" in os.environ
+app.config["DATOS_EJEMPLO"] = os.environ.get(
+    "DATOS_EJEMPLO", "0" if EN_PRODUCCION else "1"
+) == "1"
+if EN_PRODUCCION:
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    # El hosting atiende HTTPS y reenvía a la aplicación: así los enlaces de los
+    # correos salen con https:// y el dominio correcto.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por archivo
 app.config["UPLOAD_FOLDER"] = CARPETA_SUBIDAS
 app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.abspath(
@@ -405,7 +441,8 @@ RECURSOS = {
         "tabla": "servicios",
         "orden": "aprobado, nombre_servicio",
         "columnas": [("nombre_servicio", "Servicio"), ("vecino", "Responsable"), ("rubro", "Rubro"),
-                     ("aprobado", "Publicado")],
+                     ("aprobado", "Publicado"), ("activo", "Vigente"),
+                     ("fecha_actualizacion", "Última revisión")],
         "campos": [
             campo("nombre_servicio", "Nombre del servicio", requerido=True),
             campo("vecino", "Socio o socia responsable", requerido=True),
@@ -418,8 +455,54 @@ RECURSOS = {
             campo("foto_url", "Fotografía o imagen del servicio (opcional)", "imagen",
                   ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
             campo("aprobado", "Publicado en servicios comunales", "casilla"),
+            campo("activo", "Vigente (desmárcalo si el vecino dejó de ofrecerlo por un tiempo)",
+                  "casilla", defecto=1),
         ],
         "extra_nuevo": {"fecha_solicitud": lambda: datetime.now().isoformat(timespec="seconds")},
+        "extra_siempre": {"fecha_actualizacion": lambda: datetime.now().isoformat(timespec="seconds")},
+    },
+    "avisos": {
+        "titulo": "Avisos y alertas del sitio",
+        "singular": "aviso",
+        "tabla": "avisos",
+        "orden": "activo DESC, fecha_creacion DESC",
+        "columnas": [("titulo", "Aviso"), ("tipo", "Tipo"), ("fecha_inicio", "Desde"),
+                     ("fecha_fin", "Hasta"), ("activo", "Activo")],
+        "campos": [
+            campo("titulo", "Título", requerido=True,
+                  ayuda="Ej: Corte de agua programado el martes."),
+            campo("mensaje", "Detalle", "textarea", filas=3),
+            campo("tipo", "Tipo", "opciones", opciones=TIPOS_AVISO, requerido=True,
+                  ayuda="«Emergencia» se muestra en rojo; «Importante» en amarillo."),
+            campo("enlace", "Enlace para más información (opcional)"),
+            campo("fecha_inicio", "Mostrar desde (opcional)", "fecha"),
+            campo("fecha_fin", "Mostrar hasta (opcional)", "fecha",
+                  ayuda="Pasada esta fecha el aviso deja de verse solo."),
+            campo("activo", "Activo", "casilla", defecto=1),
+        ],
+        "extra_nuevo": {"fecha_creacion": lambda: datetime.now().isoformat(timespec="seconds")},
+    },
+    "mapa": {
+        "titulo": "Puntos del mapa de movilidad",
+        "singular": "punto del mapa",
+        "tabla": "puntos_mapa",
+        "orden": "orden, titulo",
+        "columnas": [("orden", "Orden"), ("titulo", "Punto"), ("categoria", "Categoría"),
+                     ("activo", "Visible")],
+        "campos": [
+            campo("titulo", "Nombre del punto", requerido=True),
+            campo("categoria", "Categoría", "opciones", opciones=CATEGORIAS_MAPA, requerido=True,
+                  ayuda="Define el ícono y el color del marcador."),
+            campo("descripcion", "Descripción", "textarea", filas=3),
+            campo("direccion", "Dirección o referencia",
+                  ayuda="Escríbela y usa «Buscar en el mapa», o haz clic en el mapa."),
+            campo("latitud", "Latitud", "decimal", requerido=True),
+            campo("longitud", "Longitud", "decimal", requerido=True),
+            campo("foto_url", "Fotografía (opcional)", "imagen",
+                  ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
+            campo("orden", "Orden en la lista", "numero", defecto=0),
+            campo("activo", "Visible en el mapa", "casilla", defecto=1),
+        ],
     },
     "directiva": {
         "titulo": "Directiva",
@@ -483,7 +566,8 @@ RECURSOS = {
         "campos": [
             campo("nombre", "Nombre completo", requerido=True),
             campo("usuario", "Nombre de usuario", requerido=True),
-            campo("email", "Correo"),
+            campo("email", "Correo", "correo", requerido=True,
+                  ayuda="Obligatorio: se usa para avisos y para recuperar la clave."),
             campo("rol", "Perfil", "opciones", opciones=ROLES, requerido=True),
             campo("activo", "Activo", "casilla", defecto=1),
             campo("clave", "Clave", "clave",
@@ -505,6 +589,8 @@ PERMISOS_COORDINADOR = {
     "directorio": "permiso_directorio",
     "servicios": "permiso_directorio",
     "servicios_pendientes": "permiso_directorio",
+    "avisos": "permiso_noticias",
+    "mapa": "permiso_noticias",
     "socios": "permiso_socios",
     "usuarios_pendientes": "permiso_socios",
     "crear_socios": "permiso_socios",
@@ -543,6 +629,8 @@ MENU_PANEL = [
     ]),
     ("Información institucional", [
         ("noticias", "Noticias y actividades", "📢"),
+        ("avisos", "Avisos y alertas del sitio", "🚨"),
+        ("mapa", "Mapa de movilidad", "🗺️"),
         ("documentos", "Documentos", "📚"),
         ("directiva", "Directiva", "👥"),
         ("contenido", "Textos del sitio", "⚙️"),
@@ -590,6 +678,101 @@ def url_panel(clave):
 # ---------------------------------------------------------------------------
 # Contexto común para las plantillas
 # ---------------------------------------------------------------------------
+TIPOS_ACTIVIDAD_SEDE = [
+    "Cumpleaños o celebración familiar", "Reunión comunitaria", "Taller o curso",
+    "Bingo o actividad a beneficio", "Actividad deportiva o recreativa",
+    "Operativo de salud o municipal", "Reunión de organización social",
+]
+
+
+def formato_rut(rut):
+    """«12345678-5» → «12.345.678-5»."""
+    if not rut or "-" not in rut:
+        return rut or ""
+    cuerpo, dv = rut.split("-", 1)
+    return (f"{int(cuerpo):,}".replace(",", ".") if cuerpo.isdigit() else cuerpo) + "-" + dv
+
+
+def nombre_completo(usuario):
+    return " ".join(p for p in (usuario["nombre"], usuario["apellidos"]) if p).strip()
+
+
+def direccion_desde_formulario():
+    """Dirección armada con la lista de calles («calle» + «numero»), o escrita a mano."""
+    escrita = (request.form.get("direccion") or request.form.get("calle_otra") or "").strip()
+    if escrita:
+        return escrita
+    calle = (request.form.get("calle") or "").strip()
+    numero = (request.form.get("numero") or "").strip()
+    return f"{calle} {numero}".strip() if calle else ""
+
+
+def motivo_desde_formulario():
+    tipo = (request.form.get("motivo_tipo") or "").strip()
+    detalle = (request.form.get("motivo") or "").strip()
+    if tipo and detalle:
+        return f"{tipo}: {detalle}"
+    return tipo or detalle
+
+
+def lineas(texto):
+    """Lista de líneas no vacías de un texto configurable (calles, motivos…)."""
+    return [l.strip() for l in str(texto or "").splitlines() if l.strip()]
+
+
+DIAS_REVISION_SERVICIO = 180  # cada seis meses se confirma que el emprendimiento sigue vigente
+
+
+def correo_de_la_solicitud(fila):
+    """Correo escrito en la solicitud o, si no, el de la cuenta que la hizo."""
+    if fila["email"]:
+        return fila["email"]
+    if fila["usuario_id"]:
+        cuenta = consultar("SELECT email FROM usuarios WHERE id = ?", (fila["usuario_id"],), uno=True)
+        return cuenta["email"] if cuenta else ""
+    return ""
+
+
+def avisar_reserva(reserva, estado, observacion):
+    detalle = (
+        f"Tu solicitud de la sede para «{reserva['actividad']}» el {fecha_larga(reserva['fecha'])}, "
+        f"de {reserva['hora_inicio']} a {reserva['hora_fin']}, quedó: {estado}."
+    )
+    if estado == "Aprobada":
+        conf = obtener_config()
+        detalle += "\n\nRecuerda el aporte por el uso de la sede"
+        detalle += f" ({conf['reserva_valor']})." if conf["reserva_valor"] else "."
+    if observacion:
+        detalle += f"\n\nComentario de la directiva: {observacion}"
+    return correo.enviar(correo_de_la_solicitud(reserva), f"Tu reserva de la sede: {estado}", detalle)
+
+
+def avisar_certificado(solicitud, estado, observacion):
+    detalle = f"Tu solicitud de certificado de residencia quedó: {estado}."
+    if estado == "Lista para retiro":
+        conf = obtener_config()
+        detalle += f"\n\nPuedes retirarlo en la sede ({conf['direccion_sede']})."
+    if observacion:
+        detalle += f"\n\nComentario de la directiva: {observacion}"
+    detalle += f"\n\nTu código de seguimiento es {solicitud['codigo_seguimiento']}."
+    return correo.enviar(
+        correo_de_la_solicitud(solicitud), f"Tu certificado de residencia: {estado}", detalle
+    )
+
+
+def avisar_a_la_junta(asunto, texto, endpoint_panel):
+    destino = obtener_config()["email_contacto"]
+    enlace = url_for(endpoint_panel, _external=True)
+    correo.enviar(destino, asunto, f"{texto}\n\nRevísalo en el panel: {enlace}")
+
+
+def total_socios_vigentes():
+    return consultar(
+        "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' AND activo = 1 "
+        "AND fallecido = 0 AND estado_aprobacion = 'Aprobada'", uno=True
+    )["c"]
+
+
 @app.context_processor
 def contexto_global():
     conf = obtener_config()
@@ -622,7 +805,19 @@ def contexto_global():
         for categoria, enlaces in MENU_PANEL
     ]
     menu_visible = [(categoria, enlaces) for categoria, enlaces in menu_visible if enlaces]
+    if not str(conf.get("socios_inscritos") or "").strip():
+        conf["socios_inscritos"] = total_socios_vigentes()
+    hoy = fecha_hoy().isoformat()
+    avisos_vigentes = consultar(
+        "SELECT * FROM avisos WHERE activo = 1 "
+        "AND (fecha_inicio IS NULL OR fecha_inicio = '' OR fecha_inicio <= ?) "
+        "AND (fecha_fin IS NULL OR fecha_fin = '' OR fecha_fin >= ?) "
+        "ORDER BY CASE tipo WHEN 'Emergencia' THEN 0 WHEN 'Importante' THEN 1 ELSE 2 END, "
+        "fecha_creacion DESC LIMIT 3",
+        (hoy, hoy),
+    )
     return {
+        "avisos_vigentes": avisos_vigentes,
         "conf": conf,
         "usuario": usuario,
         "puede": puede,
@@ -1233,9 +1428,9 @@ def reservar():
         "fecha": fecha_param,
         "hora_inicio": hora_ini_param,
         "hora_fin": hora_fin_param,
-        "solicitante": usuario["nombre"] if usuario else "",
+        "solicitante": nombre_completo(usuario) if usuario else "",
         "email": (usuario["email"] if usuario else "") or "",
-        "telefono": "",
+        "telefono": (usuario["telefono"] if usuario else "") or "",
         "actividad": "",
         "personas": "",
         "observacion": "",
@@ -1253,6 +1448,8 @@ def reservar():
         cierre = minutos_de_hora(conf.get("horario_sede_fin", "21:00"))
         if faltan:
             flash("Completa los datos obligatorios del formulario.", "error")
+        elif not request.form.get("acepta_aporte"):
+            flash("Para enviar la solicitud debes aceptar el aporte por el uso de la sede.", "error")
         elif not fecha:
             flash("La fecha no es válida.", "error")
         elif fecha < fecha_hoy():
@@ -1277,7 +1474,8 @@ def reservar():
             ejecutar(
                 "INSERT INTO reservas (fecha, hora_inicio, hora_fin, actividad, solicitante, "
                 "telefono, email, personas, estado, observacion, revisada_por, fecha_solicitud, "
-                "usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, '', ?, ?)",
+                "usuario_id, acepta_aporte) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, '', ?, ?, 1)",
                 (
                     fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
                     datos["actividad"], datos["solicitante"], datos["telefono"],
@@ -1286,6 +1484,12 @@ def reservar():
                     datetime.now().isoformat(timespec="seconds"),
                     usuario["id"] if usuario else None,
                 ),
+            )
+            avisar_a_la_junta(
+                "Nueva solicitud de reserva de la sede",
+                f"{datos['solicitante']} pidió la sede el {fecha_larga(fecha)} de "
+                f"{datos['hora_inicio']} a {datos['hora_fin']} para «{datos['actividad']}».",
+                "panel_reservas",
             )
             flash(
                 "Tu solicitud de reserva fue enviada. El encargado o encargada de la sede la "
@@ -1301,6 +1505,7 @@ def reservar():
         datos=datos,
         disponibilidad_mes=disponibilidad_mes,
         disponibilidad_json=json.dumps(disponibilidad_mes),
+        tipos_actividad=TIPOS_ACTIVIDAD_SEDE,
     )
 
 
@@ -1312,7 +1517,7 @@ def reservar():
 def directorio():
     rubro = request.args.get("rubro") or ""
     busqueda = (request.args.get("q") or "").strip()
-    sql = "SELECT * FROM servicios WHERE aprobado = 1"
+    sql = "SELECT * FROM servicios WHERE aprobado = 1 AND activo = 1"
     params = []
     if rubro in RUBROS_SERVICIO:
         sql += " AND rubro = ?"
@@ -1355,7 +1560,8 @@ def inscribir_servicio():
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip() for k in
                  ("nombre_servicio", "vecino", "rubro", "descripcion", "telefono",
-                  "whatsapp", "email", "direccion")}
+                  "whatsapp", "email")}
+        datos["direccion"] = direccion_desde_formulario()
         telefono = telefono_chile(datos["telefono"])
         whatsapp = telefono_chile(datos["whatsapp"]) if datos["whatsapp"] else ""
         if not datos["nombre_servicio"] or not datos["vecino"] or not datos["telefono"]:
@@ -1367,17 +1573,18 @@ def inscribir_servicio():
         else:
             subida = guardar_archivo("foto", extensiones={"jpg", "jpeg", "png", "webp"})
             foto_url = url_for("static", filename=f"uploads/{subida}") if subida else ""
+            ahora = datetime.now().isoformat(timespec="seconds")
             ejecutar(
                 "INSERT INTO servicios (nombre_servicio, vecino, rubro, descripcion, telefono, "
-                "whatsapp, email, direccion, foto_url, aprobado, fecha_solicitud) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+                "whatsapp, email, direccion, foto_url, aprobado, activo, fecha_solicitud, "
+                "fecha_actualizacion, usuario_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?)",
                 (
                     datos["nombre_servicio"], datos["vecino"],
                     datos["rubro"] if datos["rubro"] in RUBROS_SERVICIO else "Otros",
                     datos["descripcion"], telefono,
                     solo_digitos(whatsapp), datos["email"], datos["direccion"],
-                    foto_url,
-                    datetime.now().isoformat(timespec="seconds"),
+                    foto_url, ahora, ahora, usuario_actual()["id"],
                 ),
             )
             flash(
@@ -1389,12 +1596,16 @@ def inscribir_servicio():
     else:
         usuario = usuario_actual()
         datos = {
-            "vecino": " ".join(
-                p for p in (usuario["nombre"], usuario["apellidos"]) if p
-            ),
+            "vecino": nombre_completo(usuario),
             "telefono": usuario["telefono"] or "",
+            "whatsapp": usuario["telefono"] or "",
+            "email": usuario["email"] or "",
+            "direccion": usuario["direccion"] or "",
         }
-    return render_template("inscribir_servicio.html", rubros=RUBROS_SERVICIO, datos=datos)
+    return render_template(
+        "inscribir_servicio.html", rubros=RUBROS_SERVICIO, datos=datos,
+        calles=lineas(obtener_config()["calles"]),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1418,11 +1629,19 @@ def rut_con_cuenta(rut_crudo):
 def certificado():
     usuario = usuario_actual()
     crear_cuenta = False
-    datos = {"nombre": usuario["nombre"] if usuario else "",
-             "email": (usuario["email"] if usuario else "") or ""}
+    datos = {
+        "nombre": nombre_completo(usuario) if usuario else "",
+        "rut": formato_rut(usuario["rut"]) if usuario and usuario["rut"] else "",
+        "direccion": (usuario["direccion"] if usuario else "") or "",
+        "telefono": (usuario["telefono"] if usuario else "") or "",
+        "email": (usuario["email"] if usuario else "") or "",
+    }
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip() for k in
-                 ("nombre", "rut", "direccion", "telefono", "email", "motivo")}
+                 ("nombre", "rut", "telefono", "email", "motivo_tipo")}
+        datos["direccion"] = direccion_desde_formulario()
+        datos["motivo"] = motivo_desde_formulario()
+        datos["motivo_detalle"] = (request.form.get("motivo") or "").strip()
         crear_cuenta = not usuario and request.form.get("crear_cuenta") == "on"
         nuevo_usuario = (request.form.get("nuevo_usuario") or "").strip()
         nueva_clave = request.form.get("nueva_clave") or ""
@@ -1477,6 +1696,7 @@ def certificado():
             if not archivo_domicilio:
                 return render_template(
                     "certificado.html", datos=datos, crear_cuenta=crear_cuenta,
+                    calles=lineas(obtener_config()["calles"]), motivos=MOTIVOS_CERTIFICADO,
                     requisitos=[r.strip() for r in obtener_config()["requisitos_certificado"].split("\n") if r.strip()],
                 )
             db = base.get_db()
@@ -1528,13 +1748,20 @@ def certificado():
                     "podrás ingresar cuando la directiva la apruebe.",
                     "info",
                 )
+            avisar_a_la_junta(
+                "Nueva solicitud de certificado de residencia",
+                f"Llegó una solicitud de certificado de {datos['nombre']}.",
+                "panel_certificados",
+            )
             session["codigo_seguimiento_reciente"] = codigo
             return redirect(url_for("estado_certificado"))
     requisitos = [
         r.strip() for r in obtener_config()["requisitos_certificado"].split("\n") if r.strip()
     ]
     return render_template(
-        "certificado.html", datos=datos, crear_cuenta=crear_cuenta, requisitos=requisitos
+        "certificado.html", datos=datos, crear_cuenta=crear_cuenta,
+        calles=lineas(obtener_config()["calles"]), motivos=MOTIVOS_CERTIFICADO,
+        requisitos=requisitos,
     )
 
 
@@ -1608,7 +1835,14 @@ def como_asociarse():
 
 @app.route("/movilidad")
 def movilidad():
-    return render_template("movilidad.html")
+    puntos = [
+        {k: fila[k] for k in ("titulo", "categoria", "descripcion", "direccion",
+                              "latitud", "longitud", "foto_url")}
+        for fila in consultar(
+            "SELECT * FROM puntos_mapa WHERE activo = 1 ORDER BY orden, titulo"
+        )
+    ]
+    return render_template("movilidad.html", puntos=puntos)
 
 
 @app.route("/contacto", methods=["GET", "POST"])
@@ -1626,6 +1860,11 @@ def contacto():
                 (datos["nombre"], datos["email"], datos["telefono"], datos["mensaje"],
                  datetime.now().isoformat(timespec="seconds")),
             )
+            avisar_a_la_junta(
+                "Nuevo mensaje desde el sitio",
+                f"{datos['nombre']} escribió por el formulario de contacto.",
+                "panel_mensajes",
+            )
             flash("¡Gracias! Tu mensaje fue enviado a la directiva.", "success")
             return redirect(url_for("contacto"))
     miembros = consultar("SELECT * FROM directiva WHERE email != '' ORDER BY orden")
@@ -1636,16 +1875,31 @@ def contacto():
 # Sesión
 # ---------------------------------------------------------------------------
 RUTAS_SIN_CAMBIO_DE_CLAVE = {"static", "cambiar_clave", "logout"}
+MINUTOS_VALIDEZ_RECUPERACION = 60
+RUTAS_SIN_DATOS_COMPLETOS = RUTAS_SIN_CAMBIO_DE_CLAVE | {"mis_datos"}
+
+
+def perfil_incompleto(usuario):
+    """El correo es obligatorio para todas las cuentas: se usa en las gestiones."""
+    return not (usuario["email"] or "").strip()
 
 
 @app.before_request
 def exigir_cambio_de_clave():
-    """Las cuentas creadas por carga masiva deben cambiar su clave inicial."""
+    """Primer ingreso: primero se cambia la clave inicial y luego se completa el correo.
+
+    Las cuentas del padrón se crean con una clave conocida (los dígitos del RUT) y casi
+    sin correo, por eso ambos pasos son obligatorios antes de usar el sitio.
+    """
     if request.endpoint is None or request.endpoint in RUTAS_SIN_CAMBIO_DE_CLAVE:
         return None
     usuario = usuario_actual()
-    if usuario and usuario["debe_cambiar_clave"]:
+    if not usuario:
+        return None
+    if usuario["debe_cambiar_clave"]:
         return redirect(url_for("cambiar_clave"))
+    if perfil_incompleto(usuario) and request.endpoint not in RUTAS_SIN_DATOS_COMPLETOS:
+        return redirect(url_for("mis_datos"))
     return None
 
 
@@ -1700,6 +1954,8 @@ def registro():
                 "y una clave de al menos 8 caracteres.",
                 "error",
             )
+        elif not padron.PATRON_CORREO.match(datos["email"]):
+            flash("Escribe un correo electrónico válido; lo usamos para avisarte de tus trámites.", "error")
         elif not rut:
             flash("Ingresa un RUT válido, por ejemplo 12.345.678-5.", "error")
         elif clave != confirmar_clave:
@@ -1730,6 +1986,140 @@ def registro():
     return render_template("registro.html", datos=datos)
 
 
+def hash_token(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def problema_con_clave_nueva(usuario, nueva, confirmar):
+    if len(nueva) < 8:
+        return "La clave nueva debe tener al menos 8 caracteres."
+    if nueva != confirmar:
+        return "Las claves nuevas no coinciden."
+    if usuario["rut"] and solo_digitos(nueva) == solo_digitos(usuario["rut"].split("-")[0]):
+        return "La clave no puede ser el número de tu RUT."
+    return None
+
+
+@app.route("/recuperar-clave", methods=["GET", "POST"])
+def recuperar_clave():
+    """Envía un enlace de un solo uso al correo de la cuenta.
+
+    La respuesta es la misma exista o no la cuenta, para no revelar quién está inscrito.
+    """
+    if request.method == "POST":
+        dato = (request.form.get("dato") or "").strip()
+        rut = padron.normalizar_rut(dato)
+        cuenta = None
+        if dato:
+            cuenta = consultar(
+                "SELECT * FROM usuarios WHERE activo = 1 AND estado_aprobacion = 'Aprobada' "
+                "AND email != '' AND (lower(email) = lower(?) OR usuario = ? OR (rut != '' AND rut = ?)) "
+                "LIMIT 1",
+                (dato, dato, rut or "-"),
+            )
+            cuenta = cuenta[0] if cuenta else None
+        if cuenta:
+            token = secrets.token_urlsafe(32)
+            expira = datetime.now() + timedelta(minutes=MINUTOS_VALIDEZ_RECUPERACION)
+            ejecutar(
+                "INSERT INTO recuperaciones_clave (usuario_id, token_hash, expira) VALUES (?, ?, ?)",
+                (cuenta["id"], hash_token(token), expira.isoformat(timespec="seconds")),
+            )
+            enlace = url_for("restablecer_clave", token=token, _external=True)
+            correo.enviar(
+                cuenta["email"], "Restablece tu clave del sitio de la junta",
+                f"Hola {cuenta['nombre']}:\n\nPara elegir una clave nueva abre este enlace "
+                f"(sirve una sola vez durante {MINUTOS_VALIDEZ_RECUPERACION} minutos):\n{enlace}\n\n"
+                f"Tu usuario es: {cuenta['usuario']}\n\nSi no lo pediste, ignora este correo.",
+            )
+        if correo.configurado():
+            flash(
+                "Si los datos corresponden a una cuenta con correo, te enviamos un enlace para "
+                "elegir una clave nueva. Revisa también la carpeta de spam.", "info",
+            )
+        else:
+            flash(
+                "El envío de correos aún no está activo. Pide a la directiva que restablezca "
+                "tu clave desde el panel.", "info",
+            )
+        return redirect(url_for("login"))
+    return render_template("recuperar_clave.html")
+
+
+@app.route("/recuperar-clave/<token>", methods=["GET", "POST"])
+def restablecer_clave(token):
+    solicitud = consultar(
+        "SELECT r.id rid, r.expira, u.* FROM recuperaciones_clave r "
+        "JOIN usuarios u ON u.id = r.usuario_id WHERE r.token_hash = ? AND r.usado = 0",
+        (hash_token(token),), uno=True,
+    )
+    if not solicitud or solicitud["expira"] < datetime.now().isoformat(timespec="seconds"):
+        flash("El enlace ya se usó o venció. Pide uno nuevo.", "error")
+        return redirect(url_for("recuperar_clave"))
+    if request.method == "POST":
+        nueva = request.form.get("clave_nueva") or ""
+        problema = problema_con_clave_nueva(
+            solicitud, nueva, request.form.get("confirmar_clave") or ""
+        )
+        if problema:
+            flash(problema, "error")
+        else:
+            ejecutar(
+                "UPDATE usuarios SET clave_hash = ?, debe_cambiar_clave = 0 WHERE id = ?",
+                (generate_password_hash(nueva), solicitud["id"]),
+            )
+            ejecutar(
+                "UPDATE recuperaciones_clave SET usado = 1 WHERE usuario_id = ?",
+                (solicitud["id"],),
+            )
+            flash("Tu clave fue cambiada. Ya puedes ingresar.", "success")
+            return redirect(url_for("login"))
+    return render_template("restablecer_clave.html", usuario=solicitud["usuario"])
+
+
+@app.route("/panel/respaldo")
+@login_requerido
+def panel_respaldo():
+    """Descarga de un respaldo completo. Contiene datos personales: solo administración."""
+    usuario = usuario_actual()
+    if usuario["rol"] != "administrador":
+        abort(403)
+    temporal = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    temporal.close()
+    respaldo.crear_respaldo(
+        temporal.name, carpeta_privada=carpeta_privada(), carpeta_subidas=carpeta_subidas()
+    )
+
+    @after_this_request
+    def borrar_temporal(respuesta):
+        try:
+            os.remove(temporal.name)
+        except OSError:
+            pass
+        return respuesta
+
+    return send_file(
+        temporal.name, mimetype="application/zip", as_attachment=True,
+        download_name=f"respaldo-junta-{datetime.now().strftime('%Y-%m-%d_%H%M')}.zip",
+    )
+
+
+@app.route("/panel/correo-prueba", methods=["POST"])
+@permiso_requerido("contenido")
+def panel_correo_prueba():
+    usuario = usuario_actual()
+    if not correo.configurado():
+        flash("Falta configurar el envío de correos (variables SMTP_… en el hosting).", "error")
+    elif correo.enviar(
+        usuario["email"], "Prueba de correo del sitio",
+        "Si recibiste este mensaje, el sitio ya puede enviar avisos por correo.",
+    ):
+        flash(f"Enviamos un correo de prueba a {usuario['email']}.", "success")
+    else:
+        flash("El correo no se pudo enviar. Revisa la configuración SMTP y el registro de errores.", "error")
+    return redirect(url_for("panel_contenido"))
+
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -1747,14 +2137,10 @@ def cambiar_clave():
         confirmar = request.form.get("confirmar_clave") or ""
         if not check_password_hash(usuario["clave_hash"], actual):
             flash("La clave actual no es correcta.", "error")
-        elif len(nueva) < 8:
-            flash("La clave nueva debe tener al menos 8 caracteres.", "error")
-        elif nueva != confirmar:
-            flash("Las claves nuevas no coinciden.", "error")
         elif nueva == actual:
             flash("Elige una clave distinta a la actual.", "error")
-        elif usuario["rut"] and solo_digitos(nueva) == solo_digitos(usuario["rut"].split("-")[0]):
-            flash("La clave no puede ser el número de tu RUT.", "error")
+        elif problema_con_clave_nueva(usuario, nueva, confirmar):
+            flash(problema_con_clave_nueva(usuario, nueva, confirmar), "error")
         else:
             ejecutar(
                 "UPDATE usuarios SET clave_hash = ?, debe_cambiar_clave = 0 WHERE id = ?",
@@ -1766,6 +2152,56 @@ def cambiar_clave():
                 else url_for("mis_solicitudes")
             )
     return render_template("cambiar_clave.html", obligatorio=obligatorio)
+
+
+def validar_datos_personales(datos):
+    """Devuelve (datos_limpios, error) para el formulario «Mis datos»."""
+    email = datos.get("email", "").strip()
+    if not padron.PATRON_CORREO.match(email):
+        return None, "Escribe un correo electrónico válido, por ejemplo nombre@gmail.com."
+    telefono = ""
+    if datos.get("telefono", "").strip() not in ("", "+569"):
+        telefono = telefono_chile(datos["telefono"])
+        if not telefono:
+            return None, "Escribe un celular chileno de 9 dígitos, por ejemplo +56912345678."
+    nacimiento = ""
+    if datos.get("fecha_nacimiento"):
+        fecha = a_fecha(datos["fecha_nacimiento"])
+        if not fecha or fecha >= fecha_hoy() or fecha.year < 1900:
+            return None, "Revisa la fecha de nacimiento."
+        nacimiento = fecha.isoformat()
+    return {"email": email, "telefono": telefono, "fecha_nacimiento": nacimiento}, None
+
+
+@app.route("/cuenta/datos", methods=["GET", "POST"])
+@login_requerido
+def mis_datos():
+    usuario = usuario_actual()
+    obligatorio = perfil_incompleto(usuario)
+    datos = {
+        "email": usuario["email"] or "",
+        "telefono": usuario["telefono"] or "",
+        "fecha_nacimiento": usuario["fecha_nacimiento"] or "",
+    }
+    if request.method == "POST":
+        datos = {k: (request.form.get(k) or "").strip() for k in datos}
+        limpios, error = validar_datos_personales(datos)
+        if error:
+            flash(error, "error")
+        else:
+            ejecutar(
+                "UPDATE usuarios SET email = ?, telefono = ?, fecha_nacimiento = ? WHERE id = ?",
+                (limpios["email"], limpios["telefono"], limpios["fecha_nacimiento"], usuario["id"]),
+            )
+            flash("Tus datos fueron guardados.", "success")
+            return redirect(
+                url_for("panel") if puede_entrar_al_panel(usuario)
+                else url_for("mis_solicitudes")
+            )
+    return render_template(
+        "mis_datos.html", datos=datos, obligatorio=obligatorio, usuario=usuario,
+        es_socio=usuario["rol"] == "socio",
+    )
 
 
 @app.route("/mis-solicitudes")
@@ -1781,9 +2217,37 @@ def mis_solicitudes():
         "WHERE usuario_id = ? ORDER BY fecha_solicitud DESC",
         (usuario["id"],),
     )
-    return render_template(
-        "mis_solicitudes.html", reservas=reservas, certificados=certificados
+    servicios = consultar(
+        "SELECT * FROM servicios WHERE usuario_id = ? ORDER BY nombre_servicio",
+        (usuario["id"],),
     )
+    return render_template(
+        "mis_solicitudes.html", reservas=reservas, certificados=certificados,
+        servicios=servicios,
+    )
+
+
+@app.route("/mis-emprendimientos/<int:servicio_id>/estado", methods=["POST"])
+@login_requerido
+def mi_emprendimiento_estado(servicio_id):
+    usuario = usuario_actual()
+    servicio = consultar(
+        "SELECT * FROM servicios WHERE id = ? AND usuario_id = ?",
+        (servicio_id, usuario["id"]), uno=True,
+    )
+    if not servicio:
+        abort(404)
+    accion = request.form.get("accion")
+    activo = {"pausar": 0, "reactivar": 1}.get(accion, servicio["activo"])
+    ejecutar(
+        "UPDATE servicios SET activo = ?, fecha_actualizacion = ? WHERE id = ?",
+        (activo, datetime.now().isoformat(timespec="seconds"), servicio_id),
+    )
+    flash({
+        "pausar": "Pausamos la publicación de tu emprendimiento.",
+        "reactivar": "Tu emprendimiento vuelve a mostrarse en el directorio.",
+    }.get(accion, "Gracias por confirmar que tu emprendimiento sigue vigente."), "success")
+    return redirect(url_for("mis_solicitudes"))
 
 
 # ---------------------------------------------------------------------------
@@ -1922,17 +2386,150 @@ def panel_censo_exportar():
 
 
 # ---------------------------------------------------------------------------
+# Registro de socios (Ley 19.418, art. 15): bajas y copias para la municipalidad
+# ---------------------------------------------------------------------------
+def semestre_de(dia):
+    """Primer y último día del semestre que contiene ``dia``."""
+    if dia.month <= 6:
+        return date(dia.year, 1, 1), date(dia.year, 6, 30)
+    return date(dia.year, 7, 1), date(dia.year, 12, 31)
+
+
+def respuesta_csv(nombre_archivo, encabezados, filas):
+    salida = io.StringIO()
+    escritor = csv.writer(salida, delimiter=";", lineterminator="\r\n")
+    escritor.writerow(encabezados)
+    for fila in filas:
+        escritor.writerow([celda_segura(c) for c in fila])
+    return Response(
+        "\ufeff" + salida.getvalue(), mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={nombre_archivo}"},
+    )
+
+
+@app.route("/panel/socios/<int:socio_id>/baja", methods=["POST"])
+@requiere_permiso("socios")
+def panel_socio_baja(socio_id):
+    socio = consultar(
+        "SELECT * FROM usuarios WHERE id = ? AND rol = 'socio'", (socio_id,), uno=True
+    )
+    if not socio:
+        abort(404)
+    motivo = request.form.get("motivo_baja")
+    fecha = a_fecha(request.form.get("fecha_baja")) or fecha_hoy()
+    if motivo not in MOTIVOS_BAJA:
+        flash("Elige el motivo de la baja.", "error")
+    else:
+        ejecutar(
+            "UPDATE usuarios SET activo = 0, fecha_baja = ?, motivo_baja = ?, "
+            "fallecido = CASE WHEN ? = 'Fallecimiento' THEN 1 ELSE fallecido END WHERE id = ?",
+            (fecha.isoformat(), motivo, motivo, socio_id),
+        )
+        flash(f"{nombre_completo(socio)} quedó de baja del registro ({motivo.lower()}).", "success")
+    return redirect(request.referrer or url_for("panel_socios"))
+
+
+@app.route("/panel/socios/<int:socio_id>/reincorporar", methods=["POST"])
+@requiere_permiso("socios")
+def panel_socio_reincorporar(socio_id):
+    socio = consultar(
+        "SELECT * FROM usuarios WHERE id = ? AND rol = 'socio'", (socio_id,), uno=True
+    )
+    if not socio:
+        abort(404)
+    ejecutar(
+        "UPDATE usuarios SET activo = 1, fallecido = 0, fecha_baja = '', motivo_baja = '', "
+        "estado_aprobacion = 'Aprobada', fecha_ingreso = ? WHERE id = ?",
+        (fecha_hoy().isoformat(), socio_id),
+    )
+    flash(f"{nombre_completo(socio)} fue reincorporado/a al registro.", "success")
+    return redirect(request.referrer or url_for("panel_socios"))
+
+
+@app.route("/panel/socios/registro.csv")
+@requiere_permiso("socios")
+def panel_socios_registro():
+    """Copia del registro vigente (la ley pide entregarla al secretario municipal en marzo)."""
+    socios = consultar(
+        "SELECT * FROM usuarios WHERE rol = 'socio' AND activo = 1 AND fallecido = 0 "
+        "AND estado_aprobacion = 'Aprobada' "
+        "ORDER BY CAST(numero_socio AS INTEGER), numero_socio, apellidos, nombre"
+    )
+    return respuesta_csv(
+        f"registro_socios_{fecha_hoy().isoformat()}.csv",
+        ["N° socio", "Nombre", "Apellidos", "RUT", "Domicilio", "Fecha de ingreso"],
+        [(s["numero_socio"], s["nombre"], s["apellidos"], formato_rut(s["rut"]),
+          s["direccion"], s["fecha_ingreso"]) for s in socios],
+    )
+
+
+@app.route("/panel/socios/altas-bajas.csv")
+@requiere_permiso("socios")
+def panel_socios_altas_bajas():
+    """Incorporaciones y retiros de un período (certificación semestral, art. 15)."""
+    inicio, fin = semestre_de(fecha_hoy())
+    desde = a_fecha(request.args.get("desde")) or inicio
+    hasta = a_fecha(request.args.get("hasta")) or fin
+    rango = (desde.isoformat(), hasta.isoformat())
+    altas = consultar(
+        "SELECT * FROM usuarios WHERE rol = 'socio' AND length(fecha_ingreso) = 10 "
+        "AND fecha_ingreso BETWEEN ? AND ? ORDER BY fecha_ingreso", rango,
+    )
+    bajas = consultar(
+        "SELECT * FROM usuarios WHERE rol = 'socio' AND fecha_baja != '' "
+        "AND fecha_baja BETWEEN ? AND ? ORDER BY fecha_baja", rango,
+    )
+    filas = [("Incorporación", s["fecha_ingreso"], "", s["numero_socio"], nombre_completo(s),
+              formato_rut(s["rut"]), s["direccion"]) for s in altas]
+    filas += [("Retiro", s["fecha_baja"], s["motivo_baja"], s["numero_socio"], nombre_completo(s),
+               formato_rut(s["rut"]), s["direccion"]) for s in bajas]
+    return respuesta_csv(
+        f"altas_y_bajas_{desde.isoformat()}_a_{hasta.isoformat()}.csv",
+        ["Movimiento", "Fecha", "Motivo", "N° socio", "Nombre", "RUT", "Domicilio"], filas,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Padrón de socios, cumpleaños y carga masiva
 # ---------------------------------------------------------------------------
 def cumpleaneros_de(dia):
-    """Socios vivos y activos que cumplen años en el día indicado."""
+    """Socios vivos y activos que cumplen años en el día indicado.
+
+    En años no bisiestos, quienes nacieron un 29 de febrero se saludan el 28.
+    """
+    dias = [dia.strftime("%m-%d")]
+    if dia.month == 2 and dia.day == 28 and not calendar.isleap(dia.year):
+        dias.append("02-29")
+    marcas = ", ".join("?" for _ in dias)
     return consultar(
         "SELECT id, nombre, apellidos, numero_socio, telefono, fecha_nacimiento "
         "FROM usuarios WHERE rol = 'socio' AND fallecido = 0 AND activo = 1 "
         "AND fecha_nacimiento IS NOT NULL AND fecha_nacimiento != '' "
-        "AND strftime('%m-%d', fecha_nacimiento) = ? ORDER BY nombre, apellidos",
-        (dia.strftime("%m-%d"),),
+        f"AND strftime('%m-%d', fecha_nacimiento) IN ({marcas}) ORDER BY nombre, apellidos",
+        tuple(dias),
     )
+
+
+VISTAS_CUMPLEANOS = {
+    "ayer": ("Ayer", -1, 1),
+    "hoy": ("Hoy", 0, 1),
+    "manana": ("Mañana", 1, 1),
+    "semana": ("Próximos 7 días", 0, 7),
+}
+
+
+def cumpleaneros_en(vista, hoy):
+    """Cumpleañeros de la vista elegida, cada uno con el día que celebra."""
+    _, desde, cantidad = VISTAS_CUMPLEANOS[vista]
+    resultado = []
+    for paso in range(cantidad):
+        dia = hoy + timedelta(days=desde + paso)
+        for socio in cumpleaneros_de(dia):
+            resultado.append({
+                "datos": socio, "dia": dia, "edad": edad_en(socio["fecha_nacimiento"], dia),
+                "whatsapp": enlace_cumpleanos(socio),
+            })
+    return resultado
 
 
 def enlace_cumpleanos(socio):
@@ -1959,14 +2556,18 @@ def panel_socios():
         f"SELECT * {sql} ORDER BY apellidos, nombre LIMIT 500", tuple(parametros)
     )
     hoy = fecha_hoy()
-    cumpleaneros = [
-        {"datos": c, "edad": edad_en(c["fecha_nacimiento"], hoy),
-         "whatsapp": enlace_cumpleanos(c)}
-        for c in cumpleaneros_de(hoy)
-    ]
+    vista = request.args.get("cumple", "hoy")
+    if vista not in VISTAS_CUMPLEANOS:
+        vista = "hoy"
+    sin_nacimiento = consultar(
+        "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' AND activo = 1 AND fallecido = 0 "
+        "AND (fecha_nacimiento IS NULL OR fecha_nacimiento = '')", uno=True,
+    )["c"]
     return render_template(
         "panel/socios.html", socios=socios, total=total, busqueda=busqueda,
-        cumpleaneros=cumpleaneros, hoy=hoy,
+        cumpleaneros=cumpleaneros_en(vista, hoy), hoy=hoy, vista=vista,
+        vistas=VISTAS_CUMPLEANOS, sin_nacimiento=sin_nacimiento,
+        motivos_baja=MOTIVOS_BAJA, semestre=semestre_de(hoy),
     )
 
 
@@ -2032,6 +2633,12 @@ def panel():
         "cumpleaneros_hoy": (
             len(cumpleaneros_de(fecha_hoy())) if puede("socios", usuario) else None
         ),
+        "servicios_por_revisar": contar(
+            "servicios",
+            "SELECT COUNT(*) c FROM servicios WHERE aprobado = 1 AND activo = 1 "
+            "AND COALESCE(NULLIF(fecha_actualizacion, ''), fecha_solicitud) < ?",
+            ((datetime.now() - timedelta(days=DIAS_REVISION_SERVICIO)).isoformat(),),
+        ),
     }
     proximas = []
     if puede("reservas", usuario):
@@ -2065,8 +2672,10 @@ def panel_usuario_aprobar(usuario_id):
     if not usuario:
         abort(404)
     ejecutar(
-        "UPDATE usuarios SET estado_aprobacion = 'Aprobada', activo = 1 WHERE id = ?",
-        (usuario_id,),
+        "UPDATE usuarios SET estado_aprobacion = 'Aprobada', activo = 1, "
+        "fecha_ingreso = CASE WHEN fecha_ingreso IS NULL OR fecha_ingreso = '' "
+        "THEN ? ELSE fecha_ingreso END WHERE id = ?",
+        (fecha_hoy().isoformat(), usuario_id),
     )
     flash("La cuenta de socio fue validada y ya puede ingresar.", "success")
     return redirect(url_for("panel_usuarios_pendientes"))
@@ -2102,13 +2711,14 @@ def panel_crear_socio():
             aprobado = actor["rol"] == "administrador"
             ejecutar(
                 "INSERT INTO usuarios (nombre, apellidos, usuario, email, clave_hash, rol, activo, "
-                "estado_aprobacion, fecha_creacion, rut, numero_socio) "
-                "VALUES (?, ?, ?, ?, ?, 'socio', ?, ?, ?, ?, ?)",
+                "estado_aprobacion, fecha_creacion, rut, numero_socio, fecha_ingreso) "
+                "VALUES (?, ?, ?, ?, ?, 'socio', ?, ?, ?, ?, ?, ?)",
                 (
                     datos["nombre"], datos["apellidos"], datos["usuario"], datos["email"],
                     generate_password_hash(clave), int(aprobado),
                     "Aprobada" if aprobado else "Pendiente",
                     datetime.now().isoformat(timespec="seconds"), rut, datos["numero_socio"],
+                    fecha_hoy().isoformat() if aprobado else "",
                 ),
             )
             if aprobado:
@@ -2309,11 +2919,18 @@ def panel_reserva_estado(reserva_id):
     if nuevo not in ESTADOS_RESERVA:
         abort(400)
     usuario = usuario_actual()
+    anterior = consultar("SELECT * FROM reservas WHERE id = ?", (reserva_id,), uno=True)
+    if not anterior:
+        abort(404)
     ejecutar(
         "UPDATE reservas SET estado = ?, observacion = ?, revisada_por = ? WHERE id = ?",
         (nuevo, observacion, usuario["nombre"], reserva_id),
     )
-    flash(f"La reserva quedó marcada como «{nuevo}».", "success")
+    aviso = ""
+    if nuevo != anterior["estado"]:
+        if avisar_reserva(anterior, nuevo, observacion):
+            aviso = " Le avisamos por correo."
+    flash(f"La reserva quedó marcada como «{nuevo}».{aviso}", "success")
     return redirect(request.referrer or url_for("panel_reservas"))
 
 
@@ -2423,11 +3040,18 @@ def panel_certificado_estado(solicitud_id):
     nuevo = request.form.get("estado")
     if nuevo not in ESTADOS_CERTIFICADO:
         abort(400)
+    anterior = consultar("SELECT * FROM certificados WHERE id = ?", (solicitud_id,), uno=True)
+    if not anterior:
+        abort(404)
+    observacion = (request.form.get("observacion") or "").strip()
     ejecutar(
         "UPDATE certificados SET estado = ?, observacion = ? WHERE id = ?",
-        (nuevo, (request.form.get("observacion") or "").strip(), solicitud_id),
+        (nuevo, observacion, solicitud_id),
     )
-    flash("Solicitud actualizada.", "success")
+    aviso = ""
+    if nuevo != anterior["estado"] and avisar_certificado(anterior, nuevo, observacion):
+        aviso = " Le avisamos por correo."
+    flash(f"Solicitud actualizada.{aviso}", "success")
     return redirect(request.referrer or url_for("panel_certificados"))
 
 
@@ -2450,7 +3074,7 @@ def panel_mensaje_leido(mensaje_id):
 
 # --- Textos del sitio -----------------------------------------------------
 CAMPOS_CONTENIDO = [
-    ("socios_inscritos", "Socias y socios inscritos", "texto"),
+    ("socios_inscritos", "Socias y socios inscritos (déjalo vacío para mostrar el total del padrón)", "texto"),
     ("mision", "Misión", "textarea"),
     ("vision", "Visión", "textarea"),
     ("historia", "Reseña de la organización", "textarea"),
@@ -2468,6 +3092,9 @@ CAMPOS_CONTENIDO = [
     ("hitos_historia", "Línea de tiempo (una línea por hito: AAAA | texto)", "textarea"),
     ("como_asociarse", "Cómo asociarse (texto para quienes aún no son socios)", "textarea"),
     ("mensaje_cumpleanos", "Saludo de cumpleaños (use {nombre})", "textarea"),
+    ("reserva_valor", "Monto del aporte por uso de la sede (ej: $10.000 por actividad; vacío si se informa al aprobar)", "texto"),
+    ("reserva_aviso_cobro", "Aviso del aporte por uso de la sede (se muestra al reservar)", "textarea"),
+    ("calles", "Calles y pasajes del territorio (una por línea; se usan en los formularios)", "textarea"),
     ("requisitos_certificado", "Requisitos del certificado (uno por línea)", "textarea"),
     ("aviso_privacidad", "Aviso de privacidad aprobado por la contraparte", "textarea"),
     ("aviso_uso", "Condiciones de uso aprobadas por la contraparte", "textarea"),
@@ -2551,12 +3178,27 @@ def valores_desde_formulario(recurso, fila_actual=None):
             clave = request.form.get(nombre) or ""
             if clave:
                 valores["clave_hash"] = generate_password_hash(clave)
+        elif c["tipo"] == "decimal":
+            crudo = (request.form.get(nombre) or "").strip().replace(",", ".")
+            try:
+                valores[nombre] = float(crudo) if crudo else None
+            except ValueError:
+                valores[nombre] = None
         elif c["tipo"] == "numero" or c.get("valores_numericos"):
             crudo = (request.form.get(nombre) or "").strip()
             valores[nombre] = int(crudo) if crudo.lstrip("-").isdigit() else None
         else:
             valores[nombre] = (request.form.get(nombre) or "").strip()
     return valores
+
+
+def campos_numericos_faltantes(definicion, valores):
+    """Etiquetas de los campos numéricos obligatorios que quedaron vacíos o inválidos."""
+    return [
+        c["etiqueta"] for c in definicion["campos"]
+        if c.get("requerido") and c["tipo"] in ("numero", "decimal")
+        and valores.get(c["nombre"]) is None
+    ]
 
 
 def coordinador_actual():
@@ -2712,6 +3354,12 @@ def panel_nuevo(recurso):
             valores[clave] = generador()
         if recurso == "servicios" and coordinador_actual():
             valores["aprobado"] = 0
+        faltantes = campos_numericos_faltantes(definicion, valores)
+        if faltantes:
+            flash("Revisa estos campos: " + ", ".join(faltantes) + ".", "error")
+            return render_template(
+                "panel/formulario.html", recurso=recurso,
+                definicion=definicion_formulario, fila=None)
         if recurso == "usuarios":
             if "clave_hash" not in valores:
                 flash("Debes escribir una clave para el nuevo usuario.", "error")
@@ -2759,6 +3407,12 @@ def panel_editar(recurso, fila_id):
             valores[clave] = generador()
         if recurso == "servicios" and coordinador_actual():
             valores["aprobado"] = 0
+        faltantes = campos_numericos_faltantes(definicion, valores)
+        if faltantes:
+            flash("Revisa estos campos: " + ", ".join(faltantes) + ".", "error")
+            return render_template(
+                "panel/formulario.html", recurso=recurso,
+                definicion=definicion_formulario, fila=fila)
         asignaciones = ", ".join(f"{k} = ?" for k in valores)
         ejecutar(
             f"UPDATE {definicion['tabla']} SET {asignaciones} WHERE id = ?",
@@ -2881,6 +3535,31 @@ def error_interno(e):  # pragma: no cover
                            mensaje="Ocurrió un error inesperado. Intenta nuevamente."), 500
 
 
+def verificar_configuracion_produccion():
+    """Detiene el arranque si el sitio público quedaría con claves conocidas."""
+    if not app.config["EN_PRODUCCION"]:
+        return
+    problemas = []
+    if app.config["SECRET_KEY"] == CLAVE_SECRETA_DE_DESARROLLO or len(app.config["SECRET_KEY"]) < 32:
+        problemas.append("SECRET_KEY (usa al menos 32 caracteres al azar)")
+    clave = app.config["ADMIN_PASSWORD"]
+    if clave == CLAVE_INICIAL_DE_DESARROLLO or len(clave) < 10:
+        problemas.append("ADMIN_PASSWORD (al menos 10 caracteres, distinta a la de prueba)")
+    if not padron.PATRON_CORREO.match(app.config["ADMIN_EMAIL"] or ""):
+        problemas.append("ADMIN_EMAIL (correo de quien administra el sitio)")
+    if app.config["CREAR_COORDINADOR"] and (
+        app.config["COORD_PASSWORD"] == CLAVE_INICIAL_DE_DESARROLLO
+        or len(app.config["COORD_PASSWORD"]) < 10
+    ):
+        problemas.append("COORD_PASSWORD (al menos 10 caracteres, distinta a la de prueba)")
+    if problemas:
+        raise RuntimeError(
+            "Configuración de producción incompleta. Define estas variables de entorno: "
+            + "; ".join(problemas)
+        )
+
+
+verificar_configuracion_produccion()
 base.init_db(app)
 migrar_comprobantes_privados()
 

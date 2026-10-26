@@ -330,9 +330,27 @@
     }
   }
 
+  // Dirección: si la persona escribe su calle a mano, la lista deja de ser obligatoria.
+  function inicializarDirecciones() {
+    var otras = document.querySelectorAll("[data-calle-otra]");
+    for (var i = 0; i < otras.length; i++) {
+      (function (otra) {
+        var lista = otra.form && otra.form.querySelector("[data-calle]");
+        if (!lista) return;
+        var requerida = lista.required || otra.value.trim() !== "";
+        function sincronizar() {
+          lista.required = requerida && otra.value.trim() === "";
+        }
+        otra.addEventListener("input", sincronizar);
+        sincronizar();
+      })(otras[i]);
+    }
+  }
+
   function inicializarSitio() {
     inicializarTelefonos();
     inicializarFiltrosPanel();
+    inicializarDirecciones();
   }
 
   if (document.readyState === "loading") {

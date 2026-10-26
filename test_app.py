@@ -119,6 +119,7 @@ def test_reserva_se_registra_como_pendiente(cliente, app_prueba):
             "actividad": "Reunión de prueba",
             "solicitante": "Vecina de prueba",
             "telefono": "+56 9 0000 0000",
+            "acepta_aporte": "on",
         },
         follow_redirects=True,
     )
@@ -136,7 +137,7 @@ def test_reserva_rechaza_fecha_pasada(cliente, app_prueba):
         "/sede/reservar",
         data={
             "fecha": ayer.isoformat(), "hora_inicio": "10:00", "hora_fin": "11:00",
-            "actividad": "Actividad en el pasado", "solicitante": "X", "telefono": "1",
+            "actividad": "Actividad en el pasado", "solicitante": "X", "telefono": "1", "acepta_aporte": "on",
         },
     )
     with app_prueba.app_context():
@@ -153,7 +154,7 @@ def test_reserva_detecta_choque_con_actividad_fija(cliente, app_prueba):
         "/sede/reservar",
         data={
             "fecha": lunes.isoformat(), "hora_inicio": "17:00", "hora_fin": "19:00",
-            "actividad": "Choque con adulto mayor", "solicitante": "X", "telefono": "1",
+            "actividad": "Choque con adulto mayor", "solicitante": "X", "telefono": "1", "acepta_aporte": "on",
         },
     )
     with app_prueba.app_context():
@@ -168,7 +169,7 @@ def test_reserva_rechaza_horas_fuera_del_horario_de_sede(cliente, app_prueba):
         "/sede/reservar",
         data={
             "fecha": fecha.isoformat(), "hora_inicio": "08:00", "hora_fin": "09:00",
-            "actividad": "Fuera de horario", "solicitante": "X", "telefono": "1",
+            "actividad": "Fuera de horario", "solicitante": "X", "telefono": "1", "acepta_aporte": "on",
         },
     )
     with app_prueba.app_context():
@@ -601,7 +602,7 @@ def test_montos_y_documentos_financieros_solo_se_muestran_con_cuenta(cliente, ap
     ingresar(vecino)
     vecino.post(
         "/panel/crear-vecino",
-        data={"nombre": "Vecino lector", "usuario": "vecino_lector", "email": "",
+        data={"nombre": "Vecino lector", "usuario": "vecino_lector", "email": "lector@ejemplo.cl",
               "clave": "clave-segura", "confirmar_clave": "clave-segura"},
     )
     vecino.get("/logout")
@@ -1006,3 +1007,331 @@ def test_inicio_responde_al_asistente_sin_javascript(cliente):
     assert 'href="/certificado-residencia"' in texto
     escapado = cliente.get("/?q=<script>alert(1)</script>").get_data(as_text=True)
     assert "<script>alert(1)</script>" not in escapado
+
+
+# --- Versión de entrega: padrón real, perfil, producción y pedidos de la contraparte ---
+import zipfile
+from datetime import date
+from xml.sax.saxutils import escape
+
+
+def xlsx_de_prueba(hojas, filas_vacias=0):
+    """Libro .xlsx mínimo (sin librerías) con varias hojas ``[(nombre, filas)]``."""
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        hojas_xml = "".join(
+            f'<sheet name="{n}" sheetId="{i + 1}" r:id="rId{i + 1}"/>' for i, (n, _) in enumerate(hojas)
+        )
+        z.writestr("xl/workbook.xml", (
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            f"<sheets>{hojas_xml}</sheets></workbook>"))
+        rels = "".join(
+            f'<Relationship Id="rId{i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/'
+            f'2006/relationships/worksheet" Target="worksheets/sheet{i + 1}.xml"/>'
+            for i in range(len(hojas))
+        )
+        z.writestr("xl/_rels/workbook.xml.rels",
+                   f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{rels}</Relationships>')
+        for i, (_, filas) in enumerate(hojas):
+            xml_filas = []
+            for r, fila in enumerate(filas, start=1):
+                celdas = []
+                for c, valor in enumerate(fila):
+                    ref = f"{chr(65 + c)}{r}"
+                    if isinstance(valor, (int, float)):
+                        celdas.append(f'<c r="{ref}"><v>{valor}</v></c>')
+                    elif valor:
+                        celdas.append(f'<c r="{ref}" t="inlineStr"><is><t>{escape(valor)}</t></is></c>')
+                xml_filas.append(f'<row r="{r}">{"".join(celdas)}</row>')
+            for r in range(len(filas) + 1, len(filas) + 1 + filas_vacias):
+                xml_filas.append(f'<row r="{r}"/>')
+            z.writestr(f"xl/worksheets/sheet{i + 1}.xml", (
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                f"<sheetData>{''.join(xml_filas)}</sheetData></worksheet>"))
+    return buf.getvalue()
+
+
+def crear_socio(app_prueba, usuario="socia_prueba", email="socia@ejemplo.cl", **extra):
+    columnas = {
+        "nombre": "Socia", "apellidos": "Prueba", "usuario": usuario, "email": email,
+        "clave_hash": generate_password_hash("clave-socia-123"), "rol": "socio", "activo": 1,
+        "estado_aprobacion": "Aprobada", "fecha_creacion": "2026-10-01T10:00:00",
+    }
+    columnas.update(extra)
+    with app_prueba.app_context():
+        return base.ejecutar(
+            f"INSERT INTO usuarios ({', '.join(columnas)}) VALUES ({', '.join('?' * len(columnas))})",
+            tuple(columnas.values()),
+        )
+
+
+def test_padron_lee_formato_oficial_de_la_junta(cliente, app_prueba):
+    import padron
+
+    resumen = ("total", [["", "Socios"], ["Nombre", "Antes", "Después"], ["Tolson", 10, 24]])
+    oficial = ("ordenado por CORRELATIVO", [
+        ["N°", "Nombres", "Edad", "E. Civil", "Domicilio", "Carnet (RUT)", "F.Ingreso", "correo", "telefono"],
+        [1, "Ana María Rojas Soto", 70, "Casada", "Tolson 12", "11.111.111-1", 2019, "", "+569 11112222"],
+        [2, "Luis Pérez Díaz", 55, "Soltero", "Aspillaga 3", "12.222.222-5", 43831, "luis@ejemplo.cl", ""],
+        [3, "Rut Malo", 40, "Soltero", "Durazno 1", "5.102.500-0", "2015 / 03-04", "", ""],
+    ])
+    contenido = xlsx_de_prueba([resumen, oficial], filas_vacias=2500)
+    registros = padron.leer_padron(contenido, "resultado de padron.xlsx")
+    assert [r["numero_socio"] for r in registros] == ["1", "2", "3"]
+    assert "estado_civil" not in registros[0] and "e_civil" not in registros[0]
+
+    ingresar(cliente)
+    respuesta = cliente.post(
+        "/panel/cargar-padron",
+        data={"archivo": (BytesIO(contenido), "resultado de padron.xlsx")},
+        follow_redirects=True,
+    )
+    assert respuesta.status_code == 200
+    with app_prueba.app_context():
+        ana = base.consultar("SELECT * FROM usuarios WHERE rut = '11111111-1'", uno=True)
+        luis = base.consultar("SELECT * FROM usuarios WHERE rut = '12222222-5'", uno=True)
+        assert ana["nombre"] == "Ana María Rojas Soto" and ana["apellidos"] == ""
+        assert ana["fecha_ingreso"] == "2019" and ana["telefono"] == "+56911112222"
+        assert luis["fecha_ingreso"] == "2020-01-01" and luis["email"] == "luis@ejemplo.cl"
+        assert ana["usuario"] == "111111111" and ana["debe_cambiar_clave"] == 1
+        assert base.consultar("SELECT id FROM usuarios WHERE nombre = 'Rut Malo'", uno=True) is None
+
+
+@pytest.mark.parametrize("valor, esperado", [
+    ("2019", "2019"), ("2019.0", "2019"), ("43831", "2020-01-01"),
+    ("2015 / 03-04", "2015"), ("15-03-2018", "2018-03-15"), ("", ""), ("sin dato", ""),
+])
+def test_fecha_de_ingreso_del_padron(valor, esperado):
+    import padron
+    assert padron.normalizar_fecha_ingreso(valor) == esperado
+
+
+def test_primer_ingreso_exige_cambiar_clave_y_completar_correo(cliente, app_prueba):
+    crear_socio(app_prueba, usuario="111111111", email="", rut="11111111-1",
+                clave_hash=generate_password_hash("11111111"), debe_cambiar_clave=1)
+    ingresar(cliente, "111111111", "11111111")
+    assert cliente.get("/mis-solicitudes").headers["Location"].endswith("/cuenta/clave")
+    cliente.post("/cuenta/clave", data={
+        "clave_actual": "11111111", "clave_nueva": "nueva-clave-segura",
+        "confirmar_clave": "nueva-clave-segura"})
+    assert cliente.get("/mis-solicitudes").headers["Location"].endswith("/cuenta/datos")
+    error = cliente.post("/cuenta/datos", data={"email": "sin-arroba"}, follow_redirects=True)
+    assert "correo electrónico válido" in error.get_data(as_text=True)
+    cliente.post("/cuenta/datos", data={
+        "email": "ana@ejemplo.cl", "telefono": "912345678", "fecha_nacimiento": "1956-03-04"})
+    assert cliente.get("/mis-solicitudes").status_code == 200
+    with app_prueba.app_context():
+        fila = base.consultar("SELECT * FROM usuarios WHERE usuario = '111111111'", uno=True)
+        assert fila["email"] == "ana@ejemplo.cl" and fila["telefono"] == "+56912345678"
+        assert fila["fecha_nacimiento"] == "1956-03-04"
+
+
+def test_produccion_no_arranca_con_claves_de_prueba(app_prueba, monkeypatch):
+    import app as modulo
+
+    monkeypatch.setitem(modulo.app.config, "EN_PRODUCCION", True)
+    with pytest.raises(RuntimeError) as error:
+        modulo.verificar_configuracion_produccion()
+    assert "SECRET_KEY" in str(error.value) and "ADMIN_PASSWORD" in str(error.value)
+    monkeypatch.setitem(modulo.app.config, "SECRET_KEY", "x" * 40)
+    monkeypatch.setitem(modulo.app.config, "ADMIN_PASSWORD", "una-clave-larga-y-real")
+    monkeypatch.setitem(modulo.app.config, "ADMIN_EMAIL", "directiva@ejemplo.cl")
+    monkeypatch.setitem(modulo.app.config, "CREAR_COORDINADOR", False)
+    modulo.verificar_configuracion_produccion()
+
+
+def test_base_de_produccion_sin_datos_de_ejemplo(app_prueba, monkeypatch):
+    import app as modulo
+
+    carpeta = tempfile.mkdtemp()
+    monkeypatch.setattr(base, "INSTANCE_DIR", carpeta)
+    monkeypatch.setattr(base, "DB_PATH", os.path.join(carpeta, "produccion.db"))
+    monkeypatch.setitem(modulo.app.config, "DATOS_EJEMPLO", False)
+    monkeypatch.setitem(modulo.app.config, "CREAR_COORDINADOR", False)
+    base.init_db(modulo.app)
+    with modulo.app.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"] == 0
+        assert base.consultar("SELECT COUNT(*) c FROM movimientos", uno=True)["c"] == 0
+        assert base.consultar("SELECT COUNT(*) c FROM puntos_mapa", uno=True)["c"] > 0
+        assert base.consultar("SELECT id FROM documentos WHERE titulo LIKE '%19.418%'", uno=True)
+        roles = [f["rol"] for f in base.consultar("SELECT rol FROM usuarios")]
+        assert roles == ["administrador"]
+
+
+def test_reserva_exige_aceptar_el_aporte(cliente, app_prueba):
+    fecha = (fecha_local() + timedelta(days=40)).isoformat()
+    datos = {"fecha": fecha, "hora_inicio": "10:00", "hora_fin": "12:00",
+             "actividad": "Reunión sin aporte", "solicitante": "X", "telefono": "+56911112222"}
+    cliente.post("/sede/reservar", data=datos)
+    with app_prueba.app_context():
+        assert base.consultar("SELECT id FROM reservas WHERE actividad = 'Reunión sin aporte'", uno=True) is None
+    cliente.post("/sede/reservar", data=dict(datos, acepta_aporte="on"))
+    with app_prueba.app_context():
+        fila = base.consultar("SELECT * FROM reservas WHERE actividad = 'Reunión sin aporte'", uno=True)
+        assert fila["acepta_aporte"] == 1
+    assert "Aporte por el uso de la sede" in cliente.get("/sede").get_data(as_text=True)
+
+
+def test_formularios_se_autocompletan_y_arman_la_direccion(cliente, app_prueba):
+    crear_socio(app_prueba, rut="11111111-1", direccion="Los Boldos 45", telefono="+56911112222")
+    ingresar(cliente, "socia_prueba", "clave-socia-123")
+    formulario = cliente.get("/certificado-residencia").get_data(as_text=True)
+    assert 'value="11.111.111-1"' in formulario
+    assert '<option value="Los Boldos" selected>' in formulario and 'value="45"' in formulario
+    cliente.post("/certificado-residencia", data={
+        "nombre": "Socia Prueba", "rut": "11.111.111-1", "calle": "Tolson", "numero": "88",
+        "motivo_tipo": "Trabajo", "motivo": "contrato nuevo", "entiendo_revision": "on",
+        "documento_domicilio": (BytesIO(b"boleta"), "boleta.pdf"),
+    })
+    with app_prueba.app_context():
+        fila = base.consultar("SELECT * FROM certificados WHERE nombre = 'Socia Prueba'", uno=True)
+        assert fila["direccion"] == "Tolson 88" and fila["motivo"] == "Trabajo: contrato nuevo"
+
+
+def test_socio_pausa_su_emprendimiento(cliente, app_prueba):
+    socia = crear_socio(app_prueba)
+    ingresar(cliente, "socia_prueba", "clave-socia-123")
+    cliente.post("/inscribir-servicio", data={
+        "nombre_servicio": "Kuchen de la Socia", "vecino": "Socia Prueba", "rubro": "Alimentación",
+        "telefono": "+56911112222", "calle": "Tolson", "numero": "5"})
+    with app_prueba.app_context():
+        servicio = base.consultar("SELECT * FROM servicios WHERE nombre_servicio = 'Kuchen de la Socia'", uno=True)
+        assert servicio["usuario_id"] == socia and servicio["direccion"] == "Tolson 5"
+        base.ejecutar("UPDATE servicios SET aprobado = 1 WHERE id = ?", (servicio["id"],))
+    assert "Kuchen de la Socia" in cliente.get("/directorio").get_data(as_text=True)
+    cliente.post(f"/mis-emprendimientos/{servicio['id']}/estado", data={"accion": "pausar"})
+    assert "Kuchen de la Socia" not in cliente.get("/directorio").get_data(as_text=True)
+    cliente.get("/logout")
+    crear_socio(app_prueba, usuario="otra_socia", email="otra@ejemplo.cl")
+    ingresar(cliente, "otra_socia", "clave-socia-123")
+    ajeno = cliente.post(f"/mis-emprendimientos/{servicio['id']}/estado", data={"accion": "reactivar"})
+    assert ajeno.status_code == 404
+
+
+def test_avisos_del_sitio_respetan_su_vigencia(cliente):
+    ingresar(cliente)
+    hoy = fecha_local()
+    cliente.post("/panel/avisos/nuevo", data={
+        "titulo": "Corte de agua el martes", "tipo": "Importante", "activo": "on"})
+    cliente.post("/panel/avisos/nuevo", data={
+        "titulo": "Aviso vencido", "tipo": "Informativo", "activo": "on",
+        "fecha_fin": (hoy - timedelta(days=1)).isoformat()})
+    inicio = cliente.get("/").get_data(as_text=True)
+    assert "Corte de agua el martes" in inicio and "Aviso vencido" not in inicio
+
+
+def test_mapa_se_administra_desde_el_panel(cliente):
+    ingresar(cliente)
+    sin_coordenadas = cliente.post("/panel/mapa/nuevo", data={
+        "titulo": "Punto sin ubicación", "categoria": "Comercio", "latitud": "", "longitud": ""},
+        follow_redirects=True)
+    assert sin_coordenadas.status_code == 200 and "Revisa estos campos" in sin_coordenadas.get_data(as_text=True)
+    cliente.post("/panel/mapa/nuevo", data={
+        "titulo": "Almacén <b>Don Lucho</b>", "categoria": "Comercio",
+        "latitud": "-33,0301", "longitud": "-71.5870", "activo": "on", "orden": "9"})
+    pagina = cliente.get("/movilidad").get_data(as_text=True)
+    assert "Don Lucho" in pagina and "-33.0301" in pagina
+    assert "<b>Don Lucho</b>" not in pagina
+    assert "Escalera Chirimoyo" in pagina
+
+
+def test_cumpleanos_por_dia_y_semana(cliente, app_prueba):
+    manana = fecha_local() + timedelta(days=1)
+    crear_socio(app_prueba, usuario="cumple", email="c@ejemplo.cl", nombre="Celebra",
+                fecha_nacimiento=manana.replace(year=1960).isoformat())
+    ingresar(cliente)
+    assert "Celebra" not in cliente.get("/panel/socios?cumple=hoy").get_data(as_text=True).split("Filtro de Búsqueda")[0]
+    assert "Celebra" in cliente.get("/panel/socios?cumple=manana").get_data(as_text=True)
+    assert "Celebra" in cliente.get("/panel/socios?cumple=semana").get_data(as_text=True)
+
+
+def test_cumpleanos_29_de_febrero_en_anio_no_bisiesto(app_prueba):
+    import app as modulo
+
+    crear_socio(app_prueba, usuario="bisiesto", email="b@ejemplo.cl", nombre="Bisiesta",
+                fecha_nacimiento="1964-02-29")
+    with app_prueba.test_request_context():
+        assert [s["nombre"] for s in modulo.cumpleaneros_de(date(2027, 2, 28))] == ["Bisiesta"]
+        assert modulo.cumpleaneros_de(date(2028, 2, 28)) == []
+
+
+def test_cambios_de_estado_avisan_por_correo(cliente, app_prueba, monkeypatch):
+    import correo
+
+    enviados = []
+    monkeypatch.setattr(correo, "enviar", lambda a, asunto, cuerpo: enviados.append((a, asunto, cuerpo)) or True)
+    fecha = (fecha_local() + timedelta(days=45)).isoformat()
+    cliente.post("/sede/reservar", data={
+        "fecha": fecha, "hora_inicio": "10:00", "hora_fin": "12:00", "actividad": "Once vecinal",
+        "solicitante": "Vecina", "telefono": "+56911112222", "email": "vecina@ejemplo.cl",
+        "acepta_aporte": "on"})
+    assert any("Nueva solicitud de reserva" in e[1] for e in enviados)
+    with app_prueba.app_context():
+        reserva = base.consultar("SELECT id FROM reservas WHERE actividad = 'Once vecinal'", uno=True)
+    ingresar(cliente)
+    cliente.post(f"/panel/reservas/{reserva['id']}/estado", data={"estado": "Aprobada"})
+    aviso = [e for e in enviados if e[0] == "vecina@ejemplo.cl"]
+    assert aviso and "Aprobada" in aviso[0][1] and "aporte" in aviso[0][2]
+
+
+def test_recuperar_clave_con_enlace_de_un_solo_uso(cliente, app_prueba, monkeypatch):
+    import correo
+
+    enviados = []
+    monkeypatch.setattr(correo, "configurado", lambda: True)
+    monkeypatch.setattr(correo, "enviar", lambda a, asunto, cuerpo: enviados.append(cuerpo) or True)
+    crear_socio(app_prueba, rut="11111111-1")
+    cliente.post("/recuperar-clave", data={"dato": "nadie@ejemplo.cl"})
+    assert enviados == []
+    cliente.post("/recuperar-clave", data={"dato": "11.111.111-1"})
+    enlace = [l for l in enviados[0].splitlines() if "/recuperar-clave/" in l][0]
+    ruta = enlace[enlace.index("/recuperar-clave/"):]
+    assert "La clave no puede ser el número de tu RUT" in cliente.post(ruta, data={
+        "clave_nueva": "11111111", "confirmar_clave": "11111111"}).get_data(as_text=True)
+    cliente.post(ruta, data={"clave_nueva": "otra-clave-nueva", "confirmar_clave": "otra-clave-nueva"})
+    assert cliente.get(ruta).status_code == 302
+    respuesta = ingresar(cliente, "socia_prueba", "otra-clave-nueva")
+    assert "Portal del Socio" in respuesta.get_data(as_text=True)
+
+
+def test_registro_de_socios_bajas_y_descargas(cliente, app_prueba):
+    hoy = fecha_local()
+    crear_socio(app_prueba, usuario="vigente", email="v@ejemplo.cl", nombre="Vigente",
+                numero_socio="10", rut="11111111-1", fecha_ingreso=hoy.isoformat())
+    retirada = crear_socio(app_prueba, usuario="retirada", email="r@ejemplo.cl", nombre="Retirada",
+                           numero_socio="11", rut="12222222-5")
+    ingresar(cliente)
+    cliente.post(f"/panel/socios/{retirada}/baja", data={
+        "motivo_baja": "Cambio de domicilio", "fecha_baja": hoy.isoformat()})
+    registro = cliente.get("/panel/socios/registro.csv").get_data(as_text=True)
+    assert "Vigente" in registro and "11.111.111-1" in registro and "Retirada" not in registro
+    movimientos = cliente.get("/panel/socios/altas-bajas.csv").get_data(as_text=True)
+    assert "Incorporación;" in movimientos and "Retiro;" in movimientos
+    assert "Cambio de domicilio" in movimientos
+    cliente.post(f"/panel/socios/{retirada}/reincorporar")
+    with app_prueba.app_context():
+        fila = base.consultar("SELECT * FROM usuarios WHERE id = ?", (retirada,), uno=True)
+        assert fila["activo"] == 1 and fila["motivo_baja"] == ""
+
+
+def test_respaldo_solo_para_administracion(cliente):
+    ingresar(cliente, "coordinador", "esperanza2026")
+    assert cliente.get("/panel/respaldo").status_code == 403
+    cliente.get("/logout")
+    ingresar(cliente)
+    respuesta = cliente.get("/panel/respaldo")
+    assert respuesta.status_code == 200
+    with zipfile.ZipFile(BytesIO(respuesta.data)) as archivo:
+        assert "junta.db" in archivo.namelist()
+
+
+def test_total_de_socios_sale_del_padron(cliente, app_prueba):
+    crear_socio(app_prueba, usuario="s1", email="s1@ejemplo.cl")
+    crear_socio(app_prueba, usuario="s2", email="s2@ejemplo.cl", fallecido=1)
+    with app_prueba.app_context():
+        total = base.consultar(
+            "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' AND activo = 1 AND fallecido = 0 "
+            "AND estado_aprobacion = 'Aprobada'", uno=True)["c"]
+    assert f'<div class="stat-number">{total}</div>' in cliente.get("/").get_data(as_text=True)

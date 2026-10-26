@@ -8,7 +8,15 @@ Uso desde la línea de comandos (dentro del entorno virtual del proyecto):
 Columnas esperadas (en cualquier orden, con o sin tildes):
 
     numero_socio, rut, nombre, apellidos, direccion, telefono, email,
-    fecha_nacimiento, fallecido
+    fecha_nacimiento, fecha_ingreso, fallecido
+
+Obligatorias: numero_socio, rut y nombre. Si no hay columna de apellidos, el
+nombre completo queda en ``nombre``. También se reconocen los encabezados del
+padrón oficial de la junta («N°», «Nombres», «Carnet (RUT)», «Domicilio»,
+«F.Ingreso», «correo», «telefono»). En un libro con varias hojas se usa la primera
+que tenga columnas de RUT y nombre; las demás columnas (estado civil,
+nacionalidad, profesión, edad) se ignoran a propósito para no guardar datos
+personales que el sitio no necesita.
 
 Cada socio nuevo recibe una cuenta con rol ``socio``. El nombre de usuario es el
 RUT sin puntos ni guion (por ejemplo ``123456789`` o ``12345678k``) y la clave
@@ -33,13 +41,17 @@ from werkzeug.security import generate_password_hash
 
 CAMPOS = (
     "numero_socio", "rut", "nombre", "apellidos", "direccion",
-    "telefono", "email", "fecha_nacimiento", "fallecido",
+    "telefono", "email", "fecha_nacimiento", "fecha_ingreso", "fallecido",
 )
-OBLIGATORIOS = ("numero_socio", "rut", "nombre", "apellidos")
+OBLIGATORIOS = ("numero_socio", "rut", "nombre")
 ALIAS_COLUMNAS = {
     "n_socio": "numero_socio", "nro_socio": "numero_socio", "numero": "numero_socio",
-    "n_de_socio": "numero_socio", "socio": "numero_socio",
-    "run": "rut", "rol_unico_tributario": "rut",
+    "n_de_socio": "numero_socio", "socio": "numero_socio", "n": "numero_socio",
+    "no": "numero_socio", "correlativo": "numero_socio",
+    "run": "rut", "rol_unico_tributario": "rut", "carnet_rut": "rut", "carnet": "rut",
+    "cedula": "rut", "carnet_run": "rut",
+    "f_ingreso": "fecha_ingreso", "fecha_de_ingreso": "fecha_ingreso",
+    "ingreso": "fecha_ingreso",
     "nombres": "nombre", "apellido": "apellidos",
     "domicilio": "direccion", "fono": "telefono", "celular": "telefono",
     "correo": "email", "correo_electronico": "email", "mail": "email",
@@ -47,7 +59,11 @@ ALIAS_COLUMNAS = {
     "fallecida": "fallecido", "difunto": "fallecido",
 }
 TAMANO_MAXIMO_ARCHIVO = 10 * 1024 * 1024
-TAMANO_MAXIMO_XML = 40 * 1024 * 1024
+TAMANO_MAXIMO_XML = 40 * 1024 * 1024  # textos compartidos del libro
+TAMANO_MAXIMO_HOJA = 400 * 1024 * 1024  # una hoja con formato aplicado a filas vacías pesa mucho
+MAXIMO_FILAS = 20000
+FILAS_VACIAS_PARA_CORTAR = 2000  # Excel suele "formatear" un millón de filas vacías
+FILAS_PARA_BUSCAR_ENCABEZADO = 15
 VALORES_VERDADEROS = {"1", "si", "s", "true", "verdadero", "x", "yes", "y"}
 PATRON_CORREO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -135,6 +151,26 @@ def normalizar_fecha(valor):
     return None
 
 
+def normalizar_fecha_ingreso(valor):
+    """Fecha de ingreso al registro: «AAAA-MM-DD» o, si solo se conoce el año, «AAAA».
+
+    El padrón histórico mezcla años sueltos («2019»), fechas y anotaciones como
+    «2019 / 03-15»; de estas últimas se conserva el año.
+    """
+    texto = str(valor or "").strip()
+    if texto.endswith(".0"):
+        texto = texto[:-2]
+    if not texto:
+        return ""
+    if re.fullmatch(r"(19|20)\d\d", texto):
+        return texto
+    fecha = normalizar_fecha(texto)
+    if fecha:
+        return fecha
+    anio = re.match(r"\s*((?:19|20)\d\d)\b", texto)
+    return anio.group(1) if anio else ""
+
+
 def es_verdadero(valor):
     return _sin_acentos(valor).strip().lower() in VALORES_VERDADEROS
 
@@ -170,6 +206,89 @@ def _texto_de(nodo):
     return "".join(t.text or "" for t in nodo.iter() if t.tag.endswith("}t") or t.tag == "t")
 
 
+def _es_etiqueta(elemento, nombre):
+    return elemento.tag == nombre or elemento.tag.endswith("}" + nombre)
+
+
+def _hojas_del_libro(archivo):
+    """Rutas internas de las hojas en el orden en que aparecen en Excel."""
+    nombres = archivo.namelist()
+    try:
+        libro = ET.fromstring(archivo.read("xl/workbook.xml"))
+        relaciones = ET.fromstring(archivo.read("xl/_rels/workbook.xml.rels"))
+    except (KeyError, ET.ParseError):
+        libro = relaciones = None
+    rutas = []
+    if libro is not None:
+        destinos = {
+            r.get("Id"): r.get("Target", "").lstrip("/")
+            for r in relaciones.iter() if _es_etiqueta(r, "Relationship")
+        }
+        for hoja in libro.iter():
+            if not _es_etiqueta(hoja, "sheet"):
+                continue
+            rid = next((v for k, v in hoja.attrib.items() if k.endswith("}id")), None)
+            destino = destinos.get(rid, "")
+            ruta = destino if destino.startswith("xl/") else "xl/" + destino
+            if ruta in nombres:
+                rutas.append(ruta)
+    if not rutas:
+        rutas = sorted(
+            (n for n in nombres if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n)),
+            key=lambda n: int(re.findall(r"\d+", n)[0]),
+        )
+    return rutas
+
+
+def _filas_de_hoja(archivo, ruta, compartidas, limite=None):
+    """Lee una hoja fila por fila sin cargarla completa en memoria."""
+    filas, vacias = [], 0
+    with archivo.open(ruta) as flujo:
+        for _evento, fila in ET.iterparse(flujo):
+            if not _es_etiqueta(fila, "row"):
+                continue
+            valores = {}
+            for celda in fila:
+                if not _es_etiqueta(celda, "c"):
+                    continue
+                tipo = celda.get("t")
+                valor = ""
+                if tipo == "inlineStr":
+                    valor = _texto_de(celda)
+                else:
+                    for hijo in celda:
+                        if _es_etiqueta(hijo, "v"):
+                            valor = hijo.text or ""
+                    if tipo == "s" and valor.isdigit() and int(valor) < len(compartidas):
+                        valor = compartidas[int(valor)]
+                    elif tipo == "b":
+                        valor = "1" if valor == "1" else "0"
+                if str(valor).strip():
+                    valores[_indice_columna(celda.get("r"))] = valor
+            fila.clear()
+            if not valores:
+                vacias += 1
+                if filas and vacias >= FILAS_VACIAS_PARA_CORTAR:
+                    break
+                continue
+            vacias = 0
+            filas.append([valores.get(i, "") for i in range(max(valores) + 1)])
+            if limite and len(filas) >= limite:
+                break
+            if len(filas) > MAXIMO_FILAS:
+                raise ErrorPadron(f"La hoja tiene más de {MAXIMO_FILAS} filas con datos.")
+    return filas
+
+
+def _posicion_encabezado(filas):
+    """Índice de la fila que tiene las columnas obligatorias, o None."""
+    for indice, fila in enumerate(filas[:FILAS_PARA_BUSCAR_ENCABEZADO]):
+        encabezados = {normalizar_encabezado(c) for c in fila}
+        if all(c in encabezados for c in OBLIGATORIOS):
+            return indice
+    return None
+
+
 def _leer_xlsx(contenido):
     try:
         archivo = zipfile.ZipFile(io.BytesIO(contenido))
@@ -177,44 +296,24 @@ def _leer_xlsx(contenido):
         raise ErrorPadron("El archivo .xlsx está dañado o no es un libro de Excel.") from error
     with archivo:
         for info in archivo.infolist():
-            if info.file_size > TAMANO_MAXIMO_XML:
+            limite = TAMANO_MAXIMO_HOJA if info.filename.startswith("xl/worksheets/") else TAMANO_MAXIMO_XML
+            if info.file_size > limite:
                 raise ErrorPadron("El libro de Excel es demasiado grande.")
-        hojas = sorted(
-            (n for n in archivo.namelist() if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n)),
-            key=lambda n: int(re.findall(r"\d+", n)[0]),
-        )
+        hojas = _hojas_del_libro(archivo)
         if not hojas:
             raise ErrorPadron("El libro de Excel no contiene hojas.")
         compartidas = []
         if "xl/sharedStrings.xml" in archivo.namelist():
             raiz = ET.fromstring(archivo.read("xl/sharedStrings.xml"))
-            compartidas = [_texto_de(si) for si in raiz if si.tag.endswith("}si") or si.tag == "si"]
-        raiz = ET.fromstring(archivo.read(hojas[0]))
-
-    filas = []
-    for fila in raiz.iter():
-        if not (fila.tag.endswith("}row") or fila.tag == "row"):
-            continue
-        valores = {}
-        for celda in fila:
-            if not (celda.tag.endswith("}c") or celda.tag == "c"):
-                continue
-            tipo = celda.get("t")
-            valor = ""
-            if tipo == "inlineStr":
-                valor = _texto_de(celda)
-            else:
-                for hijo in celda:
-                    if hijo.tag.endswith("}v") or hijo.tag == "v":
-                        valor = hijo.text or ""
-                if tipo == "s" and valor.isdigit() and int(valor) < len(compartidas):
-                    valor = compartidas[int(valor)]
-                elif tipo == "b":
-                    valor = "1" if valor == "1" else "0"
-            valores[_indice_columna(celda.get("r"))] = valor
-        if valores:
-            filas.append([valores.get(i, "") for i in range(max(valores) + 1)])
-    return filas
+            compartidas = [_texto_de(si) for si in raiz if _es_etiqueta(si, "si")]
+        # Se usa la primera hoja que tenga encabezados de padrón (un libro puede
+        # traer antes hojas de resumen).
+        for ruta in hojas:
+            muestra = _filas_de_hoja(archivo, ruta, compartidas, limite=FILAS_PARA_BUSCAR_ENCABEZADO)
+            posicion = _posicion_encabezado(muestra)
+            if posicion is not None:
+                return _filas_de_hoja(archivo, ruta, compartidas)[posicion:]
+        return _filas_de_hoja(archivo, hojas[0], compartidas)
 
 
 def leer_padron(contenido, nombre_archivo):
@@ -231,6 +330,9 @@ def leer_padron(contenido, nombre_archivo):
     filas = [f for f in filas if any(str(c).strip() for c in f)]
     if not filas:
         raise ErrorPadron("El archivo no tiene datos.")
+    posicion = _posicion_encabezado(filas)
+    if posicion:
+        filas = filas[posicion:]
     encabezados = [normalizar_encabezado(c) for c in filas[0]]
     faltantes = [c for c in OBLIGATORIOS if c not in encabezados]
     if faltantes:
@@ -263,8 +365,8 @@ def validar_registro(registro):
         return None, "número de socio vacío o con caracteres no permitidos", avisos
     if not rut:
         return None, f"RUT inválido ({registro.get('rut') or 'vacío'})", avisos
-    if not nombre or not apellidos:
-        return None, "faltan nombre o apellidos", avisos
+    if not nombre:
+        return None, "falta el nombre", avisos
 
     email = (registro.get("email") or "").strip()
     if email and not PATRON_CORREO.match(email):
@@ -290,6 +392,7 @@ def validar_registro(registro):
         "apellidos": apellidos,
         "direccion": (registro.get("direccion") or "").strip(),
         "telefono": telefono, "email": email, "fecha_nacimiento": nacimiento,
+        "fecha_ingreso": normalizar_fecha_ingreso(registro.get("fecha_ingreso")),
         "fallecido": 1 if es_verdadero(registro.get("fallecido")) else 0,
     }, None, avisos
 
@@ -331,16 +434,21 @@ def importar_padron(registros, db, simular=False):
                         f"«{existente['rol']}»"
                     )
                     continue
+                # Lo que el socio ya completó en su perfil (correo, teléfono,
+                # nacimiento) no se borra si el padrón trae esas celdas vacías.
                 db.execute(
                     "UPDATE usuarios SET nombre = ?, apellidos = ?, rut = ?, numero_socio = ?, "
-                    "direccion = ?, telefono = ?, email = ?, fecha_nacimiento = ?, "
+                    "direccion = ?, telefono = COALESCE(NULLIF(?, ''), telefono), "
+                    "email = COALESCE(NULLIF(?, ''), email), "
+                    "fecha_nacimiento = COALESCE(NULLIF(?, ''), fecha_nacimiento), "
+                    "fecha_ingreso = COALESCE(NULLIF(?, ''), fecha_ingreso), "
                     "fallecido = ?, activo = CASE WHEN ? = 1 THEN 0 ELSE activo END "
                     "WHERE id = ?",
                     (
                         datos["nombre"], datos["apellidos"], datos["rut"], datos["numero_socio"],
                         datos["direccion"], datos["telefono"], datos["email"],
-                        datos["fecha_nacimiento"], datos["fallecido"], datos["fallecido"],
-                        existente["id"],
+                        datos["fecha_nacimiento"], datos["fecha_ingreso"],
+                        datos["fallecido"], datos["fallecido"], existente["id"],
                     ),
                 )
                 resultado["actualizados"] += 1
@@ -355,14 +463,16 @@ def importar_padron(registros, db, simular=False):
             db.execute(
                 "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, "
                 "estado_aprobacion, fecha_creacion, rut, numero_socio, apellidos, direccion, "
-                "telefono, fecha_nacimiento, fallecido, debe_cambiar_clave) "
-                "VALUES (?, ?, ?, ?, 'socio', ?, 'Aprobada', ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                "telefono, fecha_nacimiento, fecha_ingreso, fallecido, debe_cambiar_clave) "
+                "VALUES (?, ?, ?, ?, 'socio', ?, 'Aprobada', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
                 (
                     datos["nombre"], usuario, datos["email"],
-                    generate_password_hash(clave_inicial(datos["rut"])),
+                    # En simulación no vale la pena cifrar cientos de claves.
+                    "simulacion" if simular else generate_password_hash(clave_inicial(datos["rut"])),
                     0 if datos["fallecido"] else 1, ahora, datos["rut"],
                     datos["numero_socio"], datos["apellidos"], datos["direccion"],
-                    datos["telefono"], datos["fecha_nacimiento"], datos["fallecido"],
+                    datos["telefono"], datos["fecha_nacimiento"], datos["fecha_ingreso"],
+                    datos["fallecido"],
                 ),
             )
             resultado["creados"] += 1
@@ -390,6 +500,9 @@ def main(argumentos):
         print(f"No se pudo leer el padrón: {error}")
         return 1
 
+    import entorno
+
+    entorno.cargar()
     import app as modulo  # importa la app y deja la base de datos lista
 
     with modulo.app.app_context():

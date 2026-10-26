@@ -9,3 +9,8 @@ static/uploads/*
 .DS_Store
 .claude/
 *.zip
+.env
+# Datos personales: el padrón y las planillas exportadas nunca se suben a GitHub.
+*.xlsx
+*.xls
+*.csv

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Mis datos · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container auth-page">
+  <section class="auth-card" aria-labelledby="titulo-datos">
+    <header class="auth-cabecera">
+      <a class="auth-monograma" href="{{ url_for('index') }}" aria-label="Volver al inicio">CE</a>
+      <div>
+        <p class="auth-etiqueta">Mi cuenta</p>
+        <h1 id="titulo-datos">{{ 'Completa tus datos' if obligatorio else 'Mis datos' }}</h1>
+      </div>
+    </header>
+    <div class="auth-cuerpo">
+      {% if obligatorio %}
+        <div class="alert alert-warning" role="status">
+          Antes de continuar necesitamos tu correo. Lo usaremos para avisarte cuando tu reserva o
+          certificado avance, y para que puedas recuperar tu clave si la olvidas.
+        </div>
+      {% endif %}
+      <p class="small text-muted">
+        {{ usuario.nombre }} {{ usuario.apellidos }}
+        {% if usuario.numero_socio %} · Socio/a N.º {{ usuario.numero_socio }}{% endif %}
+        {% if usuario.direccion %} · {{ usuario.direccion }}{% endif %}
+      </p>
+      <form method="post" class="auth-form">
+        <div class="mb-3">
+          <label class="form-label" for="email">Correo electrónico <span class="obligatorio">*</span></label>
+          <input class="form-control" type="email" id="email" name="email" value="{{ datos.email }}" autocomplete="email" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="telefono">Celular (opcional)</label>
+          <input class="form-control" type="tel" id="telefono" name="telefono" value="{{ datos.telefono }}" autocomplete="tel">
+        </div>
+        {% if es_socio %}
+        <div class="mb-3">
+          <label class="form-label" for="fecha_nacimiento">Fecha de nacimiento (opcional)</label>
+          <input class="form-control" type="date" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ datos.fecha_nacimiento }}" autocomplete="bday">
+          <p class="ayuda-campo mb-0">Si la indicas, la junta podrá saludarte en tu cumpleaños.</p>
+        </div>
+        {% endif %}
+        <p class="small text-muted">Si tu nombre o dirección están mal escritos, avísale a la directiva para corregir el padrón.</p>
+        <button class="btn btn-primary btn-lg w-100" type="submit">Guardar mis datos</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

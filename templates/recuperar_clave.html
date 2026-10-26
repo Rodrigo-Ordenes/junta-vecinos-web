@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Recuperar clave · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container auth-page">
+  <section class="auth-card" aria-labelledby="titulo-auth">
+    <header class="auth-cabecera">
+      <a class="auth-monograma" href="{{ url_for('index') }}" aria-label="Volver al inicio">CE</a>
+      <div>
+        <p class="auth-etiqueta">Mi cuenta</p>
+        <h1 id="titulo-auth">Recuperar clave</h1>
+      </div>
+    </header>
+    <div class="auth-cuerpo">
+      <p class="small text-muted">Escribe tu correo, tu usuario o tu RUT. Te enviaremos un enlace para elegir una clave nueva.</p>
+      <form method="post" class="auth-form">
+        <div class="mb-3">
+          <label class="form-label" for="dato">Correo, usuario o RUT</label>
+          <input class="form-control" type="text" id="dato" name="dato" autocomplete="username" required autofocus>
+        </div>
+        <button class="btn btn-primary btn-lg w-100" type="submit">Enviarme el enlace</button>
+      </form>
+      <p class="small text-muted mt-3 mb-0">Si tu cuenta no tiene correo, la directiva puede restablecer tu clave en la sede.</p>
+    </div>
+  </section>
+</div>
+{% endblock %}
