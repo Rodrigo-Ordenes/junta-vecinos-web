@@ -777,29 +777,22 @@ def total_socios_vigentes():
 def contexto_global():
     conf = obtener_config()
     usuario = usuario_actual()
-    pendientes = 0
+    # Cuántas cosas esperan respuesta en cada sección del menú del panel.
+    pendientes_por_seccion = {}
     if puede_entrar_al_panel(usuario):
-        if puede("reservas", usuario):
-            pendientes += consultar(
-                "SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'", uno=True
-            )["c"]
-        if puede("certificados", usuario):
-            pendientes += consultar(
-                "SELECT COUNT(*) c FROM certificados WHERE estado = 'Recibida'", uno=True
-            )["c"]
-        if puede("servicios_pendientes", usuario):
-            pendientes += consultar(
-                "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0", uno=True
-            )["c"]
-        if puede("mensajes", usuario):
-            pendientes += consultar(
-                "SELECT COUNT(*) c FROM mensajes WHERE leido = 0", uno=True
-            )["c"]
-        if puede("usuarios_pendientes", usuario):
-            pendientes += consultar(
-                "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' "
-                "AND estado_aprobacion = 'Pendiente'", uno=True
-            )["c"]
+        consultas_pendientes = {
+            "reservas": "SELECT COUNT(*) c FROM reservas WHERE estado = 'Pendiente'",
+            "certificados": "SELECT COUNT(*) c FROM certificados WHERE estado = 'Recibida'",
+            "servicios_pendientes": "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0",
+            "mensajes": "SELECT COUNT(*) c FROM mensajes WHERE leido = 0",
+            "usuarios_pendientes": "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' "
+                                   "AND estado_aprobacion = 'Pendiente'",
+        }
+        for clave, sql in consultas_pendientes.items():
+            if puede(clave, usuario):
+                cantidad = consultar(sql, uno=True)["c"]
+                if cantidad:
+                    pendientes_por_seccion[clave] = cantidad
     menu_visible = [
         (categoria, [enlace for enlace in enlaces if puede(enlace[0], usuario)])
         for categoria, enlaces in MENU_PANEL
@@ -825,7 +818,8 @@ def contexto_global():
         "url_panel": url_panel,
         "anio_actual": fecha_hoy().year,
         "menu_panel": menu_visible,
-        "pendientes_panel": pendientes,
+        "pendientes_panel": sum(pendientes_por_seccion.values()),
+        "pendientes_por_seccion": pendientes_por_seccion,
     }
 
 

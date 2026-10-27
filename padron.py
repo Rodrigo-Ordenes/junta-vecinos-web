@@ -136,6 +136,17 @@ def clave_inicial(rut):
     return cuerpo.zfill(8)
 
 
+# La clave inicial se deduce del RUT, así que un cifrado lento no la protege más:
+# lo que la protege es el cambio obligatorio al primer ingreso (que usa el cifrado
+# fuerte por defecto). Con el método liviano, 400 socios se cargan en ~2 s y no
+# en ~30 s, que el navegador o el hosting pueden cortar por tiempo.
+METODO_CLAVE_INICIAL = "pbkdf2:sha256:20000"
+
+
+def cifrar_clave_inicial(rut):
+    return generate_password_hash(clave_inicial(rut), method=METODO_CLAVE_INICIAL)
+
+
 def normalizar_fecha(valor):
     """Acepta AAAA-MM-DD, DD-MM-AAAA, DD/MM/AAAA y números de serie de Excel."""
     texto = str(valor or "").strip()
@@ -468,7 +479,7 @@ def importar_padron(registros, db, simular=False):
                 (
                     datos["nombre"], usuario, datos["email"],
                     # En simulación no vale la pena cifrar cientos de claves.
-                    "simulacion" if simular else generate_password_hash(clave_inicial(datos["rut"])),
+                    "simulacion" if simular else cifrar_clave_inicial(datos["rut"]),
                     0 if datos["fallecido"] else 1, ahora, datos["rut"],
                     datos["numero_socio"], datos["apellidos"], datos["direccion"],
                     datos["telefono"], datos["fecha_nacimiento"], datos["fecha_ingreso"],

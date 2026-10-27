@@ -1,6 +1,7 @@
 """Pruebas del sitio de la Junta de Vecinos N.° 2 · Cerro Esperanza."""
 
 import os
+import re
 import tempfile
 from io import BytesIO
 from datetime import timedelta
@@ -1097,6 +1098,73 @@ def test_padron_lee_formato_oficial_de_la_junta(cliente, app_prueba):
         assert luis["fecha_ingreso"] == "2020-01-01" and luis["email"] == "luis@ejemplo.cl"
         assert ana["usuario"] == "111111111" and ana["debe_cambiar_clave"] == 1
         assert base.consultar("SELECT id FROM usuarios WHERE nombre = 'Rut Malo'", uno=True) is None
+
+
+def test_carga_de_cientos_de_socios_es_rapida_y_la_clave_inicial_sirve(cliente, app_prueba):
+    import time
+    import padron
+
+    def rut_valido(cuerpo):
+        suma, factor = 0, 2
+        for digito in reversed(str(cuerpo)):
+            suma += int(digito) * factor
+            factor = 2 if factor == 7 else factor + 1
+        dv = {10: "K", 11: "0"}.get(11 - suma % 11, str(11 - suma % 11))
+        return f"{cuerpo}-{dv}"
+
+    filas = [["N°", "Nombres", "Domicilio", "Carnet (RUT)"]] + [
+        [n, f"Vecino {n}", "Tolson 1", rut_valido(10_000_000 + n)] for n in range(1, 401)
+    ]
+    contenido = xlsx_de_prueba([("ordenado por CORRELATIVO", filas)])
+    ingresar(cliente)
+    inicio = time.monotonic()
+    respuesta = cliente.post(
+        "/panel/cargar-padron",
+        data={"archivo": (BytesIO(contenido), "padron.xlsx")},
+        follow_redirects=True,
+    )
+    assert respuesta.status_code == 200
+    # Con el cifrado fuerte por defecto esto tardaba ~30 s y el navegador lo daba por caído.
+    assert time.monotonic() - inicio < 10
+    with app_prueba.app_context():
+        assert base.consultar(
+            "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' AND nombre LIKE 'Vecino %'",
+            uno=True,
+        )["c"] == 400
+        fila = base.consultar("SELECT * FROM usuarios WHERE nombre = 'Vecino 7'", uno=True)
+        assert fila["clave_hash"].startswith(padron.METODO_CLAVE_INICIAL)
+
+    cliente.get("/logout")
+    ingresar(cliente, fila["usuario"], padron.clave_inicial(fila["rut"]))
+    assert cliente.get("/mis-solicitudes").headers["Location"].endswith("/cuenta/clave")
+    cliente.post("/cuenta/clave", data={
+        "clave_actual": padron.clave_inicial(fila["rut"]),
+        "clave_nueva": "nueva-clave-segura", "confirmar_clave": "nueva-clave-segura"})
+    with app_prueba.app_context():
+        nueva = base.consultar("SELECT clave_hash FROM usuarios WHERE id = ?", (fila["id"],), uno=True)
+        # La clave que elige la persona sí queda con el cifrado fuerte.
+        assert not nueva["clave_hash"].startswith(padron.METODO_CLAVE_INICIAL)
+
+
+def test_menu_del_panel_agrupado_y_plegable(cliente, app_prueba):
+    with app_prueba.app_context():
+        base.ejecutar("UPDATE mensajes SET leido = 1")
+        base.ejecutar(
+            "INSERT INTO mensajes (nombre, email, mensaje, fecha_envio) "
+            "VALUES ('Vecina', 'vecina@ejemplo.cl', 'Consulta', '2026-10-27')"
+        )
+    ingresar(cliente)
+    html = cliente.get("/panel/noticias").get_data(as_text=True)
+    # Cada categoría es un grupo plegable; solo el de la página actual parte abierto.
+    assert html.count('class="panel-menu-grupo"') >= 5
+    assert 'data-grupo-menu="Información institucional" open data-grupo-actual' in html
+    assert 'data-grupo-menu="Transparencia" >' in html
+    assert 'aria-current="page"' in html
+    # El grupo «Solicitudes» queda cerrado, pero muestra cuántas cosas esperan respuesta.
+    assert 'title="Pendientes en esta sección">' in html
+    assert re.search(
+        r'Mensajes de contacto</span>\s*<span class="badge[^"]*">1</span>', html
+    )
 
 
 @pytest.mark.parametrize("valor, esperado", [
