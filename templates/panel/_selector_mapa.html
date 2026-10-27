@@ -1,0 +1,78 @@
+{# Selector de ubicación para «Puntos del mapa»: clic en el mapa o búsqueda por dirección. #}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<div class="caja p-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <strong>Ubicación en el mapa</strong>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-primary" id="mapa-buscar">Buscar la dirección en el mapa</button>
+    </div>
+  </div>
+  <p class="small text-muted mb-2">Haz clic en el mapa para ubicar el punto, o arrastra el marcador. La latitud y longitud se completan solas.</p>
+  <div id="selector-mapa" style="height: 340px; border-radius: 0.75rem;"></div>
+  <p class="small mt-2 mb-0" id="mapa-estado" role="status"></p>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  if (typeof L === "undefined") return;
+  var lat = document.getElementById("latitud");
+  var lng = document.getElementById("longitud");
+  var direccion = document.getElementById("direccion");
+  var estado = document.getElementById("mapa-estado");
+  var centro = [-33.0315, -71.5850];
+  var inicial = lat.value && lng.value ? [parseFloat(lat.value), parseFloat(lng.value)] : null;
+  var mapa = L.map("selector-mapa").setView(inicial || centro, 16);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(mapa);
+  var marcador = null;
+
+  function ubicar(punto, centrar) {
+    lat.value = punto[0].toFixed(6);
+    lng.value = punto[1].toFixed(6);
+    if (!marcador) {
+      marcador = L.marker(punto, { draggable: true }).addTo(mapa);
+      marcador.on("dragend", function () {
+        var p = marcador.getLatLng();
+        ubicar([p.lat, p.lng], false);
+      });
+    } else {
+      marcador.setLatLng(punto);
+    }
+    if (centrar) mapa.setView(punto, 17);
+  }
+
+  if (inicial) ubicar(inicial, false);
+  mapa.on("click", function (e) { ubicar([e.latlng.lat, e.latlng.lng], false); });
+
+  function desdeCampos() {
+    var a = parseFloat(String(lat.value).replace(",", "."));
+    var b = parseFloat(String(lng.value).replace(",", "."));
+    if (!isNaN(a) && !isNaN(b)) ubicar([a, b], true);
+  }
+  lat.addEventListener("change", desdeCampos);
+  lng.addEventListener("change", desdeCampos);
+
+  // Búsqueda con el servicio gratuito de OpenStreetMap (Nominatim): uso ocasional desde el panel.
+  document.getElementById("mapa-buscar").addEventListener("click", function () {
+    var texto = (direccion && direccion.value || "").trim();
+    if (!texto) { estado.textContent = "Escribe primero la dirección o referencia."; return; }
+    estado.textContent = "Buscando…";
+    fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=cl&q=" +
+          encodeURIComponent(texto + ", Valparaíso, Chile"))
+      .then(function (r) { return r.json(); })
+      .then(function (resultados) {
+        if (!resultados.length) {
+          estado.textContent = "No encontramos esa dirección. Ubica el punto haciendo clic en el mapa.";
+          return;
+        }
+        ubicar([parseFloat(resultados[0].lat), parseFloat(resultados[0].lon)], true);
+        estado.textContent = "Ubicación aproximada encontrada. Ajusta el marcador si hace falta.";
+      })
+      .catch(function () {
+        estado.textContent = "No se pudo buscar ahora. Ubica el punto haciendo clic en el mapa.";
+      });
+  });
+});
+</script>

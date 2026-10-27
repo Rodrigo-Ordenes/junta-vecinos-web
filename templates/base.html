@@ -93,6 +93,20 @@
   </div>
 </nav>
 
+{% if avisos_vigentes %}
+  <div class="avisos-sitio" role="region" aria-label="Avisos de la junta de vecinos">
+    {% for aviso in avisos_vigentes %}
+      <div class="aviso-sitio aviso-{{ aviso.tipo|clase_estado }} alert-dismissible" role="{{ 'alert' if aviso.tipo == 'Emergencia' else 'status' }}">
+        <div class="container d-flex flex-wrap align-items-center gap-2">
+          <strong>{{ '🚨' if aviso.tipo == 'Emergencia' else '⚠️' if aviso.tipo == 'Importante' else 'ℹ️' }} {{ aviso.titulo }}</strong>
+          {% if aviso.mensaje %}<span>{{ aviso.mensaje }}</span>{% endif %}
+          {% if aviso.enlace %}<a href="{{ aviso.enlace }}" rel="noopener">Más información</a>{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
 {% with mensajes = get_flashed_messages(with_categories=true) %}
   {% if mensajes %}
     <div class="container mt-3">

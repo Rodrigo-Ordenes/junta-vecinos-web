@@ -176,7 +176,7 @@
                 {{ dias_semana[valor] }}
               {% elif campo == 'monto' %}
                 {{ valor|moneda }}
-              {% elif campo in ('fecha', 'fecha_evento') %}
+              {% elif campo in ('fecha', 'fecha_evento', 'fecha_inicio', 'fecha_fin', 'fecha_actualizacion') %}
                 {{ valor|fecha_corta }}
               {% elif campo == 'archivo' and valor %}
                 <a href="{{ url_for('archivo', nombre=valor) }}">Ver archivo</a>

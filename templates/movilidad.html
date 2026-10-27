@@ -344,97 +344,45 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  const iconoEquipamiento = crearIcono("#1565c0", "🏛️");
-  const iconoSalud = crearIcono("#0d47a1", "🏥");
-  const iconoTransporte = crearIcono("#2e7d32", "🚏");
-  const iconoMetro = crearIcono("#1b5e20", "🚆");
-  const iconoAlerta = crearIcono("#c62828", "⚠️");
+  // Íconos por categoría; los puntos se administran desde el panel («Mapa de movilidad»).
+  const ESTILOS = {
+    "Equipamiento": { icono: crearIcono("#1565c0", "🏛️"), clase: "popup-cat-equipamiento" },
+    "Salud": { icono: crearIcono("#0d47a1", "🏥"), clase: "popup-cat-equipamiento" },
+    "Comercio": { icono: crearIcono("#6d4c41", "🛒"), clase: "popup-cat-equipamiento" },
+    "Transporte": { icono: crearIcono("#2e7d32", "🚏"), clase: "popup-cat-transporte" },
+    "Metro": { icono: crearIcono("#1b5e20", "🚆"), clase: "popup-cat-transporte" },
+    "Punto crítico": { icono: crearIcono("#c62828", "⚠️"), clase: "popup-cat-alerta" }
+  };
+  const puntos = {{ puntos|tojson }};
 
-  // Definición de hitos territoriales
-  const hitos = [
-    {
-      coords: [-33.0312, -71.5852],
-      titulo: "Sede Vecinal (Los Boldos)",
-      categoria: "Equipamiento",
-      catClass: "popup-cat-equipamiento",
-      icono: iconoEquipamiento,
-      descripcion: "Punto central de trámites vecinales, asambleas comunitarias, operativos de salud y actividades recreativas de la Junta de Vecinos N.° 2."
-    },
-    {
-      coords: [-33.0335, -71.5830],
-      titulo: "CESFAM Cerro Esperanza",
-      categoria: "Equipamiento",
-      catClass: "popup-cat-equipamiento",
-      icono: iconoSalud,
-      descripcion: "Centro de salud familiar. <strong>Aviso:</strong> Pendiente pronunciada; se sugiere transporte para adultos mayores y personas con movilidad reducida."
-    },
-    {
-      coords: [-33.0305, -71.5862],
-      titulo: "Eje Av. Philippi / Barros Arana",
-      categoria: "Transporte",
-      catClass: "popup-cat-transporte",
-      icono: iconoTransporte,
-      foto: "{{ url_for('static', filename='img/territorio/micro_505_recorrido.jpg') }}",
-      descripcion: "Paradas principales de la <strong>Micro 505</strong> ($260 hacia cerro / $190 hacia el plan, corte 21:30) y <strong>Colectivos 6 y 61</strong>."
-    },
-    {
-      coords: [-33.0280, -71.5890],
-      titulo: "Acceso Estación Portales (Metro)",
-      categoria: "Transporte",
-      catClass: "popup-cat-transporte",
-      icono: iconoMetro,
-      descripcion: "Conexión intermodal con el Metro de Valparaíso (cota baja) hacia Viña del Mar y el centro de Valparaíso."
-    },
-    {
-      coords: [-33.0298, -71.5875],
-      titulo: "Escalera Chirimoyo",
-      categoria: "Alerta Crítica",
-      catClass: "popup-cat-alerta",
-      icono: iconoAlerta,
-      foto: "{{ url_for('static', filename='img/territorio/escalera_chirimoyo_terreno.jpg') }}",
-      descripcion: "Pendiente pronunciada, escalones deteriorados y falta de pasamanos continuo. Proyecto postulado a FONDEVE para reparación ergonómica."
-    },
-    {
-      coords: [-33.0328, -71.5880],
-      titulo: "Quebrada Chirimoyo",
-      categoria: "Alerta Crítica",
-      catClass: "popup-cat-alerta",
-      icono: iconoAlerta,
-      descripcion: "Zona de ladera con riesgo de microbasurales y peligro de incendios forestales. Intervención en curso de faja cortafuego comunitaria."
-    },
-    {
-      coords: [-33.0320, -71.5840],
-      titulo: "Calle Tolson y cruce Rebolledo c/ Zambrano",
-      categoria: "Alerta Crítica",
-      catClass: "popup-cat-alerta",
-      icono: iconoAlerta,
-      foto: "{{ url_for('static', filename='img/territorio/cruce_peatonal_barros_arana.jpg') }}",
-      descripcion: "Zonas con déficit de alumbrado público y baja visibilidad nocturna. Proyecto postulado al Fondo Nacional de Seguridad Pública."
-    }
-  ];
+  function elemento(etiqueta, clase, texto) {
+    const el = document.createElement(etiqueta);
+    if (clase) el.className = clase;
+    if (texto) el.textContent = texto;
+    return el;
+  }
 
-  // Añadir marcadores al mapa
-  hitos.forEach(function(h) {
-    let fotoHtml = '';
-    if (h.foto) {
-      fotoHtml = `
-        <div class="popup-foto-wrap">
-          <img src="${h.foto}" alt="${h.titulo}" class="popup-foto-img">
-        </div>
-      `;
+  const limites = [];
+  puntos.forEach(function (p) {
+    const estilo = ESTILOS[p.categoria] || ESTILOS["Equipamiento"];
+    const popup = elemento("div");
+    popup.style.minWidth = "190px";
+    popup.appendChild(elemento("span", "popup-hito-categoria " + estilo.clase, p.categoria));
+    popup.appendChild(elemento("div", "popup-hito-titulo", p.titulo));
+    if (p.descripcion) popup.appendChild(elemento("p", "mb-1 text-secondary small", p.descripcion));
+    if (p.direccion) popup.appendChild(elemento("p", "mb-1 small", "📍 " + p.direccion));
+    if (p.foto_url) {
+      const marco = elemento("div", "popup-foto-wrap");
+      const img = elemento("img", "popup-foto-img");
+      img.src = p.foto_url;
+      img.alt = p.titulo;
+      marco.appendChild(img);
+      popup.appendChild(marco);
     }
-    const popupHtml = `
-      <div style="min-width: 190px;">
-        <span class="popup-hito-categoria ${h.catClass}">${h.categoria}</span>
-        <div class="popup-hito-titulo">${h.titulo}</div>
-        <p class="mb-1 text-secondary small">${h.descripcion}</p>
-        ${fotoHtml}
-      </div>
-    `;
-    L.marker(h.coords, { icon: h.icono })
-      .addTo(mapa)
-      .bindPopup(popupHtml);
+    L.marker([p.latitud, p.longitud], { icon: estilo.icono }).addTo(mapa).bindPopup(popup);
+    limites.push([p.latitud, p.longitud]);
   });
+  if (limites.length > 1) mapa.fitBounds(limites, { padding: [30, 30], maxZoom: 17 });
 });
 </script>
 {% endblock %}

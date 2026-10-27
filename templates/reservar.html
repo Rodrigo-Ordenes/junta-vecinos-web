@@ -136,7 +136,10 @@
       <div class="col-md-6">
         <label class="form-label" for="actividad">¿Para qué la necesitas? <span class="obligatorio">*</span></label>
         <input class="form-control" type="text" id="actividad" name="actividad" value="{{ datos.actividad }}"
-               placeholder="Ej: Cumpleaños familiar, reunión comunitaria, taller…" required>
+               list="tipos-actividad" placeholder="Elige de la lista o escribe tu actividad" required>
+        <datalist id="tipos-actividad">
+          {% for tipo in tipos_actividad %}<option value="{{ tipo }}">{% endfor %}
+        </datalist>
       </div>
       <div class="col-md-6">
         <label class="form-label" for="personas">¿Cuántas personas asistirán aproximadamente?</label>
@@ -153,12 +156,25 @@
       <div class="col-12">
         <label class="form-label" for="email">Correo electrónico (opcional)</label>
         <input class="form-control" type="email" id="email" name="email" value="{{ datos.email }}">
-        <p class="ayuda-campo mb-0">Si tienes una cuenta vecinal en el portal, inicia sesión antes de reservar para vincularla a tu perfil.</p>
+        <p class="ayuda-campo mb-0">
+          {% if usuario %}Completamos tus datos desde tu cuenta; puedes corregirlos si hace falta.
+          {% else %}Si eres socio o socia, <a href="{{ url_for('login', next=request.path) }}">ingresa con tu cuenta</a> y tus datos se completarán solos.{% endif %}
+          Si escribes tu correo te avisaremos cuando la reserva sea revisada.
+        </p>
       </div>
       <div class="col-12">
         <label class="form-label" for="observacion">Observaciones o requerimientos especiales</label>
         <textarea class="form-control" id="observacion" name="observacion" rows="3"
                   placeholder="Detalles sobre mesas, sillas o consultas para la directiva…">{{ datos.observacion }}</textarea>
+      </div>
+      <div class="col-12">
+        {% include "_aviso_aporte_sede.html" %}
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="acepta_aporte" name="acepta_aporte" required>
+          <label class="form-check-label" for="acepta_aporte">
+            Entiendo que el uso de la sede tiene un aporte y que la reserva queda confirmada solo cuando la directiva la aprueba. <span class="obligatorio">*</span>
+          </label>
+        </div>
       </div>
       <div class="col-12 mt-4 d-flex flex-wrap gap-2 align-items-center">
         <button class="btn btn-primary btn-lg" type="submit" id="btn-confirmar-reserva">

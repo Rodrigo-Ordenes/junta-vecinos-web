@@ -22,26 +22,37 @@
       </div>
     </div>
 
-    <!-- Barra lateral para pantallas medianas y grandes -->
+    <!-- Barra lateral para pantallas medianas y grandes: grupos plegables y desplazamiento propio -->
     <aside class="col-md-4 col-lg-3 d-none d-md-block">
-      <div class="caja">
+      <nav class="caja panel-lateral" aria-label="Secciones del panel">
         <h2 class="h6 text-uppercase text-muted">Panel</h2>
         <p class="small mb-2">{{ usuario.nombre }}<br><strong>{{ usuario.rol|capitalize }}</strong></p>
-        <a class="list-group-item list-group-item-action mb-3 {% if request.path == url_for('panel') %}active fw-bold{% endif %}" href="{{ url_for('panel') }}">🏠 Inicio del panel</a>
+        <a class="list-group-item list-group-item-action mb-2 {% if request.path == url_for('panel') %}active fw-bold{% endif %}" href="{{ url_for('panel') }}">🏠 Inicio del panel</a>
         {% for categoria, enlaces in menu_panel %}
-          <section class="panel-menu-grupo mb-3" aria-label="{{ categoria }}">
-            <h3 class="h6 text-uppercase text-muted px-3">{{ categoria }}</h3>
+          {% set ns = namespace(actual=false, pendientes=0) %}
+          {% for clave, etiqueta, icono in enlaces %}
+            {% set destino = url_panel(clave) %}
+            {% if request.path == destino or request.path.startswith(destino ~ '/') %}{% set ns.actual = true %}{% endif %}
+            {% set ns.pendientes = ns.pendientes + pendientes_por_seccion.get(clave, 0) %}
+          {% endfor %}
+          <details class="panel-menu-grupo" data-grupo-menu="{{ categoria }}" {% if ns.actual %}open data-grupo-actual{% endif %}>
+            <summary>
+              <span>{{ categoria }}</span>
+              {% if ns.pendientes %}<span class="badge bg-warning text-dark" title="Pendientes en esta sección">{{ ns.pendientes }}</span>{% endif %}
+            </summary>
             <div class="list-group panel-menu">
               {% for clave, etiqueta, icono in enlaces %}
                 {% set destino = url_panel(clave) %}
-                <a class="list-group-item list-group-item-action {% if request.path == destino %}active fw-bold text-primary{% endif %}" href="{{ destino }}">
-                  {{ icono }} {{ etiqueta }}
+                {% set es_actual = request.path == destino or request.path.startswith(destino ~ '/') %}
+                <a class="list-group-item list-group-item-action {% if es_actual %}active fw-bold text-primary{% endif %}" href="{{ destino }}" {% if es_actual %}aria-current="page"{% endif %}>
+                  <span>{{ icono }} {{ etiqueta }}</span>
+                  {% if pendientes_por_seccion.get(clave) %}<span class="badge bg-warning text-dark">{{ pendientes_por_seccion[clave] }}</span>{% endif %}
                 </a>
               {% endfor %}
             </div>
-          </section>
+          </details>
         {% endfor %}
-      </div>
+      </nav>
     </aside>
 
     <!-- Contenido principal del panel -->

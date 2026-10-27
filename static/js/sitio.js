@@ -330,9 +330,78 @@
     }
   }
 
+  // Dirección: si la persona escribe su calle a mano, la lista deja de ser obligatoria.
+  function inicializarDirecciones() {
+    var otras = document.querySelectorAll("[data-calle-otra]");
+    for (var i = 0; i < otras.length; i++) {
+      (function (otra) {
+        var lista = otra.form && otra.form.querySelector("[data-calle]");
+        if (!lista) return;
+        var requerida = lista.required || otra.value.trim() !== "";
+        function sincronizar() {
+          lista.required = requerida && otra.value.trim() === "";
+        }
+        otra.addEventListener("input", sincronizar);
+        sincronizar();
+      })(otras[i]);
+    }
+  }
+
+  // Menú del panel: recuerda en este navegador qué grupos dejó abiertos la persona.
+  function inicializarMenuPanel() {
+    var grupos = document.querySelectorAll("[data-grupo-menu]");
+    if (!grupos.length) return;
+    var clave = "panelGruposAbiertos";
+    var abiertos = [];
+    try {
+      abiertos = JSON.parse(localStorage.getItem(clave) || "[]");
+    } catch (e) {
+      abiertos = [];
+    }
+    for (var i = 0; i < grupos.length; i++) {
+      (function (grupo) {
+        var nombre = grupo.getAttribute("data-grupo-menu");
+        if (abiertos.indexOf(nombre) !== -1) grupo.open = true;
+        grupo.addEventListener("toggle", function () {
+          var posicion = abiertos.indexOf(nombre);
+          if (grupo.open && posicion === -1) abiertos.push(nombre);
+          if (!grupo.open && posicion !== -1) abiertos.splice(posicion, 1);
+          try {
+            localStorage.setItem(clave, JSON.stringify(abiertos));
+          } catch (e) {}
+        });
+      })(grupos[i]);
+    }
+    var actual = document.querySelector(".panel-lateral [aria-current='page']");
+    if (actual && actual.scrollIntoView) actual.scrollIntoView({ block: "nearest" });
+  }
+
+  // Formularios lentos (como la carga del padrón): avisa que se está procesando
+  // y evita que se envíen dos veces.
+  function inicializarProcesando() {
+    var formularios = document.querySelectorAll("form[data-procesando]");
+    for (var i = 0; i < formularios.length; i++) {
+      formularios[i].addEventListener("submit", function () {
+        var formulario = this;
+        var boton = formulario.querySelector("[type='submit']");
+        var mensaje = formulario.querySelector("[data-mensaje-procesando]");
+        window.setTimeout(function () {
+          if (boton) boton.disabled = true;
+        }, 0);
+        if (mensaje) {
+          mensaje.textContent = formulario.getAttribute("data-procesando");
+          mensaje.hidden = false;
+        }
+      });
+    }
+  }
+
   function inicializarSitio() {
     inicializarTelefonos();
     inicializarFiltrosPanel();
+    inicializarDirecciones();
+    inicializarMenuPanel();
+    inicializarProcesando();
   }
 
   if (document.readyState === "loading") {

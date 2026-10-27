@@ -42,12 +42,26 @@
   {% if usuario['rol'] == 'administrador' %}
     <div class="col-6 col-md-3">
       <a class="tarjeta-resumen tarjeta-resumen-enlace" href="{{ url_for('panel_usuarios_pendientes') }}">
-        <div class="numero">{{ resumen.usuarios_pendientes }}</div>
+        <div class="numero">{{ resumen.cuentas_por_aprobar }}</div>
         <p class="small mb-0">Cuentas vecinales por aprobar</p>
       </a>
     </div>
   {% endif %}
 </div>
+
+{% if resumen.cumpleaneros_hoy or resumen.servicios_por_revisar %}
+<div class="caja mt-4">
+  <h2 class="h5">Para revisar hoy</h2>
+  <ul class="mb-0">
+    {% if resumen.cumpleaneros_hoy %}
+      <li><a href="{{ url_for('panel_socios') }}">🎂 {{ resumen.cumpleaneros_hoy }} socia(s) o socio(s) de cumpleaños hoy</a>: envíales el saludo por WhatsApp.</li>
+    {% endif %}
+    {% if resumen.servicios_por_revisar %}
+      <li><a href="{{ url_for('panel_listado', recurso='servicios') }}">🧰 {{ resumen.servicios_por_revisar }} emprendimiento(s) sin revisar hace más de 6 meses</a>: confirma con el vecino si sigue vigente y guarda la ficha (o desmárcalo como vigente).</li>
+    {% endif %}
+  </ul>
+</div>
+{% endif %}
 
 <h2 class="h5 mt-5">Próximas actividades aprobadas en la sede</h2>
 <div class="table-responsive">

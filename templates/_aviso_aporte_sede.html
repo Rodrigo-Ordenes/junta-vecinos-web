@@ -1,0 +1,7 @@
+{# Aviso del aporte por uso de la sede; el texto y el monto se editan en «Textos del sitio». #}
+{% if conf.reserva_aviso_cobro or conf.reserva_valor %}
+<div class="alert alert-warning mb-0 aviso-aporte" role="note">
+  <strong>Aporte por el uso de la sede{% if conf.reserva_valor %}: {{ conf.reserva_valor }}{% endif %}.</strong>
+  {{ conf.reserva_aviso_cobro }}
+</div>
+{% endif %}

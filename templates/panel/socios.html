@@ -13,26 +13,37 @@
 </div>
 
 <!-- Módulo de Saludos de Cumpleaños Comunitarios -->
-<div class="caja mb-4 border-start border-4 border-warning bg-light">
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <span class="fs-4">🎂</span>
-    <h2 class="h5 mb-0">Cumpleañeros del Día ({{ hoy.strftime('%d-%m') }})</h2>
+<div class="caja mb-4 border-start border-4 border-warning bg-light" id="cumpleanos">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div class="d-flex align-items-center gap-2">
+      <span class="fs-4">🎂</span>
+      <h2 class="h5 mb-0">Cumpleaños · {{ vistas[vista][0] }}</h2>
+    </div>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Elegir días">
+      {% for clave, v in vistas.items() %}
+        <a class="btn {{ 'btn-primary' if clave == vista else 'btn-outline-primary' }}"
+           href="{{ url_for('panel_socios', cumple=clave, q=busqueda or None) }}#cumpleanos">{{ v[0] }}</a>
+      {% endfor %}
+    </div>
   </div>
   {% if cumpleaneros %}
-    <p class="small text-muted mb-3">Socias y socios que celebran su cumpleaños hoy. Envía un saludo institucional con un solo toque:</p>
+    <p class="small text-muted mb-3">Envía el saludo institucional por WhatsApp con un solo toque. El texto se edita en «Textos del sitio».</p>
     <div class="row g-3">
       {% for c in cumpleaneros %}
         <div class="col-md-6 col-lg-4">
           <div class="p-3 bg-white border rounded shadow-sm d-flex flex-column justify-content-between h-100">
             <div>
               <div class="fw-bold fs-6">{{ c.datos.nombre }} {{ c.datos.apellidos }}</div>
-              <div class="small text-muted">Socio N.º {{ c.datos.numero_socio or 'S/N' }} {% if c.edad %}· Cumple {{ c.edad }} años{% endif %}</div>
+              <div class="small text-muted">
+                {% if vista != 'hoy' %}{{ c.dia|fecha_corta }} · {% endif %}Socio N.º {{ c.datos.numero_socio or 'S/N' }}
+                {% if c.edad %}· Cumple {{ c.edad }} años{% endif %}
+              </div>
               <div class="small text-muted">📞 {{ c.datos.telefono or 'Sin teléfono' }}</div>
             </div>
             <div class="mt-3">
               {% if c.whatsapp %}
                 <a href="{{ c.whatsapp }}" target="_blank" rel="noopener" class="btn btn-sm btn-whatsapp w-100">
-                  💬 Enviar Saludo WhatsApp
+                  💬 Enviar saludo por WhatsApp
                 </a>
               {% else %}
                 <button class="btn btn-sm btn-light w-100" disabled title="No registra teléfono válido">Sin WhatsApp</button>
@@ -43,8 +54,37 @@
       {% endfor %}
     </div>
   {% else %}
-    <p class="mb-0 text-muted small">No hay socios que registren cumpleaños hoy en la base de datos.</p>
+    <p class="mb-0 text-muted small">No hay cumpleaños registrados para {{ vistas[vista][0]|lower }}.</p>
   {% endif %}
+  {% if sin_nacimiento %}
+    <p class="small text-muted mt-3 mb-0">
+      {{ sin_nacimiento }} socios aún no registran su fecha de nacimiento. Se les pide al entrar a su cuenta
+      («Mis datos»), o puedes agregarla al cargar el padrón.
+    </p>
+  {% endif %}
+</div>
+
+<!-- Registro de socios exigido por la Ley 19.418 -->
+<div class="caja mb-4">
+  <h2 class="h5">📒 Registro de socios (Ley 19.418, art. 15)</h2>
+  <p class="small text-muted mb-2">
+    La junta debe entregar al secretario municipal una copia actualizada del registro <strong>en marzo de cada año</strong>
+    y, <strong>cada seis meses</strong>, una certificación de las incorporaciones y retiros. Aquí puedes descargar ambos en un archivo que se abre en Excel.
+  </p>
+  <div class="d-flex flex-wrap gap-2 align-items-end">
+    <a class="btn btn-outline-primary" href="{{ url_for('panel_socios_registro') }}">⬇️ Registro vigente</a>
+    <form class="d-flex flex-wrap gap-2 align-items-end" method="get" action="{{ url_for('panel_socios_altas_bajas') }}">
+      <div>
+        <label class="form-label small mb-0" for="desde">Altas y bajas desde</label>
+        <input class="form-control form-control-sm" type="date" id="desde" name="desde" value="{{ semestre[0].isoformat() }}">
+      </div>
+      <div>
+        <label class="form-label small mb-0" for="hasta">hasta</label>
+        <input class="form-control form-control-sm" type="date" id="hasta" name="hasta" value="{{ semestre[1].isoformat() }}">
+      </div>
+      <button class="btn btn-sm btn-outline-primary" type="submit">⬇️ Descargar altas y bajas</button>
+    </form>
+  </div>
 </div>
 
 <!-- Filtro de Búsqueda de Socios -->
@@ -73,6 +113,8 @@
         <th>Teléfono</th>
         <th>Estado</th>
         <th>Dirección</th>
+        <th>Ingreso</th>
+        <th class="text-end">Registro</th>
       </tr>
     </thead>
     <tbody>
@@ -85,17 +127,41 @@
           <td>
             {% if s.fallecido %}
               <span class="badge bg-dark">Fallecido</span>
+            {% elif s.motivo_baja %}
+              <span class="badge bg-secondary">Baja: {{ s.motivo_baja }}</span>
             {% elif s.activo %}
               <span class="badge bg-success">Activo</span>
             {% else %}
               <span class="badge bg-warning text-dark">Inactivo / Pendiente</span>
             {% endif %}
+            {% if s.fecha_baja %}<div class="small text-muted">{{ s.fecha_baja|fecha_corta }}</div>{% endif %}
           </td>
           <td class="small text-muted">{{ s.direccion or '-' }}</td>
+          <td class="small text-muted">{{ s.fecha_ingreso|fecha_corta if s.fecha_ingreso|length == 10 else (s.fecha_ingreso or '-') }}</td>
+          <td class="text-end">
+            {% if s.activo and not s.fallecido %}
+              <details class="d-inline-block text-start">
+                <summary class="btn btn-sm btn-outline-secondary">Dar de baja</summary>
+                <form method="post" action="{{ url_for('panel_socio_baja', socio_id=s.id) }}" class="mt-2 d-grid gap-1" style="min-width: 14rem;">
+                  <select class="form-select form-select-sm" name="motivo_baja" required aria-label="Motivo de la baja">
+                    <option value="">Motivo…</option>
+                    {% for m in motivos_baja %}<option>{{ m }}</option>{% endfor %}
+                  </select>
+                  <input class="form-control form-control-sm" type="date" name="fecha_baja" value="{{ hoy.isoformat() }}" aria-label="Fecha de la baja">
+                  <button class="btn btn-sm btn-danger" type="submit">Confirmar baja</button>
+                </form>
+              </details>
+            {% elif s.motivo_baja or s.fallecido %}
+              <form method="post" action="{{ url_for('panel_socio_reincorporar', socio_id=s.id) }}"
+                    onsubmit="return confirm('¿Reincorporar a esta persona al registro de socios?');">
+                <button class="btn btn-sm btn-outline-primary" type="submit">Reincorporar</button>
+              </form>
+            {% endif %}
+          </td>
         </tr>
       {% else %}
         <tr>
-          <td colspan="6" class="text-center py-4 text-muted">No se encontraron socios registrados.</td>
+          <td colspan="8" class="text-center py-4 text-muted">No se encontraron socios registrados.</td>
         </tr>
       {% endfor %}
     </tbody>

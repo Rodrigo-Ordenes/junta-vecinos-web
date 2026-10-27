@@ -148,8 +148,17 @@ DESTINOS = [
         "titulo": "Ingresar a mi cuenta",
         "respuesta": "Si ya eres socia o socio con cuenta, ingresa aquí con tu usuario y clave.",
         "claves": [
-            "ingresar", "entrar", "iniciar sesión", "contraseña", "clave", "mi cuenta",
-            "olvidé mi clave",
+            "ingresar", "entrar", "iniciar sesión", "mi cuenta", "primer ingreso",
+        ],
+    },
+    {
+        "id": "recuperar_clave",
+        "endpoint": "recuperar_clave",
+        "titulo": "Recuperar mi clave",
+        "respuesta": "Si olvidaste tu clave, te enviamos un enlace a tu correo para elegir una nueva.",
+        "claves": [
+            "olvidé mi clave", "olvide la clave", "recuperar clave", "no recuerdo mi clave",
+            "contraseña", "clave", "restablecer",
         ],
     },
     {

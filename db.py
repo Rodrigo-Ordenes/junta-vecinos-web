@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
     direccion TEXT DEFAULT '',
     telefono TEXT DEFAULT '',
     fecha_nacimiento TEXT DEFAULT '',
+    fecha_ingreso TEXT DEFAULT '',
+    fecha_baja TEXT DEFAULT '',
+    motivo_baja TEXT DEFAULT '',
     fallecido INTEGER NOT NULL DEFAULT 0,
     permiso_noticias INTEGER NOT NULL DEFAULT 0,
     permiso_reservas INTEGER NOT NULL DEFAULT 0,
@@ -185,7 +188,8 @@ CREATE TABLE IF NOT EXISTS reservas (
     observacion TEXT DEFAULT '',
     revisada_por TEXT DEFAULT '',
     fecha_solicitud TEXT NOT NULL,
-    usuario_id INTEGER REFERENCES usuarios (id) ON DELETE SET NULL
+    usuario_id INTEGER REFERENCES usuarios (id) ON DELETE SET NULL,
+    acepta_aporte INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS servicios (
@@ -200,7 +204,10 @@ CREATE TABLE IF NOT EXISTS servicios (
     direccion TEXT DEFAULT '',
     foto_url TEXT DEFAULT '',
     aprobado INTEGER NOT NULL DEFAULT 0,
-    fecha_solicitud TEXT NOT NULL
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_solicitud TEXT NOT NULL,
+    fecha_actualizacion TEXT DEFAULT '',
+    usuario_id INTEGER REFERENCES usuarios (id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS certificados (
@@ -285,7 +292,62 @@ CREATE TABLE IF NOT EXISTS config (
     clave TEXT PRIMARY KEY,
     valor TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS puntos_mapa (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    categoria TEXT NOT NULL DEFAULT 'Equipamiento',
+    descripcion TEXT DEFAULT '',
+    direccion TEXT DEFAULT '',
+    latitud REAL NOT NULL,
+    longitud REAL NOT NULL,
+    foto_url TEXT DEFAULT '',
+    activo INTEGER NOT NULL DEFAULT 1,
+    orden INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS avisos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    mensaje TEXT DEFAULT '',
+    tipo TEXT NOT NULL DEFAULT 'Informativo',
+    enlace TEXT DEFAULT '',
+    fecha_inicio TEXT DEFAULT '',
+    fecha_fin TEXT DEFAULT '',
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS recuperaciones_clave (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios (id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expira TEXT NOT NULL,
+    usado INTEGER NOT NULL DEFAULT 0
+);
 """
+
+CATEGORIAS_MAPA = ["Equipamiento", "Salud", "Transporte", "Metro", "Comercio", "Punto crítico"]
+TIPOS_AVISO = ["Informativo", "Importante", "Emergencia"]
+MOTIVOS_BAJA = ["Fallecimiento", "Cambio de domicilio", "Renuncia", "Exclusión", "Inscripción duplicada"]
+MOTIVOS_CERTIFICADO = [
+    "Trámite municipal",
+    "Postulación a subsidio o beneficio social",
+    "Trámite bancario o comercial",
+    "Colegio, jardín o universidad",
+    "Salud (CESFAM u hospital)",
+    "Trabajo",
+    "Otro",
+]
+# Calles del territorio según el padrón 2026-2029; se editan en «Textos del sitio».
+CALLES_POR_DEFECTO = "\n".join(sorted([
+    "Aspillaga", "Barros Arana", "Blurton", "Chirimoyo", "Durazno", "Federico Stuven",
+    "Los Boldos", "Los Cerezos", "Los Peumos", "Pasaje Acharan", "Pasaje Canave",
+    "Pasaje Fidel Muñoz", "Pasaje Larrañaga", "Pasaje Lastarria", "Pasaje Los Plátanos",
+    "Pasaje Pablo Grosses", "Pasaje Sargento Olave", "Rebolledo", "Simón Bolívar", "Tolson",
+    "Toro Zambrano",
+]))
+ENLACE_LEY_19418 = "https://www.bcn.cl/leychile/navegar?idNorma=70040"
 
 REQUISITOS_CERTIFICADO_ANTERIORES = (
     "Cédula de identidad vigente del solicitante.\n"
@@ -305,7 +367,7 @@ REQUISITOS_CERTIFICADO_SIN_ADJUNTOS = (
 
 
 CONFIG_POR_DEFECTO = {
-    "socios_inscritos": "2400",
+    "socios_inscritos": "",
     "mision": (
         "Representar y organizar a las vecinas y vecinos del Cerro Esperanza, "
         "gestionando soluciones concretas a las necesidades del barrio y promoviendo "
@@ -342,9 +404,16 @@ CONFIG_POR_DEFECTO = {
     ),
     "como_asociarse": (
         "Para ser socio o socia debes ser residente del territorio de la junta, "
-        "ser mayor de edad y presentar tu cédula de identidad y un comprobante de domicilio "
-        "en la sede vecinal. La directiva revisa la solicitud y te inscribe en el padrón oficial."
+        "tener al menos 14 años (Ley 19.418, art. 39) y presentar tu cédula de identidad y un "
+        "comprobante de domicilio en la sede vecinal. La directiva revisa la solicitud y te "
+        "inscribe en el registro de socios."
     ),
+    "reserva_aviso_cobro": (
+        "El uso de la sede tiene un aporte para su mantención y los servicios básicos. "
+        "La directiva te confirmará el monto y la forma de pago al aprobar tu reserva."
+    ),
+    "reserva_valor": "",
+    "calles": CALLES_POR_DEFECTO,
     "imagen_sede_url": "/static/img/sede_comunitaria.jpg",
     "imagen_hero_url": "/static/img/hero_comunidad.jpg",
     "plan_maestro_intro": (
@@ -418,7 +487,9 @@ def init_db(app):
         db.commit()
         _migrar_esquema()
         _crear_usuarios_iniciales(app)
-        _crear_datos_ejemplo()
+        _crear_datos_base()
+        if app.config.get("DATOS_EJEMPLO", True):
+            _crear_datos_ejemplo()
         close_db()
 
 
@@ -678,12 +749,14 @@ def _crear_usuarios_iniciales(app):
         (
             "Administrador/a de la junta",
             admin_user,
-            "",
+            app.config.get("ADMIN_EMAIL", ""),
             generate_password_hash(admin_pass),
             "administrador",
             ahora,
         ),
     )
+    if not app.config.get("CREAR_COORDINADOR", True):
+        return
     ejecutar(
         "INSERT INTO usuarios (nombre, usuario, email, clave_hash, rol, activo, fecha_creacion, "
         "permiso_noticias, permiso_reservas, permiso_certificados, permiso_directorio, "
@@ -691,12 +764,72 @@ def _crear_usuarios_iniciales(app):
         (
             "Encargado/a de la sede",
             coord_user,
-            "",
+            app.config.get("COORD_EMAIL", ""),
             generate_password_hash(coord_pass),
             "coordinador",
             ahora,
         ),
     )
+
+
+PUNTOS_MAPA_INICIALES = [
+    ("Sede Vecinal (Los Boldos)", "Equipamiento", -33.0312, -71.5852, "",
+     "Punto central de trámites vecinales, asambleas, operativos de salud y actividades "
+     "recreativas de la Junta de Vecinos N.° 2."),
+    ("CESFAM Cerro Esperanza", "Salud", -33.0335, -71.5830, "",
+     "Centro de salud familiar. Pendiente pronunciada: se sugiere transporte para adultos "
+     "mayores y personas con movilidad reducida."),
+    ("Eje Av. Philippi / Barros Arana", "Transporte", -33.0305, -71.5862,
+     "/static/img/territorio/micro_505_recorrido.jpg",
+     "Paradas principales de la Micro 505 ($260 hacia el cerro / $190 hacia el plan, "
+     "último servicio 21:30) y de los colectivos 6 y 61."),
+    ("Acceso Estación Portales (Metro)", "Metro", -33.0280, -71.5890, "",
+     "Conexión con el Metro de Valparaíso (cota baja) hacia Viña del Mar y el centro de "
+     "Valparaíso."),
+    ("Escalera Chirimoyo", "Punto crítico", -33.0298, -71.5875,
+     "/static/img/territorio/escalera_chirimoyo_terreno.jpg",
+     "Pendiente pronunciada, escalones deteriorados y falta de pasamanos continuo. Proyecto "
+     "postulado a FONDEVE para su reparación."),
+    ("Quebrada Chirimoyo", "Punto crítico", -33.0328, -71.5880, "",
+     "Ladera con riesgo de microbasurales e incendios forestales. Intervención en curso de "
+     "faja cortafuego comunitaria."),
+    ("Calle Tolson y cruce Rebolledo con Zambrano", "Punto crítico", -33.0320, -71.5840,
+     "/static/img/territorio/cruce_peatonal_barros_arana.jpg",
+     "Déficit de alumbrado público y baja visibilidad nocturna. Proyecto postulado al Fondo "
+     "Nacional de Seguridad Pública."),
+]
+
+
+def _crear_datos_base():
+    """Información real que el sitio necesita también en producción (no es de ejemplo).
+
+    Se carga una sola vez: si la directiva después borra o cambia algo, no reaparece.
+    """
+    if consultar("SELECT valor FROM config WHERE clave = 'datos_base_cargados'", uno=True):
+        return
+    if not consultar("SELECT id FROM puntos_mapa LIMIT 1", uno=True):
+        for orden, (titulo, categoria, lat, lng, foto, descripcion) in enumerate(
+            PUNTOS_MAPA_INICIALES, start=1
+        ):
+            ejecutar(
+                "INSERT INTO puntos_mapa (titulo, categoria, descripcion, latitud, longitud, "
+                "foto_url, activo, orden) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+                (titulo, categoria, descripcion, lat, lng, foto, orden),
+            )
+    if not consultar("SELECT id FROM documentos WHERE titulo LIKE '%19.418%' LIMIT 1", uno=True):
+        ejecutar(
+            "INSERT INTO documentos (titulo, categoria, descripcion, enlace, fecha_publicacion) "
+            "VALUES (?, 'Leyes y normativa', ?, ?, ?)",
+            (
+                "Ley 19.418 sobre Juntas de Vecinos y demás Organizaciones Comunitarias",
+                "Texto oficial y actualizado en la Biblioteca del Congreso Nacional "
+                "(texto refundido, Decreto 58 de 1997). Regula quiénes pueden ser socios, el "
+                "registro de socios, la directiva, la rendición de cuentas y las elecciones.",
+                ENLACE_LEY_19418,
+                datetime.now().isoformat(timespec="seconds"),
+            ),
+        )
+    guardar_config("datos_base_cargados", "1")
 
 
 def _crear_datos_ejemplo():

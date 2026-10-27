@@ -1,0 +1,27 @@
+{# Campos reutilizables de los formularios públicos. #}
+{% macro campo_direccion(valor, calles, requerido=true, etiqueta="Dirección en el cerro") %}
+{%- set ns = namespace(calle="", resto="") -%}
+{%- for c in calles -%}
+  {%- if valor and (valor|lower).startswith(c|lower) and c|length > ns.calle|length -%}
+    {%- set ns.calle = c -%}{%- set ns.resto = valor[c|length:]|trim -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- set otra = valor if valor and not ns.calle else "" -%}
+<div class="row g-2">
+  <div class="col-sm-7">
+    <label class="form-label" for="calle">{{ etiqueta }}{% if requerido %} <span class="obligatorio">*</span>{% endif %}</label>
+    <select class="form-select" id="calle" name="calle" {% if requerido and not otra %}required{% endif %} data-calle>
+      <option value="">Elige tu calle o pasaje…</option>
+      {% for c in calles %}<option value="{{ c }}" {% if c == ns.calle %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-sm-5">
+    <label class="form-label" for="numero">Número, block o depto.</label>
+    <input class="form-control" type="text" id="numero" name="numero" value="{{ ns.resto }}" placeholder="Ej: 123">
+  </div>
+  <div class="col-12">
+    <label class="form-label small text-muted" for="calle_otra">¿Tu calle no aparece? Escribe la dirección completa aquí</label>
+    <input class="form-control form-control-sm" type="text" id="calle_otra" name="calle_otra" value="{{ otra }}" data-calle-otra>
+  </div>
+</div>
+{% endmacro %}
