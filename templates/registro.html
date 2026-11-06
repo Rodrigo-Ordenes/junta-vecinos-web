@@ -14,6 +14,7 @@
     <div class="auth-cuerpo">
       <div class="alert alert-warning" role="status">Las cuentas son solo para socios acreditados. La directiva validará tu RUT contra el padrón oficial antes del primer ingreso.</div>
       <form method="post" class="auth-form">
+        {{ csrf_campo() }}
         <div class="mb-3">
           <label class="form-label" for="nombre">Nombre completo</label>
           <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" autocomplete="name" required>

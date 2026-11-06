@@ -6,6 +6,7 @@
 <p class="caja small">En los campos de privacidad y uso, pega solo la versión que la contraparte responsable haya revisado y aprobado. Si están vacíos, esos avisos no se publican.</p>
 
 <form method="post" class="row g-3 caja">
+  {{ csrf_campo() }}
   {% for clave, etiqueta, tipo in campos %}
     <div class="col-12 {% if tipo == 'texto' %}col-md-6{% endif %}">
       <label class="form-label" for="{{ clave }}">{{ etiqueta }}</label>
@@ -23,7 +24,8 @@
     <button class="btn btn-outline-secondary btn-lg" type="submit" form="form-correo-prueba">Enviarme un correo de prueba</button>
   </div>
 </form>
-<form id="form-correo-prueba" method="post" action="{{ url_for('panel_correo_prueba') }}"></form>
+<form id="form-correo-prueba" method="post" action="{{ url_for('panel_correo_prueba') }}">
+  {{ csrf_campo() }}</form>
 
 {% if usuario['rol'] == 'administrador' %}
 <div class="caja mt-4">

@@ -15,6 +15,7 @@
       <div class="caja">
         <h2 class="h5 mb-3">Registrar Menor (hasta 9 años)</h2>
         <form method="post" class="row g-3">
+          {{ csrf_campo() }}
           <div class="col-12">
             <label for="nombre" class="form-label">Nombre completo del menor <span class="obligatorio">*</span></label>
             <input type="text" class="form-control" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" required>
@@ -61,6 +62,7 @@
                     <td><span class="badge bg-info text-dark">{{ item.edad }} años</span></td>
                     <td class="text-end">
                       <form method="post" action="{{ url_for('mis_menores_eliminar', menor_id=m.id) }}" onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
+                        {{ csrf_campo() }}
                         <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
                       </form>
                     </td>

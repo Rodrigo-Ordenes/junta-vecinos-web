@@ -15,6 +15,7 @@
   </div>
 
   <form method="post" enctype="multipart/form-data" class="row g-3">
+    {{ csrf_campo() }}
     <div class="col-md-8">
       <label for="titulo" class="form-label fw-bold">Título del Informe <span class="obligatorio">*</span></label>
       <input type="text" class="form-control" id="titulo" name="titulo" value="{{ datos.titulo or '' }}" placeholder="Ej: Balance Auditado Ejercicio Anual 2025" required>

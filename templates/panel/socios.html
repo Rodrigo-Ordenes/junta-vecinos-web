@@ -143,6 +143,7 @@
               <details class="d-inline-block text-start">
                 <summary class="btn btn-sm btn-outline-secondary">Dar de baja</summary>
                 <form method="post" action="{{ url_for('panel_socio_baja', socio_id=s.id) }}" class="mt-2 d-grid gap-1" style="min-width: 14rem;">
+                  {{ csrf_campo() }}
                   <select class="form-select form-select-sm" name="motivo_baja" required aria-label="Motivo de la baja">
                     <option value="">Motivo…</option>
                     {% for m in motivos_baja %}<option>{{ m }}</option>{% endfor %}
@@ -154,6 +155,7 @@
             {% elif s.motivo_baja or s.fallecido %}
               <form method="post" action="{{ url_for('panel_socio_reincorporar', socio_id=s.id) }}"
                     onsubmit="return confirm('¿Reincorporar a esta persona al registro de socios?');">
+                {{ csrf_campo() }}
                 <button class="btn btn-sm btn-outline-primary" type="submit">Reincorporar</button>
               </form>
             {% endif %}

@@ -16,6 +16,7 @@
       </div>
       {% if not m.leido %}
         <form method="post" action="{{ url_for('panel_mensaje_leido', mensaje_id=m.id) }}">
+          {{ csrf_campo() }}
           <button class="btn btn-sm btn-outline-primary" type="submit">Marcar como leído</button>
         </form>
       {% endif %}

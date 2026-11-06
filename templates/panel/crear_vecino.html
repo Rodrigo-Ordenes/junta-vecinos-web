@@ -8,6 +8,7 @@
   <p class="lead">La cuenta quedará pendiente hasta que la administración la apruebe.</p>
 {% endif %}
 <form method="post" class="row g-3 caja">
+  {{ csrf_campo() }}
   <div class="col-md-6">
     <label class="form-label" for="nombre">Nombre <span class="obligatorio">*</span></label>
     <input class="form-control" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" autocomplete="given-name" required>

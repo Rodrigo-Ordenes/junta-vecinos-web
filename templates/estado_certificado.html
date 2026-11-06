@@ -22,6 +22,7 @@
   {% else %}
     <p>Ingresa el código privado que recibiste al enviar tu solicitud.</p>
     <form class="row g-2 align-items-end caja" method="post" autocomplete="off">
+      {{ csrf_campo() }}
       <div class="col-sm-8">
         <label class="form-label" for="codigo">Código de seguimiento</label>
         <input class="form-control codigo-seguimiento" type="text" id="codigo" name="codigo"

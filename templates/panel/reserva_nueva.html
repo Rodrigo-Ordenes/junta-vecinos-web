@@ -5,6 +5,7 @@
 <p>Úsalo cuando la reserva se acuerda en persona o por teléfono. Queda aprobada de inmediato.</p>
 
 <form method="post" class="row g-3 caja">
+  {{ csrf_campo() }}
   <div class="col-md-4">
     <label class="form-label" for="fecha">Fecha <span class="obligatorio">*</span></label>
     <input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha }}" required>

@@ -89,6 +89,7 @@
                     <td>{{ (s.fecha_actualizacion or s.fecha_solicitud)|fecha_corta }}</td>
                     <td class="text-end">
                       <form method="post" action="{{ url_for('mi_emprendimiento_estado', servicio_id=s.id) }}" class="d-inline-flex gap-1">
+                        {{ csrf_campo() }}
                         <button class="btn btn-sm btn-outline-success" name="accion" value="vigente" type="submit">Sigue vigente</button>
                         {% if s.activo %}
                           <button class="btn btn-sm btn-outline-secondary" name="accion" value="pausar" type="submit">Pausar</button>

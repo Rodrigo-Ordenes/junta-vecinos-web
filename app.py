@@ -24,7 +24,10 @@ from urllib.parse import quote
 from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
+import hmac
+import threading
 
+from markupsafe import Markup
 from flask import (
     Flask,
     abort,
@@ -1878,6 +1881,48 @@ def perfil_incompleto(usuario):
     return not (usuario["email"] or "").strip()
 
 
+def token_csrf():
+    """Token secreto de la sesión que acompaña a cada formulario POST."""
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_urlsafe(32)
+    return session["csrf"]
+
+
+@app.context_processor
+def contexto_csrf():
+    return {
+        "csrf_campo": lambda: Markup(
+            '<input type="hidden" name="csrf_token" value="%s">' % token_csrf()
+        )
+    }
+
+
+@app.before_request
+def verificar_csrf():
+    """Rechaza envíos que no vengan de un formulario de este mismo sitio."""
+    if request.method != "POST" or not app.config.get("CSRF_ACTIVO", True):
+        return None
+    enviado = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token") or ""
+    esperado = session.get("csrf")
+    if esperado and hmac.compare_digest(enviado, esperado):
+        return None
+    return render_template(
+        "error.html", codigo=400,
+        mensaje="El formulario expiró o no se pudo verificar. Vuelve a la página "
+                "anterior, recárgala e intenta nuevamente.",
+    ), 400
+
+
+@app.after_request
+def cabeceras_de_seguridad(respuesta):
+    """Cabeceras básicas para todas las páginas (las rutas pueden fijar las suyas)."""
+    respuesta.headers.setdefault("X-Content-Type-Options", "nosniff")
+    respuesta.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    respuesta.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    respuesta.headers.setdefault("Content-Security-Policy", "frame-ancestors 'self'")
+    return respuesta
+
+
 @app.before_request
 def exigir_cambio_de_clave():
     """Primer ingreso: primero se cambia la clave inicial y luego se completa el correo.
@@ -1901,15 +1946,44 @@ def destino_seguro(destino):
     return bool(destino) and destino.startswith("/") and not destino.startswith("//")
 
 
+# Límite de intentos: la clave inicial de los socios son los dígitos de su RUT,
+# así que no se permite probar claves sin pausa. Se cuenta por dirección y usuario.
+INTENTOS_LOGIN_MAXIMOS = 5
+VENTANA_INTENTOS_LOGIN = timedelta(minutes=15)
+intentos_fallidos = {}
+_candado_intentos = threading.Lock()
+
+
+def intentos_recientes(clave_intento, ahora):
+    """Descarta los intentos vencidos y devuelve los que siguen en la ventana."""
+    limite = ahora - VENTANA_INTENTOS_LOGIN
+    with _candado_intentos:
+        for clave in [c for c, fechas in intentos_fallidos.items() if fechas[-1] < limite]:
+            del intentos_fallidos[clave]
+        return [f for f in intentos_fallidos.get(clave_intento, []) if f >= limite]
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         nombre_usuario = (request.form.get("usuario") or "").strip()
         clave = request.form.get("clave") or ""
+        clave_intento = (request.remote_addr or "", nombre_usuario.lower())
+        ahora = datetime.now()
+        if len(intentos_recientes(clave_intento, ahora)) >= INTENTOS_LOGIN_MAXIMOS:
+            flash("Demasiados intentos fallidos. Espera 15 minutos antes de volver a "
+                  "intentarlo o recupera tu clave.", "error")
+            return render_template("login.html"), 429
         fila = consultar(
             "SELECT * FROM usuarios WHERE usuario = ?", (nombre_usuario,), uno=True
         )
-        if fila and check_password_hash(fila["clave_hash"], clave):
+        clave_correcta = bool(fila) and check_password_hash(fila["clave_hash"], clave)
+        with _candado_intentos:
+            if clave_correcta:
+                intentos_fallidos.pop(clave_intento, None)
+            else:
+                intentos_fallidos.setdefault(clave_intento, []).append(ahora)
+        if clave_correcta:
             if fila["estado_aprobacion"] == "Pendiente":
                 flash(
                     "Tu cuenta de socio está pendiente de validación contra el padrón "

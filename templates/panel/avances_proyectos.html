@@ -30,6 +30,7 @@
         {% endif %}
 
         <form method="post" action="{{ url_for('panel_proyecto_avance', proyecto_id=p.id) }}" class="row g-2 align-items-end mt-2">
+          {{ csrf_campo() }}
           <div class="col-sm-4 col-md-3">
             <label class="form-label" for="porcentaje{{ p.id }}">Avance físico (%)</label>
             <input class="form-control" type="number" id="porcentaje{{ p.id }}" name="porcentaje"

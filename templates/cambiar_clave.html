@@ -15,6 +15,7 @@
         <div class="alert alert-warning" role="status">Tu cuenta fue creada con una clave inicial. Por seguridad, elige una clave nueva para continuar.</div>
       {% endif %}
       <form method="post" class="auth-form">
+        {{ csrf_campo() }}
         <div class="mb-3">
           <label class="form-label" for="clave_actual">Clave actual</label>
           <input class="form-control" type="password" id="clave_actual" name="clave_actual" autocomplete="current-password" required autofocus>

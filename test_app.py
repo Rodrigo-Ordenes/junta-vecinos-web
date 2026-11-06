@@ -20,6 +20,10 @@ def app_prueba(monkeypatch):
     import app as modulo
 
     modulo.app.config["TESTING"] = True
+    # Las pruebas de formularios envían los datos directo; la protección CSRF
+    # se prueba aparte, activándola en sus propias pruebas.
+    modulo.app.config["CSRF_ACTIVO"] = False
+    modulo.intentos_fallidos.clear()
     modulo.app.config["UPLOAD_FOLDER"] = os.path.join(carpeta, "uploads")
     modulo.app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.join(carpeta, "private")
     base.init_db(modulo.app)
@@ -1403,3 +1407,84 @@ def test_total_de_socios_sale_del_padron(cliente, app_prueba):
             "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' AND activo = 1 AND fallecido = 0 "
             "AND estado_aprobacion = 'Aprobada'", uno=True)["c"]
     assert f'<div class="stat-number">{total}</div>' in cliente.get("/").get_data(as_text=True)
+
+
+# --- Seguridad: CSRF, intentos de inicio de sesión y cabeceras -------------
+def token_de(html):
+    return re.search(r'name="csrf_token" value="([^"]+)"', html).group(1)
+
+
+def test_formulario_sin_token_csrf_se_rechaza(cliente, app_prueba):
+    app_prueba.config["CSRF_ACTIVO"] = True
+    datos = {"nombre": "Vecino", "email": "v@ejemplo.cl", "telefono": "",
+             "mensaje": "Consulta de prueba"}
+    assert cliente.post("/contacto", data=datos).status_code == 400
+    assert cliente.post("/contacto", data={**datos, "csrf_token": "falso"}).status_code == 400
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM mensajes WHERE mensaje = ?",
+                              ("Consulta de prueba",), uno=True)["c"] == 0
+
+
+def test_formulario_con_token_csrf_se_acepta(cliente, app_prueba):
+    app_prueba.config["CSRF_ACTIVO"] = True
+    token = token_de(cliente.get("/login").get_data(as_text=True))
+    respuesta = cliente.post("/login", data={"usuario": "admin", "clave": "esperanza2026",
+                                             "csrf_token": token})
+    assert respuesta.status_code == 302
+    assert cliente.get("/panel", follow_redirects=False).status_code == 200
+
+
+def test_todos_los_formularios_post_llevan_token():
+    carpeta = os.path.join(os.path.dirname(__file__), "templates")
+    sin_token = []
+    for raiz, _, archivos in os.walk(carpeta):
+        for nombre in archivos:
+            if not nombre.endswith(".html"):
+                continue
+            texto = open(os.path.join(raiz, nombre), encoding="utf-8").read()
+            for m in re.finditer(r'<form\b[^>]*method=["\']post["\'][^>]*>', texto, re.I):
+                if "csrf_campo()" not in texto[m.end():m.end() + 60]:
+                    sin_token.append(nombre)
+    assert sin_token == []
+
+
+def test_login_se_bloquea_tras_cinco_intentos_fallidos(cliente):
+    for _ in range(5):
+        assert cliente.post("/login", data={"usuario": "admin", "clave": "mala"}).status_code == 200
+    bloqueado = cliente.post("/login", data={"usuario": "admin", "clave": "esperanza2026"})
+    assert bloqueado.status_code == 429
+    assert "Demasiados intentos" in bloqueado.get_data(as_text=True)
+    assert cliente.get("/panel", follow_redirects=False).status_code == 302
+
+
+def test_bloqueo_de_login_vence_y_no_afecta_a_otros_usuarios(cliente, monkeypatch):
+    import app as modulo
+
+    for _ in range(5):
+        cliente.post("/login", data={"usuario": "admin", "clave": "mala"})
+    # Otro usuario desde la misma dirección no queda bloqueado.
+    otro = cliente.post("/login", data={"usuario": "coordinador", "clave": "mala"})
+    assert otro.status_code == 200
+    # Pasada la ventana de 15 minutos se puede volver a ingresar.
+    for clave in list(modulo.intentos_fallidos):
+        modulo.intentos_fallidos[clave] = [f - timedelta(minutes=16)
+                                           for f in modulo.intentos_fallidos[clave]]
+    assert ingresar(cliente).status_code == 200
+    assert cliente.get("/panel", follow_redirects=False).status_code == 200
+
+
+def test_ingreso_correcto_reinicia_los_intentos(cliente):
+    import app as modulo
+
+    for _ in range(4):
+        cliente.post("/login", data={"usuario": "admin", "clave": "mala"})
+    ingresar(cliente)
+    assert not any(clave[1] == "admin" for clave in modulo.intentos_fallidos)
+
+
+def test_cabeceras_de_seguridad_en_todas_las_paginas(cliente):
+    respuesta = cliente.get("/")
+    assert respuesta.headers["X-Content-Type-Options"] == "nosniff"
+    assert respuesta.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert respuesta.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert respuesta.headers["Content-Security-Policy"] == "frame-ancestors 'self'"

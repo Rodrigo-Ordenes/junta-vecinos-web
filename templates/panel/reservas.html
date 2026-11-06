@@ -37,6 +37,7 @@
     </div>
 
     <form method="post" action="{{ url_for('panel_reserva_estado', reserva_id=r.id) }}" class="row g-2 mt-2">
+      {{ csrf_campo() }}
       <div class="col-md-5">
         <label class="form-label small" for="obs{{ r.id }}">Mensaje para el vecino/a (opcional)</label>
         <input class="form-control" type="text" id="obs{{ r.id }}" name="observacion" value="{{ r.observacion }}">

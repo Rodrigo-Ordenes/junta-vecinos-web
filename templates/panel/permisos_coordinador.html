@@ -39,6 +39,7 @@
           </div>
 
           <form method="post" action="{{ url_for('panel_permisos_coordinador') }}">
+            {{ csrf_campo() }}
             <input type="hidden" name="usuario_id" value="{{ coord.id }}">
             <p class="small text-muted mb-3">Marca los módulos a los que este coordinador tendrá autorización para gestionar:</p>
 
