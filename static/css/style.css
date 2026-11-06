@@ -13,7 +13,7 @@
   --fondo: #f4f7f4;
   --papel: #fffefa;
   --texto: #26383d;
-  --gris: #66777a;
+  --gris: #56676a;
   --borde: #dce6e1;
   --dorado: #e8b65e;
   --terracota: #b9654c;
@@ -287,7 +287,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .navbar .container { display: flex; flex-wrap: wrap; align-items: center; padding-top: 0.6rem; padding-bottom: 0.6rem; }
 .navbar-brand { color: #fff; text-decoration: none; font-weight: 700; line-height: 1.15; display: inline-flex; align-items: center; gap: 0.7rem; }
 .navbar-brand::before { content: "2"; display: grid; place-items: center; width: 2.45rem; height: 2.45rem; flex: 0 0 auto; border-radius: 0.8rem; background: var(--dorado); color: var(--azul-oscuro); font-size: 1.25rem; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35); }
-.navbar-brand small { display: block; font-weight: 400; font-size: 0.72rem; opacity: 0.85; }
+.navbar-brand small { display: block; font-weight: 400; font-size: 0.82rem; opacity: 0.85; }
 .navbar-toggler {
   margin-left: auto; background: transparent; border: 2px solid rgba(255,255,255,0.6);
   border-radius: 0.5rem; padding: 0.35rem 0.6rem; min-width: 48px; min-height: 48px; cursor: pointer;
@@ -322,7 +322,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 @media (min-width: 1200px) {
   .navbar .container { max-width: var(--ancho) !important; }
   .navbar-brand { gap: 0.5rem; font-size: 0.95rem; }
-  .navbar-brand small { font-size: 0.68rem; white-space: nowrap; }
+  .navbar-brand small { font-size: 0.8rem; white-space: nowrap; }
   .navbar-toggler { display: none; }
   .navbar-collapse.collapse:not(.show) { display: block; }
   .navbar-collapse { width: auto; min-width: 0; margin-left: auto; }
@@ -397,7 +397,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .hero::after { width: 36rem; height: 16rem; bottom: -12rem; left: 17%; border-radius: 50%; background: rgba(235,188,106,0.15); filter: blur(10px); }
 .hero-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr); align-items: center; gap: clamp(2rem, 7vw, 7rem); }
 .hero-copy { max-width: 43rem; }
-.hero-eyebrow, .hero-card-overline { font-size: 0.76rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+.hero-eyebrow, .hero-card-overline { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
 .hero-eyebrow { display: flex; align-items: center; gap: 0.6rem; color: #f4d294; margin: 0 0 1rem; }
 .hero-eyebrow::before { content: ""; width: 2.2rem; height: 2px; background: var(--dorado); }
 .hero h1 { max-width: none; font-size: clamp(2.45rem, 3.6vw, 3.7rem); line-height: 1.03; letter-spacing: -0.04em; margin-bottom: 1.1rem; }
@@ -410,11 +410,11 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .hero-card-heading strong { font-size: 1.05rem; }
 .hero-card-mark { width: 3.3rem; height: 3.3rem; display: grid; place-items: center; position: relative; border-radius: 1.05rem; background: var(--dorado); color: var(--azul-oscuro); font-size: 1.2rem; font-weight: 900; letter-spacing: -0.08em; }
 .hero-card-mark span { font-size: 0.72rem; align-self: start; margin: 0.45rem 0 0 -0.32rem; }
-.hero-card-overline { color: #f6d99d; font-size: 0.64rem; }
+.hero-card-overline { color: #f6d99d; font-size: 0.82rem; }
 .hero-card-rule { height: 1px; margin: 1.35rem 0; background: rgba(255,255,255,0.24); }
 .hero-card p { color: rgba(255,255,255,0.88); margin: 0; }
 .hero-card-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; }
-.hero-card-tags span { padding: 0.38rem 0.65rem; border: 1px solid rgba(255,255,255,0.28); border-radius: 2rem; color: #fff; font-size: 0.78rem; }
+.hero-card-tags span { padding: 0.38rem 0.65rem; border: 1px solid rgba(255,255,255,0.28); border-radius: 2rem; color: #fff; font-size: 0.85rem; }
 .hero-orbit { position: absolute; border-radius: 50%; border: 1px solid rgba(247,213,152,0.35); }
 .hero-orbit-one { width: 25rem; height: 25rem; }
 .hero-orbit-two { width: 31rem; height: 31rem; }
@@ -570,7 +570,9 @@ textarea.form-control { min-height: 90px; }
 .footer h5 { color: #fff; }
 .footer a { color: #cfe0f0; text-decoration: none; }
 .footer a:hover { color: #fff; text-decoration: underline; }
-.footer ul { display: grid; gap: 0.5rem; }
+.footer ul { display: grid; gap: 0.1rem; }
+/* Enlaces del pie con área de toque cómoda (mínimo ~44 px de alto). */
+.footer ul a { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* --- Alto contraste ------------------------------------------------------ */
 html.alto-contraste body { background: #000; color: #fff; }
@@ -960,6 +962,13 @@ html.alto-contraste .table tbody tr:hover { background: #000; }
     grid-template-columns: 1fr;
     gap: 1.2rem;
   }
+}
+/* Celulares: las 7 columnas del calendario siempre caben en la pantalla. */
+@media (max-width: 480px) {
+  .reserva-col-calendario { padding: 0.75rem 0.5rem; }
+  .reserva-cal-semana-cabecera, .reserva-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .reserva-cal-grid { gap: 0.2rem; }
+  .cal-dia-btn { min-height: 40px; padding: 0; }
 }
 
 /* Alto contraste para calendario de reserva */

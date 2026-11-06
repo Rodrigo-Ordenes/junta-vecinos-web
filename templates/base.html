@@ -150,6 +150,7 @@
           {% endif %}
         </ul>
       </div>
+      {% if conf.whatsapp_grupo or conf.facebook or conf.instagram %}
       <div class="col-md-4">
         <h5>Mantente informado/a</h5>
         {% if conf.whatsapp_grupo %}
@@ -162,6 +163,7 @@
           {% if conf.instagram %}<a href="{{ conf.instagram }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
         </div>
       </div>
+      {% endif %}
     </div>
     <hr class="border-light">
     <p class="mb-0 text-center small">&copy; {{ anio_actual }} Junta de Vecinos N.° 2 · Cerro Esperanza</p>
