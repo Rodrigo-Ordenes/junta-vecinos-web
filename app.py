@@ -3260,12 +3260,15 @@ def valores_desde_formulario(recurso, fila_actual=None):
     return valores
 
 
-def campos_numericos_faltantes(definicion, valores):
-    """Etiquetas de los campos numéricos obligatorios que quedaron vacíos o inválidos."""
+def campos_obligatorios_faltantes(definicion, valores):
+    """Etiquetas de los campos obligatorios que quedaron vacíos o con un número inválido.
+
+    El navegador ya marca estos campos, pero el servidor los revisa igual por si el
+    formulario llega sin pasar por esa validación.
+    """
     return [
         c["etiqueta"] for c in definicion["campos"]
-        if c.get("requerido") and c["tipo"] in ("numero", "decimal")
-        and valores.get(c["nombre"]) is None
+        if c.get("requerido") and valores.get(c["nombre"]) in (None, "")
     ]
 
 
@@ -3422,7 +3425,7 @@ def panel_nuevo(recurso):
             valores[clave] = generador()
         if recurso == "servicios" and coordinador_actual():
             valores["aprobado"] = 0
-        faltantes = campos_numericos_faltantes(definicion, valores)
+        faltantes = campos_obligatorios_faltantes(definicion, valores)
         if faltantes:
             flash("Revisa estos campos: " + ", ".join(faltantes) + ".", "error")
             return render_template(
@@ -3475,7 +3478,7 @@ def panel_editar(recurso, fila_id):
             valores[clave] = generador()
         if recurso == "servicios" and coordinador_actual():
             valores["aprobado"] = 0
-        faltantes = campos_numericos_faltantes(definicion, valores)
+        faltantes = campos_obligatorios_faltantes(definicion, valores)
         if faltantes:
             flash("Revisa estos campos: " + ", ".join(faltantes) + ".", "error")
             return render_template(

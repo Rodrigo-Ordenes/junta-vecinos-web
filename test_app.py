@@ -1488,3 +1488,28 @@ def test_cabeceras_de_seguridad_en_todas_las_paginas(cliente):
     assert respuesta.headers["X-Frame-Options"] == "SAMEORIGIN"
     assert respuesta.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert respuesta.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
+
+
+def test_panel_rechaza_campos_obligatorios_vacios(cliente, app_prueba):
+    ingresar(cliente)
+    with app_prueba.app_context():
+        antes = base.consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"]
+    respuesta = cliente.post("/panel/noticias/nuevo",
+                             data={"titulo": "  ", "resumen": "", "contenido": "", "publicado": "1"})
+    html = respuesta.get_data(as_text=True)
+    assert "Revisa estos campos: Título, Resumen corto, Texto completo." in html
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"] == antes
+
+
+def test_panel_no_guarda_edicion_con_titulo_vacio(cliente, app_prueba):
+    ingresar(cliente)
+    with app_prueba.app_context():
+        noticia = base.consultar("SELECT * FROM noticias LIMIT 1", uno=True)
+    respuesta = cliente.post(f"/panel/noticias/{noticia['id']}/editar",
+                             data={"titulo": "", "resumen": noticia["resumen"],
+                                   "contenido": noticia["contenido"], "publicado": "1"})
+    assert "Revisa estos campos: Título." in respuesta.get_data(as_text=True)
+    with app_prueba.app_context():
+        assert base.consultar("SELECT titulo FROM noticias WHERE id = ?", (noticia["id"],),
+                              uno=True)["titulo"] == noticia["titulo"]
