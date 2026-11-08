@@ -1079,7 +1079,7 @@ def test_padron_lee_formato_oficial_de_la_junta(cliente, app_prueba):
         ["N°", "Nombres", "Edad", "E. Civil", "Domicilio", "Carnet (RUT)", "F.Ingreso", "correo", "telefono"],
         [1, "Ana María Rojas Soto", 70, "Casada", "Tolson 12", "11.111.111-1", 2019, "", "+569 11112222"],
         [2, "Luis Pérez Díaz", 55, "Soltero", "Aspillaga 3", "12.222.222-5", 43831, "luis@ejemplo.cl", ""],
-        [3, "Rut Malo", 40, "Soltero", "Durazno 1", "5.102.500-0", "2015 / 03-04", "", ""],
+        [3, "Rut Malo", 40, "Soltero", "Durazno 1", "11.111.111-2", "2015 / 03-04", "", ""],
     ])
     contenido = xlsx_de_prueba([resumen, oficial], filas_vacias=2500)
     registros = padron.leer_padron(contenido, "resultado de padron.xlsx")
