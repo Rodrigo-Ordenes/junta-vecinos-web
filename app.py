@@ -1877,6 +1877,7 @@ def contacto():
 # ---------------------------------------------------------------------------
 RUTAS_SIN_CAMBIO_DE_CLAVE = {"static", "cambiar_clave", "logout"}
 MINUTOS_VALIDEZ_RECUPERACION = 60
+MAXIMO_CORREOS_RECUPERACION = 3  # por cuenta, mientras sigan vigentes los enlaces
 RUTAS_SIN_DATOS_COMPLETOS = RUTAS_SIN_CAMBIO_DE_CLAVE | {"mis_datos"}
 
 
@@ -2093,7 +2094,10 @@ def recuperar_clave():
                 (dato, dato, rut or "-"),
             )
             cuenta = cuenta[0] if cuenta else None
-        if cuenta:
+        if cuenta and consultar(
+            "SELECT COUNT(*) c FROM recuperaciones_clave WHERE usuario_id = ? AND expira > ?",
+            (cuenta["id"], datetime.now().isoformat(timespec="seconds")), uno=True,
+        )["c"] < MAXIMO_CORREOS_RECUPERACION:
             token = secrets.token_urlsafe(32)
             expira = datetime.now() + timedelta(minutes=MINUTOS_VALIDEZ_RECUPERACION)
             ejecutar(

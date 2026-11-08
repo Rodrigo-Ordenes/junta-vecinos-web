@@ -1503,6 +1503,22 @@ def test_solo_se_atienden_los_dominios_permitidos(cliente, monkeypatch):
     assert propio.status_code == 200
 
 
+def test_recuperar_clave_limita_los_correos_por_cuenta(cliente, app_prueba, monkeypatch):
+    import correo
+
+    crear_socio(app_prueba, usuario="111111111", email="ana@ejemplo.cl", rut="11111111-1")
+    enviados = []
+    monkeypatch.setattr(correo, "configurado", lambda: True)
+    monkeypatch.setattr(correo, "enviar", lambda destino, asunto, cuerpo: enviados.append(destino))
+    respuestas = [
+        cliente.post("/recuperar-clave", data={"dato": "ana@ejemplo.cl"}, follow_redirects=True)
+        for _ in range(5)
+    ]
+    assert len(enviados) == 3
+    # La persona ve lo mismo aunque se haya alcanzado el límite.
+    assert all("te enviamos un enlace" in r.get_data(as_text=True) for r in respuestas)
+
+
 def test_cabeceras_de_seguridad_en_todas_las_paginas(cliente):
     respuesta = cliente.get("/")
     assert respuesta.headers["X-Content-Type-Options"] == "nosniff"

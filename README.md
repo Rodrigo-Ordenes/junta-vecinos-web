@@ -130,40 +130,52 @@ a nombre y con el correo de la junta.
    ```bash
    git archive -o junta-web.zip main
    ```
-2. En el panel de V2, subir `junta-web.zip` y descomprimirlo en `/home/TU_USUARIO/junta-vecinos-web`,
-   **fuera de `public_html`**. Crear también `/home/TU_USUARIO/datos-junta`.
-3. Crear la **aplicación Python** del panel para el dominio, con Python 3.9 o superior:
-   - Carpeta de la aplicación: `junta-vecinos-web`
-   - Archivo de inicio: el que indique el panel; el objeto WSGI es `application` (ver `wsgi.py`).
-   - Instalar las dependencias de `requirements.txt` desde la aplicación o el terminal.
-4. Copiar `.env.ejemplo` como `.env` en la carpeta de la aplicación, dejarlo solo para el dueño
-   (`chmod 600 .env`) y completarlo **directamente en el servidor**:
+2. Entrar a **cPanel** (desde el portal de clientes de V2). En *Administrador de archivos*, subir
+   `junta-web.zip` y descomprimirlo en `/home/TU_USUARIO/junta-vecinos-web`, **fuera de
+   `public_html`**. Crear también la carpeta `/home/TU_USUARIO/datos-junta`.
+3. En cPanel, *Software → Setup Python App → Crear aplicación*:
+   - Versión de Python: la más nueva disponible (mínimo 3.9).
+   - Raíz de la aplicación: `junta-vecinos-web`
+   - URL de la aplicación: `juntadevecinos2esperanza.cl`
+   - Archivo de inicio: `passenger_wsgi.py`
+   - Punto de entrada: `application`
+
+   Pulsar *CREATE*. Si cPanel reemplaza `passenger_wsgi.py`, volver a subir el del .zip.
+4. Abrir *Terminal* en cPanel, pegar el comando `source …` que muestra la aplicación e instalar:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Copiar `.env.ejemplo` como `.env` en la carpeta de la aplicación y completarlo **directamente en
+   el servidor** (`nano .env`, y al terminar `chmod 600 .env`):
    - `DATA_DIR=/home/TU_USUARIO/datos-junta`
    - `SECRET_KEY`: generar con `python -c "import secrets; print(secrets.token_urlsafe(48))"`
    - clave y correo del administrador
    - datos SMTP (por ejemplo una cuenta Gmail de la junta con *contraseña de aplicación*)
-5. **Reiniciar la aplicación** desde el panel. Si falta algo en `.env`, el sitio no arranca y el
-   registro de errores indica qué variable falta.
-6. **Dominio:** en nic.cl, entrar a la administración de `juntadevecinos2esperanza.cl` y reemplazar
-   los servidores de nombre por los que indique V2. El cambio puede tardar desde minutos hasta
-   cerca de un día en verse en todas partes. Se revisa con:
+6. Pulsar **REINICIAR** en Setup Python App. Si falta algo en `.env`, el sitio no arranca y el
+   registro de errores (`stderr.log` en la carpeta de la aplicación) indica qué variable falta.
+7. **Dominio:** en nic.cl, entrar a la administración de `juntadevecinos2esperanza.cl`, poner como
+   servidores de nombre `ns01.v2nets.com` y `ns02.v2nets.com`, dejar desmarcada la opción de NIC
+   Chile como servidor secundario y pulsar *Actualizar datos de dominios*. Puede tardar hasta 24
+   horas. Se revisa con:
 
    ```bash
    nslookup -type=NS juntadevecinos2esperanza.cl
    ```
-7. Cuando el dominio ya apunte a V2, activar el **SSL gratis** para el dominio y `www`, y forzar
-   HTTPS en el panel. Antes de eso el ingreso no funciona, porque las sesiones exigen HTTPS.
-8. Entrar a `/login` con la cuenta de administración, revisar **Textos del sitio** (dirección de la
+8. Cuando el dominio ya apunte a V2, activar el **SSL gratis** en cPanel para el dominio y `www`, y
+   activar *Force HTTPS Redirect* en *Dominios*. Antes de eso el ingreso no funciona, porque las
+   sesiones exigen HTTPS.
+9. Entrar a `/login` con la cuenta de administración, revisar **Textos del sitio** (dirección de la
    sede, correo de contacto, aporte de la sede, calles) y usar **«Enviarme un correo de prueba»**.
-9. Cargar el padrón en **Panel → Carga masiva del padrón**: primero con «solo simular», revisar los
-   errores y luego cargarlo de verdad. Cada socio entra con su RUT sin puntos ni guion como usuario
-   y los dígitos del RUT sin dígito verificador como clave; en el primer ingreso debe cambiarla y
-   registrar su correo.
-10. Programar una **tarea diaria** (por ejemplo a las 04:00) usando el Python del entorno de la
-    aplicación:
+10. Cargar el padrón en **Panel → Carga masiva del padrón**: primero con «solo simular», revisar los
+    errores y luego cargarlo de verdad. Cada socio entra con su RUT sin puntos ni guion como usuario
+    y los dígitos del RUT sin dígito verificador como clave; en el primer ingreso debe cambiarla y
+    registrar su correo.
+11. En cPanel, *Trabajos de cron*: crear una tarea diaria (por ejemplo a las 04:00), usando la ruta
+    del Python que aparece en el comando `source` de la aplicación:
 
     ```bash
-    cd ~/junta-vecinos-web && RUTA_DEL_PYTHON_DE_LA_APP respaldo.py --conservar 30
+    cd ~/junta-vecinos-web && ~/virtualenv/junta-vecinos-web/VERSION/bin/python respaldo.py --conservar 30
     ```
 
 ### Actualizar el sitio con una nueva versión
@@ -171,7 +183,7 @@ a nombre y con el correo de la junta.
 1. Descargar un respaldo desde *Textos del sitio* (o ejecutar `respaldo.py`).
 2. Generar un `junta-web.zip` nuevo y descomprimirlo **encima** de la carpeta de la aplicación, sin
    borrarla: ahí están `.env` y `static/uploads/`.
-3. Instalar `requirements.txt` si cambió y reiniciar la aplicación. Las columnas y tablas nuevas se
+3. Instalar `requirements.txt` si cambió y pulsar **REINICIAR** en Setup Python App. Las columnas y tablas nuevas se
    agregan solas al arrancar; no se borra información.
 
 ### Si algo sale mal
