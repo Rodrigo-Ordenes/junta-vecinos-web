@@ -4,7 +4,7 @@ import os
 import re
 import tempfile
 from io import BytesIO
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -20,6 +20,9 @@ def app_prueba(monkeypatch):
     import app as modulo
 
     modulo.app.config["TESTING"] = True
+    # Las pruebas de formularios envían los datos directo; la protección CSRF
+    # se prueba aparte, activándola en sus propias pruebas.
+    modulo.app.config["CSRF_ACTIVO"] = False
     modulo.app.config["UPLOAD_FOLDER"] = os.path.join(carpeta, "uploads")
     modulo.app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.join(carpeta, "private")
     base.init_db(modulo.app)
@@ -1203,6 +1206,8 @@ def test_produccion_no_arranca_con_claves_de_prueba(app_prueba, monkeypatch):
     with pytest.raises(RuntimeError) as error:
         modulo.verificar_configuracion_produccion()
     assert "SECRET_KEY" in str(error.value) and "ADMIN_PASSWORD" in str(error.value)
+    assert "DOMINIOS_PERMITIDOS" in str(error.value)
+    monkeypatch.setitem(modulo.app.config, "TRUSTED_HOSTS", ["juntadevecinos2esperanza.cl"])
     monkeypatch.setitem(modulo.app.config, "SECRET_KEY", "x" * 40)
     monkeypatch.setitem(modulo.app.config, "ADMIN_PASSWORD", "una-clave-larga-y-real")
     monkeypatch.setitem(modulo.app.config, "ADMIN_EMAIL", "directiva@ejemplo.cl")
@@ -1403,3 +1408,129 @@ def test_total_de_socios_sale_del_padron(cliente, app_prueba):
             "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' AND activo = 1 AND fallecido = 0 "
             "AND estado_aprobacion = 'Aprobada'", uno=True)["c"]
     assert f'<div class="stat-number">{total}</div>' in cliente.get("/").get_data(as_text=True)
+
+
+# --- Seguridad: CSRF, intentos de inicio de sesión y cabeceras -------------
+def token_de(html):
+    return re.search(r'name="csrf_token" value="([^"]+)"', html).group(1)
+
+
+def test_formulario_sin_token_csrf_se_rechaza(cliente, app_prueba):
+    app_prueba.config["CSRF_ACTIVO"] = True
+    datos = {"nombre": "Vecino", "email": "v@ejemplo.cl", "telefono": "",
+             "mensaje": "Consulta de prueba"}
+    assert cliente.post("/contacto", data=datos).status_code == 400
+    assert cliente.post("/contacto", data={**datos, "csrf_token": "falso"}).status_code == 400
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM mensajes WHERE mensaje = ?",
+                              ("Consulta de prueba",), uno=True)["c"] == 0
+
+
+def test_formulario_con_token_csrf_se_acepta(cliente, app_prueba):
+    app_prueba.config["CSRF_ACTIVO"] = True
+    token = token_de(cliente.get("/login").get_data(as_text=True))
+    respuesta = cliente.post("/login", data={"usuario": "admin", "clave": "esperanza2026",
+                                             "csrf_token": token})
+    assert respuesta.status_code == 302
+    assert cliente.get("/panel", follow_redirects=False).status_code == 200
+
+
+def test_todos_los_formularios_post_llevan_token():
+    carpeta = os.path.join(os.path.dirname(__file__), "templates")
+    sin_token = []
+    for raiz, _, archivos in os.walk(carpeta):
+        for nombre in archivos:
+            if not nombre.endswith(".html"):
+                continue
+            texto = open(os.path.join(raiz, nombre), encoding="utf-8").read()
+            for m in re.finditer(r'<form\b[^>]*method=["\']post["\'][^>]*>', texto, re.I):
+                if "csrf_campo()" not in texto[m.end():m.end() + 60]:
+                    sin_token.append(nombre)
+    assert sin_token == []
+
+
+def test_login_se_bloquea_tras_cinco_intentos_fallidos(cliente):
+    for _ in range(5):
+        assert cliente.post("/login", data={"usuario": "admin", "clave": "mala"}).status_code == 200
+    bloqueado = cliente.post("/login", data={"usuario": "admin", "clave": "esperanza2026"})
+    assert bloqueado.status_code == 429
+    assert "Demasiados intentos" in bloqueado.get_data(as_text=True)
+    assert cliente.get("/panel", follow_redirects=False).status_code == 302
+
+
+def test_bloqueo_de_login_vence_y_no_afecta_a_otros_usuarios(cliente, app_prueba):
+    for _ in range(5):
+        cliente.post("/login", data={"usuario": "admin", "clave": "mala"})
+    # Otro usuario desde la misma dirección no queda bloqueado.
+    otro = cliente.post("/login", data={"usuario": "coordinador", "clave": "mala"})
+    assert otro.status_code == 200
+    # Pasada la ventana de 15 minutos se puede volver a ingresar.
+    with app_prueba.app_context():
+        base.ejecutar(
+            "UPDATE intentos_login SET fecha = ?",
+            ((datetime.now() - timedelta(minutes=16)).isoformat(),),
+        )
+    assert ingresar(cliente).status_code == 200
+    assert cliente.get("/panel", follow_redirects=False).status_code == 200
+
+
+def test_ingreso_correcto_reinicia_los_intentos(cliente, app_prueba):
+    for _ in range(4):
+        cliente.post("/login", data={"usuario": "admin", "clave": "mala"})
+    ingresar(cliente)
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM intentos_login", uno=True)["c"] == 0
+
+
+def test_bloqueo_de_login_se_guarda_en_la_base(app_prueba):
+    # El hosting puede atender con varios procesos o reiniciarlos: el conteo no vive en memoria.
+    primero = app_prueba.test_client()
+    for _ in range(5):
+        primero.post("/login", data={"usuario": "admin", "clave": "mala"})
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM intentos_login", uno=True)["c"] == 5
+    segundo = app_prueba.test_client()
+    assert segundo.post("/login", data={"usuario": "ADMIN", "clave": "mala"}).status_code == 429
+
+
+def test_solo_se_atienden_los_dominios_permitidos(cliente, monkeypatch):
+    import app as modulo
+
+    monkeypatch.setitem(modulo.app.config, "TRUSTED_HOSTS", ["juntadevecinos2esperanza.cl"])
+    ajeno = cliente.get("/", headers={"Host": "sitio-falso.example"})
+    assert ajeno.status_code == 400
+    propio = cliente.get("/", headers={"Host": "juntadevecinos2esperanza.cl"})
+    assert propio.status_code == 200
+
+
+def test_cabeceras_de_seguridad_en_todas_las_paginas(cliente):
+    respuesta = cliente.get("/")
+    assert respuesta.headers["X-Content-Type-Options"] == "nosniff"
+    assert respuesta.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert respuesta.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert respuesta.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
+
+
+def test_panel_rechaza_campos_obligatorios_vacios(cliente, app_prueba):
+    ingresar(cliente)
+    with app_prueba.app_context():
+        antes = base.consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"]
+    respuesta = cliente.post("/panel/noticias/nuevo",
+                             data={"titulo": "  ", "resumen": "", "contenido": "", "publicado": "1"})
+    html = respuesta.get_data(as_text=True)
+    assert "Revisa estos campos: Título, Resumen corto, Texto completo." in html
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM noticias", uno=True)["c"] == antes
+
+
+def test_panel_no_guarda_edicion_con_titulo_vacio(cliente, app_prueba):
+    ingresar(cliente)
+    with app_prueba.app_context():
+        noticia = base.consultar("SELECT * FROM noticias LIMIT 1", uno=True)
+    respuesta = cliente.post(f"/panel/noticias/{noticia['id']}/editar",
+                             data={"titulo": "", "resumen": noticia["resumen"],
+                                   "contenido": noticia["contenido"], "publicado": "1"})
+    assert "Revisa estos campos: Título." in respuesta.get_data(as_text=True)
+    with app_prueba.app_context():
+        assert base.consultar("SELECT titulo FROM noticias WHERE id = ?", (noticia["id"],),
+                              uno=True)["titulo"] == noticia["titulo"]

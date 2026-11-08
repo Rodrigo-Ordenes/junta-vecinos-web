@@ -24,7 +24,9 @@ from urllib.parse import quote
 from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
+import hmac
 
+from markupsafe import Markup
 from flask import (
     Flask,
     abort,
@@ -110,6 +112,11 @@ if EN_PRODUCCION:
     # El hosting atiende HTTPS y reenvía a la aplicación: así los enlaces de los
     # correos salen con https:// y el dominio correcto.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    # Solo se atienden los dominios propios: los enlaces de recuperación de clave
+    # usan el dominio de la petición y no puede venir falsificado.
+    app.config["TRUSTED_HOSTS"] = [
+        d.strip() for d in os.environ.get("DOMINIOS_PERMITIDOS", "").split(",") if d.strip()
+    ]
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por archivo
 app.config["UPLOAD_FOLDER"] = CARPETA_SUBIDAS
 app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.abspath(
@@ -1878,6 +1885,48 @@ def perfil_incompleto(usuario):
     return not (usuario["email"] or "").strip()
 
 
+def token_csrf():
+    """Token secreto de la sesión que acompaña a cada formulario POST."""
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_urlsafe(32)
+    return session["csrf"]
+
+
+@app.context_processor
+def contexto_csrf():
+    return {
+        "csrf_campo": lambda: Markup(
+            '<input type="hidden" name="csrf_token" value="%s">' % token_csrf()
+        )
+    }
+
+
+@app.before_request
+def verificar_csrf():
+    """Rechaza envíos que no vengan de un formulario de este mismo sitio."""
+    if request.method != "POST" or not app.config.get("CSRF_ACTIVO", True):
+        return None
+    enviado = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token") or ""
+    esperado = session.get("csrf")
+    if esperado and hmac.compare_digest(enviado, esperado):
+        return None
+    return render_template(
+        "error.html", codigo=400,
+        mensaje="El formulario expiró o no se pudo verificar. Vuelve a la página "
+                "anterior, recárgala e intenta nuevamente.",
+    ), 400
+
+
+@app.after_request
+def cabeceras_de_seguridad(respuesta):
+    """Cabeceras básicas para todas las páginas (las rutas pueden fijar las suyas)."""
+    respuesta.headers.setdefault("X-Content-Type-Options", "nosniff")
+    respuesta.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    respuesta.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    respuesta.headers.setdefault("Content-Security-Policy", "frame-ancestors 'self'")
+    return respuesta
+
+
 @app.before_request
 def exigir_cambio_de_clave():
     """Primer ingreso: primero se cambia la clave inicial y luego se completa el correo.
@@ -1901,15 +1950,47 @@ def destino_seguro(destino):
     return bool(destino) and destino.startswith("/") and not destino.startswith("//")
 
 
+# Límite de intentos: la clave inicial de los socios son los dígitos de su RUT,
+# así que no se permite probar claves sin pausa. Se cuenta por dirección y usuario,
+# en la base de datos porque el hosting puede atender con varios procesos.
+INTENTOS_LOGIN_MAXIMOS = 5
+VENTANA_INTENTOS_LOGIN = timedelta(minutes=15)
+
+
+def intentos_recientes(clave_intento, ahora):
+    """Descarta los intentos vencidos y cuenta los que siguen en la ventana."""
+    ejecutar(
+        "DELETE FROM intentos_login WHERE fecha < ?",
+        ((ahora - VENTANA_INTENTOS_LOGIN).isoformat(),),
+    )
+    return consultar(
+        "SELECT COUNT(*) c FROM intentos_login WHERE clave = ?", (clave_intento,), uno=True
+    )["c"]
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         nombre_usuario = (request.form.get("usuario") or "").strip()
         clave = request.form.get("clave") or ""
+        clave_intento = f"{request.remote_addr or ''}|{nombre_usuario.lower()}"
+        ahora = datetime.now()
+        if intentos_recientes(clave_intento, ahora) >= INTENTOS_LOGIN_MAXIMOS:
+            flash("Demasiados intentos fallidos. Espera 15 minutos antes de volver a "
+                  "intentarlo o recupera tu clave.", "error")
+            return render_template("login.html"), 429
         fila = consultar(
             "SELECT * FROM usuarios WHERE usuario = ?", (nombre_usuario,), uno=True
         )
-        if fila and check_password_hash(fila["clave_hash"], clave):
+        clave_correcta = bool(fila) and check_password_hash(fila["clave_hash"], clave)
+        if clave_correcta:
+            ejecutar("DELETE FROM intentos_login WHERE clave = ?", (clave_intento,))
+        else:
+            ejecutar(
+                "INSERT INTO intentos_login (clave, fecha) VALUES (?, ?)",
+                (clave_intento, ahora.isoformat()),
+            )
+        if clave_correcta:
             if fila["estado_aprobacion"] == "Pendiente":
                 flash(
                     "Tu cuenta de socio está pendiente de validación contra el padrón "
@@ -3186,12 +3267,15 @@ def valores_desde_formulario(recurso, fila_actual=None):
     return valores
 
 
-def campos_numericos_faltantes(definicion, valores):
-    """Etiquetas de los campos numéricos obligatorios que quedaron vacíos o inválidos."""
+def campos_obligatorios_faltantes(definicion, valores):
+    """Etiquetas de los campos obligatorios que quedaron vacíos o con un número inválido.
+
+    El navegador ya marca estos campos, pero el servidor los revisa igual por si el
+    formulario llega sin pasar por esa validación.
+    """
     return [
         c["etiqueta"] for c in definicion["campos"]
-        if c.get("requerido") and c["tipo"] in ("numero", "decimal")
-        and valores.get(c["nombre"]) is None
+        if c.get("requerido") and valores.get(c["nombre"]) in (None, "")
     ]
 
 
@@ -3348,7 +3432,7 @@ def panel_nuevo(recurso):
             valores[clave] = generador()
         if recurso == "servicios" and coordinador_actual():
             valores["aprobado"] = 0
-        faltantes = campos_numericos_faltantes(definicion, valores)
+        faltantes = campos_obligatorios_faltantes(definicion, valores)
         if faltantes:
             flash("Revisa estos campos: " + ", ".join(faltantes) + ".", "error")
             return render_template(
@@ -3401,7 +3485,7 @@ def panel_editar(recurso, fila_id):
             valores[clave] = generador()
         if recurso == "servicios" and coordinador_actual():
             valores["aprobado"] = 0
-        faltantes = campos_numericos_faltantes(definicion, valores)
+        faltantes = campos_obligatorios_faltantes(definicion, valores)
         if faltantes:
             flash("Revisa estos campos: " + ", ".join(faltantes) + ".", "error")
             return render_template(
@@ -3546,6 +3630,8 @@ def verificar_configuracion_produccion():
         or len(app.config["COORD_PASSWORD"]) < 10
     ):
         problemas.append("COORD_PASSWORD (al menos 10 caracteres, distinta a la de prueba)")
+    if not app.config.get("TRUSTED_HOSTS"):
+        problemas.append("DOMINIOS_PERMITIDOS (dominios del sitio, separados por coma)")
     if problemas:
         raise RuntimeError(
             "Configuración de producción incompleta. Define estas variables de entorno: "

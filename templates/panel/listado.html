@@ -195,6 +195,7 @@
                  href="{{ url_for('panel_editar', recurso=recurso, fila_id=fila['id']) }}">Editar</a>
               <form method="post" action="{{ url_for('panel_eliminar', recurso=recurso, fila_id=fila['id']) }}"
                     onsubmit="return confirm('¿Seguro que quieres eliminar este registro?');">
+                {{ csrf_campo() }}
                 <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
               </form>
             </div>

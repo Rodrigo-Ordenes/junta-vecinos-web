@@ -22,6 +22,7 @@
         {% if u.email %}<p class="mb-1"><strong>Correo:</strong> {{ u.email }}</p>{% endif %}
         <p class="small text-muted">Solicitud recibida: {{ u.fecha_creacion|fecha_corta }}</p>
         <form method="post" action="{{ url_for('panel_usuario_aprobar', usuario_id=u.id) }}">
+          {{ csrf_campo() }}
           <button class="btn btn-success" type="submit">✓ Validar y Activar Cuenta</button>
         </form>
       </article>

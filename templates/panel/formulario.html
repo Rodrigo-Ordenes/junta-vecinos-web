@@ -6,6 +6,7 @@
 </h1>
 
 <form method="post" enctype="multipart/form-data" class="row g-3 caja">
+  {{ csrf_campo() }}
   {% for c in definicion.campos %}
     {% set valor = fila[c.nombre] if fila and c.tipo != 'clave' else '' %}
     <div class="col-12 {% if c.tipo in ('texto', 'numero', 'fecha', 'hora', 'opciones', 'clave', 'correo', 'decimal') %}col-md-6{% endif %}">

@@ -6,6 +6,7 @@
   <div class="row g-4">
     <div class="col-lg-7">
       <form method="post" class="row g-3 caja">
+        {{ csrf_campo() }}
         <div class="col-md-6">
           <label class="form-label" for="nombre">Tu nombre <span class="obligatorio">*</span></label>
           <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" required>

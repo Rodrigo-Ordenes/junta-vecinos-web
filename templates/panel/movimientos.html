@@ -25,6 +25,7 @@
           <td class="text-end">
             <form method="post" action="{{ url_for('panel_movimiento_eliminar', movimiento_id=m.id) }}"
                   onsubmit="return confirm('¿Eliminar este movimiento?');">
+              {{ csrf_campo() }}
               <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
             </form>
           </td>
@@ -38,6 +39,7 @@
 
 <h2 class="h5 mt-4">Agregar un movimiento</h2>
 <form method="post" class="row g-3 caja">
+  {{ csrf_campo() }}
   <div class="col-md-3">
     <label class="form-label" for="fecha">Fecha</label>
     <input class="form-control" type="date" id="fecha" name="fecha">

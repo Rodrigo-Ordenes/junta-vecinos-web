@@ -16,6 +16,7 @@
   {% endif %}
 
   <form method="post" enctype="multipart/form-data" class="row g-3 caja">
+    {{ csrf_campo() }}
     <h2 class="h5 mb-0">Formulario de solicitud</h2>
     <p class="small text-muted mb-0">Cada solicitud corresponde a una persona. La directiva revisará el documento antes de emitir el certificado oficial.</p>
     {% if usuario %}
@@ -102,6 +103,7 @@
   <div class="caja mt-4">
     <h2 class="h5">¿Ya hiciste tu solicitud?</h2>
     <form class="row g-2 align-items-end" method="post" action="{{ url_for('estado_certificado') }}" autocomplete="off">
+      {{ csrf_campo() }}
       <div class="col-sm-8">
         <label class="form-label" for="codigo">Código privado de seguimiento</label>
         <input class="form-control codigo-seguimiento" type="text" id="codigo" name="codigo" minlength="24" maxlength="24" pattern="[A-Fa-f0-9]{24}" autocapitalize="characters" required>

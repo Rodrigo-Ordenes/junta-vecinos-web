@@ -37,6 +37,7 @@
     </div>
 
     <form method="post" action="{{ url_for('panel_certificado_estado', solicitud_id=s.id) }}" class="row g-2 mt-2">
+      {{ csrf_campo() }}
       <div class="col-md-4">
         <label class="form-label small" for="estado{{ s.id }}">Nuevo estado</label>
         <select class="form-select" id="estado{{ s.id }}" name="estado">

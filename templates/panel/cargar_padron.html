@@ -14,6 +14,7 @@
     <div class="caja">
       <h2 class="h5 mb-3">Subir Archivo de Padrón</h2>
       <form method="post" enctype="multipart/form-data" data-procesando="Cargando el padrón… no cierres esta página (puede tardar unos segundos).">
+        {{ csrf_campo() }}
         <div class="mb-3">
           <label for="archivo" class="form-label fw-bold">Seleccionar archivo (.csv o .xlsx)</label>
           <input class="form-control" type="file" id="archivo" name="archivo" accept=".csv, .xlsx, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>

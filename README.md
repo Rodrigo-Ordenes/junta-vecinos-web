@@ -116,62 +116,69 @@ test_app.py            Pruebas automatizadas
 
 ---
 
-## Publicación (PythonAnywhere)
+## Publicación (V2 Networks + NIC Chile)
 
-Se recomienda **PythonAnywhere, plan Developer (US$10 al mes)**: guarda los archivos de forma
-permanente (la base SQLite no se pierde al actualizar), tiene panel web en vez de consola y permite
-programar el respaldo diario. El plan gratuito sirve para una demo, pero no permite enviar correos
-ni usar un dominio propio. Un dominio `.cl` (opcional) se compra aparte en nic.cl.
+El sitio se publica en **juntadevecinos2esperanza.cl** con el plan Crecimiento de V2 Networks. El
+dominio se renueva en nic.cl y el hosting en el portal de clientes de V2: conviene que ambos queden
+a nombre y con el correo de la junta.
 
 ### Primera publicación
 
-1. Crear la cuenta en pythonanywhere.com con el correo de la junta y contratar el plan.
-2. Abrir una consola **Bash** (pestaña *Consoles*) y ejecutar:
+1. **Preparar el código** en un computador con el proyecto (el repositorio es privado, así que se
+   sube un .zip y no se guardan claves de GitHub en el hosting):
 
    ```bash
-   git clone https://github.com/Rodrigo-Ordenes/junta-vecinos-web.git
-   cd junta-vecinos-web
-   python3.12 -m venv venv && source venv/bin/activate
-   pip install -r requirements.txt
-   cp .env.ejemplo .env && nano .env      # completar claves, correo y DATA_DIR
-   mkdir -p ~/datos-junta
+   git archive -o junta-web.zip main
    ```
+2. En el panel de V2, subir `junta-web.zip` y descomprimirlo en `/home/TU_USUARIO/junta-vecinos-web`,
+   **fuera de `public_html`**. Crear también `/home/TU_USUARIO/datos-junta`.
+3. Crear la **aplicación Python** del panel para el dominio, con Python 3.9 o superior:
+   - Carpeta de la aplicación: `junta-vecinos-web`
+   - Archivo de inicio: el que indique el panel; el objeto WSGI es `application` (ver `wsgi.py`).
+   - Instalar las dependencias de `requirements.txt` desde la aplicación o el terminal.
+4. Copiar `.env.ejemplo` como `.env` en la carpeta de la aplicación, dejarlo solo para el dueño
+   (`chmod 600 .env`) y completarlo **directamente en el servidor**:
+   - `DATA_DIR=/home/TU_USUARIO/datos-junta`
+   - `SECRET_KEY`: generar con `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+   - clave y correo del administrador
+   - datos SMTP (por ejemplo una cuenta Gmail de la junta con *contraseña de aplicación*)
+5. **Reiniciar la aplicación** desde el panel. Si falta algo en `.env`, el sitio no arranca y el
+   registro de errores indica qué variable falta.
+6. **Dominio:** en nic.cl, entrar a la administración de `juntadevecinos2esperanza.cl` y reemplazar
+   los servidores de nombre por los que indique V2. El cambio puede tardar desde minutos hasta
+   cerca de un día en verse en todas partes. Se revisa con:
 
-   En `.env`: `DATA_DIR=/home/TU_USUARIO/datos-junta`, una `SECRET_KEY` generada con
-   `python -c "import secrets; print(secrets.token_urlsafe(48))"`, la clave y el correo del
-   administrador y, para los avisos por correo, los datos SMTP (por ejemplo una cuenta Gmail de la
-   junta con *contraseña de aplicación*).
-3. Pestaña **Web → Add a new web app → Manual configuration → Python 3.12**. Luego:
-   - *Virtualenv*: `/home/TU_USUARIO/junta-vecinos-web/venv`
-   - *Static files*: URL `/static/` → carpeta `/home/TU_USUARIO/junta-vecinos-web/static`
-   - *Force HTTPS*: activado.
-   - Editar el *WSGI configuration file* y dejar solo:
-
-     ```python
-     import sys
-     sys.path.insert(0, "/home/TU_USUARIO/junta-vecinos-web")
-     from wsgi import application  # noqa
-     ```
-4. Botón **Reload**. Si algo falla, el motivo aparece en el *error log* de la pestaña Web (por
-   ejemplo, si falta una clave en `.env` el sitio no arranca y lo dice).
-5. Entrar a `/login` con la cuenta de administración, revisar **Textos del sitio** (correo de
-   contacto, aporte de la sede, calles) y usar **«Enviarme un correo de prueba»**.
-6. Cargar el padrón en **Panel → Carga masiva del padrón**: primero con «solo simular», revisar los
+   ```bash
+   nslookup -type=NS juntadevecinos2esperanza.cl
+   ```
+7. Cuando el dominio ya apunte a V2, activar el **SSL gratis** para el dominio y `www`, y forzar
+   HTTPS en el panel. Antes de eso el ingreso no funciona, porque las sesiones exigen HTTPS.
+8. Entrar a `/login` con la cuenta de administración, revisar **Textos del sitio** (dirección de la
+   sede, correo de contacto, aporte de la sede, calles) y usar **«Enviarme un correo de prueba»**.
+9. Cargar el padrón en **Panel → Carga masiva del padrón**: primero con «solo simular», revisar los
    errores y luego cargarlo de verdad. Cada socio entra con su RUT sin puntos ni guion como usuario
    y los dígitos del RUT sin dígito verificador como clave; en el primer ingreso debe cambiarla y
    registrar su correo.
-7. Pestaña **Tasks**: crear una tarea diaria (por ejemplo 04:00) con
-   `cd ~/junta-vecinos-web && venv/bin/python respaldo.py --conservar 30`.
+10. Programar una **tarea diaria** (por ejemplo a las 04:00) usando el Python del entorno de la
+    aplicación:
+
+    ```bash
+    cd ~/junta-vecinos-web && RUTA_DEL_PYTHON_DE_LA_APP respaldo.py --conservar 30
+    ```
 
 ### Actualizar el sitio con una nueva versión
 
-```bash
-cd ~/junta-vecinos-web && venv/bin/python respaldo.py   # respaldo antes de cambiar nada
-git pull && venv/bin/pip install -r requirements.txt
-```
+1. Descargar un respaldo desde *Textos del sitio* (o ejecutar `respaldo.py`).
+2. Generar un `junta-web.zip` nuevo y descomprimirlo **encima** de la carpeta de la aplicación, sin
+   borrarla: ahí están `.env` y `static/uploads/`.
+3. Instalar `requirements.txt` si cambió y reiniciar la aplicación. Las columnas y tablas nuevas se
+   agregan solas al arrancar; no se borra información.
 
-Luego **Reload** en la pestaña Web. Las columnas y tablas nuevas se agregan solas a la base al
-arrancar; no se borra información.
+### Si algo sale mal
+
+- **Tras actualizar:** volver a subir el .zip de la versión anterior y reiniciar. Si la base se
+  dañó, restaurarla desde el último respaldo (instrucciones dentro de `respaldo.py`).
+- **Con el dominio:** en nic.cl, volver a dejar los servidores de nombre anteriores.
 
 ---
 

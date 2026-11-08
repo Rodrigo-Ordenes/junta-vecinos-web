@@ -15,6 +15,7 @@
 
   <div class="caja p-4 shadow-sm w-100 mb-4">
     <form method="post" enctype="multipart/form-data" class="row g-3">
+      {{ csrf_campo() }}
       <div class="col-md-6">
         <label class="form-label" for="nombre_servicio">Nombre del emprendimiento o servicio <span class="obligatorio">*</span></label>
         <input class="form-control" type="text" id="nombre_servicio" name="nombre_servicio" value="{{ datos.nombre_servicio or '' }}" placeholder="Ej: Panadería Doña Rosa" required>

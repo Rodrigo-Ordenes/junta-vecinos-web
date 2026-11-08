@@ -325,6 +325,12 @@ CREATE TABLE IF NOT EXISTS recuperaciones_clave (
     expira TEXT NOT NULL,
     usado INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS intentos_login (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    clave TEXT NOT NULL,
+    fecha TEXT NOT NULL
+);
 """
 
 CATEGORIAS_MAPA = ["Equipamiento", "Salud", "Transporte", "Metro", "Comercio", "Punto crítico"]

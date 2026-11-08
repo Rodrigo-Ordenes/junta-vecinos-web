@@ -7,6 +7,7 @@
 </div>
 
 <form method="post" class="row g-3 caja">
+  {{ csrf_campo() }}
   <div class="col-md-4">
     <label class="form-label" for="fecha">Fecha <span class="obligatorio">*</span></label>
     <input class="form-control" type="date" id="fecha" name="fecha" value="{{ reserva.fecha }}" required>
@@ -72,6 +73,7 @@
     </div>
     <form method="post" action="{{ url_for('panel_reserva_eliminar', reserva_id=reserva.id) }}"
           onsubmit="return confirm('¿Seguro que deseas eliminar definitivamente esta reserva?');">
+      {{ csrf_campo() }}
       <button class="btn btn-outline-danger" type="submit">Eliminar definitivamente</button>
     </form>
   </div>
