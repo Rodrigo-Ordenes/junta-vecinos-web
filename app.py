@@ -25,7 +25,6 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
 import hmac
-import threading
 
 from markupsafe import Markup
 from flask import (
@@ -113,6 +112,11 @@ if EN_PRODUCCION:
     # El hosting atiende HTTPS y reenvía a la aplicación: así los enlaces de los
     # correos salen con https:// y el dominio correcto.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    # Solo se atienden los dominios propios: los enlaces de recuperación de clave
+    # usan el dominio de la petición y no puede venir falsificado.
+    app.config["TRUSTED_HOSTS"] = [
+        d.strip() for d in os.environ.get("DOMINIOS_PERMITIDOS", "").split(",") if d.strip()
+    ]
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por archivo
 app.config["UPLOAD_FOLDER"] = CARPETA_SUBIDAS
 app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.abspath(
@@ -1947,20 +1951,21 @@ def destino_seguro(destino):
 
 
 # Límite de intentos: la clave inicial de los socios son los dígitos de su RUT,
-# así que no se permite probar claves sin pausa. Se cuenta por dirección y usuario.
+# así que no se permite probar claves sin pausa. Se cuenta por dirección y usuario,
+# en la base de datos porque el hosting puede atender con varios procesos.
 INTENTOS_LOGIN_MAXIMOS = 5
 VENTANA_INTENTOS_LOGIN = timedelta(minutes=15)
-intentos_fallidos = {}
-_candado_intentos = threading.Lock()
 
 
 def intentos_recientes(clave_intento, ahora):
-    """Descarta los intentos vencidos y devuelve los que siguen en la ventana."""
-    limite = ahora - VENTANA_INTENTOS_LOGIN
-    with _candado_intentos:
-        for clave in [c for c, fechas in intentos_fallidos.items() if fechas[-1] < limite]:
-            del intentos_fallidos[clave]
-        return [f for f in intentos_fallidos.get(clave_intento, []) if f >= limite]
+    """Descarta los intentos vencidos y cuenta los que siguen en la ventana."""
+    ejecutar(
+        "DELETE FROM intentos_login WHERE fecha < ?",
+        ((ahora - VENTANA_INTENTOS_LOGIN).isoformat(),),
+    )
+    return consultar(
+        "SELECT COUNT(*) c FROM intentos_login WHERE clave = ?", (clave_intento,), uno=True
+    )["c"]
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1968,9 +1973,9 @@ def login():
     if request.method == "POST":
         nombre_usuario = (request.form.get("usuario") or "").strip()
         clave = request.form.get("clave") or ""
-        clave_intento = (request.remote_addr or "", nombre_usuario.lower())
+        clave_intento = f"{request.remote_addr or ''}|{nombre_usuario.lower()}"
         ahora = datetime.now()
-        if len(intentos_recientes(clave_intento, ahora)) >= INTENTOS_LOGIN_MAXIMOS:
+        if intentos_recientes(clave_intento, ahora) >= INTENTOS_LOGIN_MAXIMOS:
             flash("Demasiados intentos fallidos. Espera 15 minutos antes de volver a "
                   "intentarlo o recupera tu clave.", "error")
             return render_template("login.html"), 429
@@ -1978,11 +1983,13 @@ def login():
             "SELECT * FROM usuarios WHERE usuario = ?", (nombre_usuario,), uno=True
         )
         clave_correcta = bool(fila) and check_password_hash(fila["clave_hash"], clave)
-        with _candado_intentos:
-            if clave_correcta:
-                intentos_fallidos.pop(clave_intento, None)
-            else:
-                intentos_fallidos.setdefault(clave_intento, []).append(ahora)
+        if clave_correcta:
+            ejecutar("DELETE FROM intentos_login WHERE clave = ?", (clave_intento,))
+        else:
+            ejecutar(
+                "INSERT INTO intentos_login (clave, fecha) VALUES (?, ?)",
+                (clave_intento, ahora.isoformat()),
+            )
         if clave_correcta:
             if fila["estado_aprobacion"] == "Pendiente":
                 flash(
@@ -3623,6 +3630,8 @@ def verificar_configuracion_produccion():
         or len(app.config["COORD_PASSWORD"]) < 10
     ):
         problemas.append("COORD_PASSWORD (al menos 10 caracteres, distinta a la de prueba)")
+    if not app.config.get("TRUSTED_HOSTS"):
+        problemas.append("DOMINIOS_PERMITIDOS (dominios del sitio, separados por coma)")
     if problemas:
         raise RuntimeError(
             "Configuración de producción incompleta. Define estas variables de entorno: "

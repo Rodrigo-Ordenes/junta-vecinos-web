@@ -4,7 +4,7 @@ import os
 import re
 import tempfile
 from io import BytesIO
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -23,7 +23,6 @@ def app_prueba(monkeypatch):
     # Las pruebas de formularios envían los datos directo; la protección CSRF
     # se prueba aparte, activándola en sus propias pruebas.
     modulo.app.config["CSRF_ACTIVO"] = False
-    modulo.intentos_fallidos.clear()
     modulo.app.config["UPLOAD_FOLDER"] = os.path.join(carpeta, "uploads")
     modulo.app.config["PRIVATE_UPLOAD_FOLDER"] = os.path.join(carpeta, "private")
     base.init_db(modulo.app)
@@ -1207,6 +1206,8 @@ def test_produccion_no_arranca_con_claves_de_prueba(app_prueba, monkeypatch):
     with pytest.raises(RuntimeError) as error:
         modulo.verificar_configuracion_produccion()
     assert "SECRET_KEY" in str(error.value) and "ADMIN_PASSWORD" in str(error.value)
+    assert "DOMINIOS_PERMITIDOS" in str(error.value)
+    monkeypatch.setitem(modulo.app.config, "TRUSTED_HOSTS", ["juntadevecinos2esperanza.cl"])
     monkeypatch.setitem(modulo.app.config, "SECRET_KEY", "x" * 40)
     monkeypatch.setitem(modulo.app.config, "ADMIN_PASSWORD", "una-clave-larga-y-real")
     monkeypatch.setitem(modulo.app.config, "ADMIN_EMAIL", "directiva@ejemplo.cl")
@@ -1457,29 +1458,49 @@ def test_login_se_bloquea_tras_cinco_intentos_fallidos(cliente):
     assert cliente.get("/panel", follow_redirects=False).status_code == 302
 
 
-def test_bloqueo_de_login_vence_y_no_afecta_a_otros_usuarios(cliente, monkeypatch):
-    import app as modulo
-
+def test_bloqueo_de_login_vence_y_no_afecta_a_otros_usuarios(cliente, app_prueba):
     for _ in range(5):
         cliente.post("/login", data={"usuario": "admin", "clave": "mala"})
     # Otro usuario desde la misma dirección no queda bloqueado.
     otro = cliente.post("/login", data={"usuario": "coordinador", "clave": "mala"})
     assert otro.status_code == 200
     # Pasada la ventana de 15 minutos se puede volver a ingresar.
-    for clave in list(modulo.intentos_fallidos):
-        modulo.intentos_fallidos[clave] = [f - timedelta(minutes=16)
-                                           for f in modulo.intentos_fallidos[clave]]
+    with app_prueba.app_context():
+        base.ejecutar(
+            "UPDATE intentos_login SET fecha = ?",
+            ((datetime.now() - timedelta(minutes=16)).isoformat(),),
+        )
     assert ingresar(cliente).status_code == 200
     assert cliente.get("/panel", follow_redirects=False).status_code == 200
 
 
-def test_ingreso_correcto_reinicia_los_intentos(cliente):
-    import app as modulo
-
+def test_ingreso_correcto_reinicia_los_intentos(cliente, app_prueba):
     for _ in range(4):
         cliente.post("/login", data={"usuario": "admin", "clave": "mala"})
     ingresar(cliente)
-    assert not any(clave[1] == "admin" for clave in modulo.intentos_fallidos)
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM intentos_login", uno=True)["c"] == 0
+
+
+def test_bloqueo_de_login_se_guarda_en_la_base(app_prueba):
+    # El hosting puede atender con varios procesos o reiniciarlos: el conteo no vive en memoria.
+    primero = app_prueba.test_client()
+    for _ in range(5):
+        primero.post("/login", data={"usuario": "admin", "clave": "mala"})
+    with app_prueba.app_context():
+        assert base.consultar("SELECT COUNT(*) c FROM intentos_login", uno=True)["c"] == 5
+    segundo = app_prueba.test_client()
+    assert segundo.post("/login", data={"usuario": "ADMIN", "clave": "mala"}).status_code == 429
+
+
+def test_solo_se_atienden_los_dominios_permitidos(cliente, monkeypatch):
+    import app as modulo
+
+    monkeypatch.setitem(modulo.app.config, "TRUSTED_HOSTS", ["juntadevecinos2esperanza.cl"])
+    ajeno = cliente.get("/", headers={"Host": "sitio-falso.example"})
+    assert ajeno.status_code == 400
+    propio = cliente.get("/", headers={"Host": "juntadevecinos2esperanza.cl"})
+    assert propio.status_code == 200
 
 
 def test_cabeceras_de_seguridad_en_todas_las_paginas(cliente):
