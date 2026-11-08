@@ -124,15 +124,13 @@ a nombre y con el correo de la junta.
 
 ### Primera publicación
 
-1. **Preparar el código** en un computador con el proyecto (el repositorio es privado, así que se
-   sube un .zip y no se guardan claves de GitHub en el hosting):
+1. Entrar a **cPanel** (desde el portal de clientes de V2) y crear la carpeta
+   `/home/TU_USUARIO/datos-junta` en *Administrador de archivos*.
+2. Abrir *Terminal* en cPanel y descargar el código **fuera de `public_html`**:
 
    ```bash
-   git archive -o junta-web.zip main
+   cd ~ && git clone https://github.com/Rodrigo-Ordenes/junta-vecinos-web.git
    ```
-2. Entrar a **cPanel** (desde el portal de clientes de V2). En *Administrador de archivos*, subir
-   `junta-web.zip` y descomprimirlo en `/home/TU_USUARIO/junta-vecinos-web`, **fuera de
-   `public_html`**. Crear también la carpeta `/home/TU_USUARIO/datos-junta`.
 3. En cPanel, *Software → Setup Python App → Crear aplicación*:
    - Versión de Python: la más nueva disponible (mínimo 3.9).
    - Raíz de la aplicación: `junta-vecinos-web`
@@ -140,7 +138,8 @@ a nombre y con el correo de la junta.
    - Archivo de inicio: `passenger_wsgi.py`
    - Punto de entrada: `application`
 
-   Pulsar *CREATE*. Si cPanel reemplaza `passenger_wsgi.py`, volver a subir el del .zip.
+   Pulsar *CREATE*. Si cPanel reemplaza `passenger_wsgi.py`, recuperarlo con
+   `git checkout -- passenger_wsgi.py`.
 4. Abrir *Terminal* en cPanel, pegar el comando `source …` que muestra la aplicación e instalar:
 
    ```bash
@@ -181,14 +180,14 @@ a nombre y con el correo de la junta.
 ### Actualizar el sitio con una nueva versión
 
 1. Descargar un respaldo desde *Textos del sitio* (o ejecutar `respaldo.py`).
-2. Generar un `junta-web.zip` nuevo y descomprimirlo **encima** de la carpeta de la aplicación, sin
-   borrarla: ahí están `.env` y `static/uploads/`.
+2. En el *Terminal* de cPanel: `cd ~/junta-vecinos-web && git pull`. No se tocan `.env`,
+   `static/uploads/` ni los datos.
 3. Instalar `requirements.txt` si cambió y pulsar **REINICIAR** en Setup Python App. Las columnas y tablas nuevas se
    agregan solas al arrancar; no se borra información.
 
 ### Si algo sale mal
 
-- **Tras actualizar:** volver a subir el .zip de la versión anterior y reiniciar. Si la base se
+- **Tras actualizar:** volver a la versión anterior con `git checkout <commit>` y reiniciar. Si la base se
   dañó, restaurarla desde el último respaldo (instrucciones dentro de `respaldo.py`).
 - **Con el dominio:** en nic.cl, volver a dejar los servidores de nombre anteriores.
 
