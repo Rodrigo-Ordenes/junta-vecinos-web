@@ -131,7 +131,13 @@ a nombre y con el correo de la junta.
    ```bash
    cd ~ && git clone https://github.com/Rodrigo-Ordenes/junta-vecinos-web.git
    ```
-3. En cPanel, *Software → Setup Python App → Crear aplicación*:
+3. **Antes de crear la aplicación** (sin `.env` arrancaría en modo desarrollo), copiar `.env.ejemplo` como `.env` en la carpeta de la aplicación y completarlo **directamente en
+   el servidor** (`nano .env`, y al terminar `chmod 600 .env`):
+   - `DATA_DIR=/home/TU_USUARIO/datos-junta`
+   - `SECRET_KEY`: generar con `head -c 48 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9'`
+   - clave y correo del administrador
+   - datos SMTP (por ejemplo una cuenta Gmail de la junta con *contraseña de aplicación*)
+4. En cPanel, *Software → Setup Python App → Crear aplicación*:
    - Versión de Python: la más nueva disponible (mínimo 3.9).
    - Raíz de la aplicación: `junta-vecinos-web`
    - URL de la aplicación: `juntadevecinos2esperanza.cl`
@@ -140,17 +146,11 @@ a nombre y con el correo de la junta.
 
    Pulsar *CREATE*. Si cPanel reemplaza `passenger_wsgi.py`, recuperarlo con
    `git checkout -- passenger_wsgi.py`.
-4. Abrir *Terminal* en cPanel, pegar el comando `source …` que muestra la aplicación e instalar:
+5. Abrir *Terminal* en cPanel, pegar el comando `source …` que muestra la aplicación e instalar:
 
    ```bash
    pip install -r requirements.txt
    ```
-5. Copiar `.env.ejemplo` como `.env` en la carpeta de la aplicación y completarlo **directamente en
-   el servidor** (`nano .env`, y al terminar `chmod 600 .env`):
-   - `DATA_DIR=/home/TU_USUARIO/datos-junta`
-   - `SECRET_KEY`: generar con `python -c "import secrets; print(secrets.token_urlsafe(48))"`
-   - clave y correo del administrador
-   - datos SMTP (por ejemplo una cuenta Gmail de la junta con *contraseña de aplicación*)
 6. Pulsar **REINICIAR** en Setup Python App. Si falta algo en `.env`, el sitio no arranca y el
    registro de errores (`stderr.log` en la carpeta de la aplicación) indica qué variable falta.
 7. **Dominio:** en nic.cl, entrar a la administración de `juntadevecinos2esperanza.cl`, poner como
