@@ -1635,6 +1635,7 @@ def test_linea_del_tiempo_hitos_con_fotos_videos_y_migracion_automatica(cliente,
             "galeria_fotos": "/static/img/sede_comunitaria.jpg | Vista exterior",
             "videos_youtube": "https://youtu.be/dQw4w9WgXcQ",
             "orden": "2",
+            "publicado": "on",
         },
         follow_redirects=True,
     )
@@ -1794,3 +1795,79 @@ def test_correos_automaticos_de_activacion_y_aprobacion(cliente, app_prueba, mon
         dest == "socio_correo@ejemplo.cl" and "Tu solicitud fue aceptada" in asunto
         for dest, asunto, _ in enviados
     )
+
+
+def test_recuerdo_de_vecino_queda_oculto_hasta_que_la_directiva_lo_publica(cliente, app_prueba):
+    datos = {
+        "nombre": "Vecina de prueba", "contacto": "+56911111111", "anio": "Años 60",
+        "titulo": "La fuente del antiguo matadero", "texto": "Así se veía la fuente.",
+    }
+    sin_permiso = cliente.post(
+        "/historia/compartir",
+        data={**datos, "foto": (BytesIO(b"foto"), "fuente.jpg")},
+        content_type="multipart/form-data", follow_redirects=True,
+    )
+    assert "confirmes que podemos usar la foto" in sin_permiso.get_data(as_text=True)
+
+    cliente.post(
+        "/historia/compartir",
+        data={**datos, "autorizo": "on", "foto": (BytesIO(b"foto"), "fuente.jpg")},
+        content_type="multipart/form-data", follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        hito = base.consultar(
+            "SELECT * FROM hitos_historia WHERE titulo = 'La fuente del antiguo matadero'", uno=True
+        )
+    assert hito["publicado"] == 0 and hito["aportado_por"] == "Vecina de prueba"
+    assert hito["imagen_url"].endswith("fuente.jpg")
+    assert "antiguo matadero" not in cliente.get("/historia").get_data(as_text=True)
+
+    ingresar(cliente)
+    assert "Vecina de prueba" in cliente.get("/panel/hitos").get_data(as_text=True)
+    cliente.post(
+        f"/panel/hitos/{hito['id']}/editar",
+        data={**{k: hito[k] for k in ("anio", "titulo", "texto", "imagen_url", "aportado_por",
+                                      "contacto_aporte")}, "orden": "0", "publicado": "on"},
+        follow_redirects=True,
+    )
+    historia = cliente.get("/historia").get_data(as_text=True)
+    assert "antiguo matadero" in historia and "Recuerdo de Vecina de prueba" in historia
+    assert "+56911111111" not in historia
+
+
+def test_recuerdo_rechaza_archivos_que_no_son_fotos(cliente, app_prueba):
+    cliente.post(
+        "/historia/compartir",
+        data={"nombre": "A", "contacto": "B", "anio": "1970", "titulo": "Documento",
+              "texto": "C", "autorizo": "on", "foto": (BytesIO(b"x"), "virus.exe")},
+        content_type="multipart/form-data",
+    )
+    with app_prueba.app_context():
+        assert not base.consultar(
+            "SELECT id FROM hitos_historia WHERE titulo = 'Documento'", uno=True
+        )
+
+
+def test_modo_asamblea_muestra_los_dos_salones(cliente):
+    html = cliente.get("/presentacion").get_data(as_text=True)
+    assert "Salón Doña Rosenda · próximos 7 días" in html
+    assert "Salón Esperanza · próximos 7 días" in html
+    assert html.count('class="diapositiva') >= 4
+
+
+def test_sitio_instalable_como_app(cliente):
+    manifiesto = cliente.get("/manifest.webmanifest")
+    assert manifiesto.mimetype == "application/manifest+json"
+    assert manifiesto.get_json()["display"] == "standalone"
+    for icono in manifiesto.get_json()["icons"]:
+        assert cliente.get(icono["src"]).status_code == 200
+    trabajador = cliente.get("/sw.js")
+    assert trabajador.mimetype == "text/javascript" and "Sin conexión" in trabajador.get_data(as_text=True)
+    assert 'rel="manifest"' in cliente.get("/").get_data(as_text=True)
+
+
+def test_noticia_e_historia_tienen_boton_para_escuchar(cliente, app_prueba):
+    with app_prueba.app_context():
+        noticia = base.consultar("SELECT id FROM noticias WHERE publicado = 1 LIMIT 1", uno=True)
+    assert "data-escuchar" in cliente.get(f"/noticias/{noticia['id']}").get_data(as_text=True)
+    assert "data-escuchar" in cliente.get("/historia").get_data(as_text=True)

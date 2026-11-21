@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Comparte un recuerdo · Junta de Vecinos N.° 2{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+      <p><a href="{{ url_for('historia') }}">&larr; Volver a la Historia del Cerro</a></p>
+      <h1 class="section-title">Comparte un recuerdo del Cerro</h1>
+      <p class="lead">¿Tienes una foto antigua del cerro, de la sede o de los vecinos? Envíala y la directiva la sumará a la línea del tiempo.</p>
+      <p>Antes de publicarla, la directiva la revisa. Tu contacto no se publica: solo lo usamos si necesitamos preguntarte algo sobre la foto.</p>
+
+      <form method="post" enctype="multipart/form-data" class="row g-3 caja">
+        {{ csrf_campo() }}
+        <div class="col-md-6">
+          <label class="form-label" for="nombre">Tu nombre <span class="obligatorio">*</span></label>
+          <input class="form-control" type="text" id="nombre" name="nombre" value="{{ datos.nombre or '' }}" maxlength="120" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="contacto">Tu teléfono o correo <span class="obligatorio">*</span></label>
+          <input class="form-control" type="text" id="contacto" name="contacto" value="{{ datos.contacto or '' }}" maxlength="120" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="anio">Año o época <span class="obligatorio">*</span></label>
+          <input class="form-control" type="text" id="anio" name="anio" value="{{ datos.anio or '' }}" placeholder="Ej: 1965 o años 70" maxlength="30" required>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label" for="titulo">Título del recuerdo <span class="obligatorio">*</span></label>
+          <input class="form-control" type="text" id="titulo" name="titulo" value="{{ datos.titulo or '' }}" placeholder="Ej: La fuente del antiguo matadero" maxlength="150" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="texto">¿Qué muestra la foto? <span class="obligatorio">*</span></label>
+          <textarea class="form-control" id="texto" name="texto" rows="4" placeholder="Quiénes aparecen, dónde fue y qué recuerdas de ese momento." required>{{ datos.texto or '' }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="foto">Fotografía <span class="obligatorio">*</span></label>
+          <input class="form-control" type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp" required>
+          <p class="form-text">JPG, PNG o WebP. Puedes sacarle una foto con el celular a la foto en papel.</p>
+        </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="autorizo" name="autorizo" required>
+            <label class="form-check-label" for="autorizo">
+              La foto es mía o tengo permiso para compartirla, y autorizo que la junta la publique en este sitio.
+              Si aparecen personas, cuento con su permiso (o el de su familia).
+            </label>
+          </div>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-primary btn-lg" type="submit">Enviar recuerdo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -12,8 +12,11 @@
   {% if noticia.imagen_url %}
     <img class="img-fluid rounded mb-4" src="{{ noticia.imagen_url }}" alt="{{ noticia.titulo }}">
   {% endif %}
-  <p class="lead">{{ noticia.resumen }}</p>
-  <div style="white-space: pre-line;">{{ noticia.contenido }}</div>
+  <button type="button" class="btn btn-outline-primary btn-escuchar mb-3" data-escuchar="#texto-noticia" data-titulo="{{ noticia.titulo }}" hidden>🔊 Escuchar esta noticia</button>
+  <div id="texto-noticia">
+    <p class="lead">{{ noticia.resumen }}</p>
+    <div style="white-space: pre-line;">{{ noticia.contenido }}</div>
+  </div>
 
   {{ bloque_multimedia(noticia.galeria_fotos, noticia.videos_youtube, "Fotografías y videos") }}
 

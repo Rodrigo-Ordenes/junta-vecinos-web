@@ -396,7 +396,69 @@
     }
   }
 
+  // Lee en voz alta noticias e hitos con la voz que ya trae el celular o el computador.
+  function inicializarEscuchar() {
+    var botones = document.querySelectorAll("[data-escuchar]");
+    if (!botones.length || !("speechSynthesis" in window)) return;
+    var voz = window.speechSynthesis;
+    var botonActivo = null;
+
+    function restablecer() {
+      if (botonActivo) botonActivo.textContent = botonActivo.getAttribute("data-texto-original");
+      botonActivo = null;
+    }
+
+    function vozEnEspanol() {
+      var voces = voz.getVoices();
+      var preferidas = ["es-CL", "es-419", "es-US", "es-MX", "es-ES"];
+      for (var i = 0; i < preferidas.length; i++) {
+        for (var j = 0; j < voces.length; j++) {
+          if (voces[j].lang.replace("_", "-") === preferidas[i]) return voces[j];
+        }
+      }
+      for (var k = 0; k < voces.length; k++) {
+        if (voces[k].lang.indexOf("es") === 0) return voces[k];
+      }
+      return null;
+    }
+
+    for (var i = 0; i < botones.length; i++) {
+      botones[i].hidden = false;
+      botones[i].setAttribute("data-texto-original", botones[i].textContent);
+      botones[i].addEventListener("click", function () {
+        var boton = this;
+        var eraEste = botonActivo === boton;
+        voz.cancel();
+        restablecer();
+        if (eraEste) return;
+        var destino = document.querySelector(boton.getAttribute("data-escuchar"));
+        if (!destino) return;
+        var lectura = new SpeechSynthesisUtterance(
+          (boton.getAttribute("data-titulo") || "") + ". " + destino.innerText
+        );
+        lectura.lang = "es-CL";
+        lectura.rate = 0.9;
+        var elegida = vozEnEspanol();
+        if (elegida) lectura.voice = elegida;
+        lectura.onend = restablecer;
+        lectura.onerror = restablecer;
+        botonActivo = boton;
+        boton.textContent = "⏹ Detener lectura";
+        voz.speak(lectura);
+      });
+    }
+    window.addEventListener("pagehide", function () { voz.cancel(); });
+  }
+
+  function registrarAppInstalable() {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js").catch(function () { /* el sitio funciona igual */ });
+    });
+  }
+
   function inicializarSitio() {
+    inicializarEscuchar();
     inicializarTelefonos();
     inicializarFiltrosPanel();
     inicializarDirecciones();
@@ -411,6 +473,7 @@
   }
 
   aplicarPreferencias();
+  registrarAppInstalable();
 })();
 
   // Protección anti-descarga e impresión en visor de documentos
