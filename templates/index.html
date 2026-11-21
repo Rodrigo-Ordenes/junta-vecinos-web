@@ -2,32 +2,51 @@
 {% from "_campos.html" import bloque_multimedia %}
 {% block extra_head %}
 <script>
-  /* La entrada se muestra una vez por visita y nunca a quien pidió menos movimiento. */
-  try {
-    if (!sessionStorage.getItem("jv-entrada") &&
-        !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      document.documentElement.classList.add("con-entrada");
+  /* Bienvenida: se muestra una vez por visita y nunca a quien pidió menos movimiento.
+     Espera a que la persona toque la pantalla o una tecla; el mismo código que la
+     muestra es el que la abre, así nunca queda la página bloqueada. */
+  (function () {
+    var raiz = document.documentElement;
+    try {
+      if (sessionStorage.getItem("jv-entrada") ||
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       sessionStorage.setItem("jv-entrada", "1");
+    } catch (e) { return; }
+    raiz.classList.add("con-entrada");
+    function abrir(evento) {
+      if (raiz.classList.contains("entrada-abierta") || evento.key === "Tab") return;
+      raiz.classList.add("entrada-abierta");
     }
-  } catch (e) {}
+    document.addEventListener("click", function (evento) {
+      if (evento.target.closest && evento.target.closest(".entrada")) abrir(evento);
+    });
+    document.addEventListener("keydown", abrir);
+    document.addEventListener("DOMContentLoaded", function () {
+      var boton = document.querySelector(".entrada-boton");
+      if (boton) boton.focus({ preventScroll: true });
+    });
+  })();
 </script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/asistente.css') }}">
 <script src="{{ url_for('static', filename='js/asistente.js') }}" defer></script>
 {% endblock %}
 {% block content %}
 
-<div class="entrada" aria-hidden="true">
+<div class="entrada" role="dialog" aria-label="Bienvenida">
   {% for lado in ("izquierda", "derecha") %}
-    <div class="entrada-mitad entrada-{{ lado }}">
+    <div class="entrada-mitad entrada-{{ lado }}" aria-hidden="true">
       <div class="entrada-sol"></div>
-      <div class="entrada-titulo">
-        <span class="entrada-marca">{% include "_marca.html" %}</span>
-        <strong>Junta de Vecinos N.º 2</strong>
-        <span>Cerro Esperanza</span>
-      </div>
       {% include "_cerros.html" %}
     </div>
   {% endfor %}
+  <div class="entrada-titulo">
+    <span class="entrada-marca">{% include "_marca.html" %}</span>
+    <strong>Junta de Vecinos N.º 2</strong>
+    <span class="entrada-cerro">Cerro Esperanza</span>
+    <p class="entrada-bienvenida">¡Bienvenidos y bienvenidas!</p>
+    <button type="button" class="entrada-boton">Entrar</button>
+    <span class="entrada-pista">o toca cualquier parte de la pantalla</span>
+  </div>
 </div>
 
 <section class="hero">
