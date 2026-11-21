@@ -6,6 +6,11 @@
 <meta name="description" content="Sitio oficial de la Junta de Vecinos N.° 2 · Cerro Esperanza: noticias, transparencia, proyectos, reservas de la sede y trámites vecinales.">
 <title>{% block title %}Junta de Vecinos N.° 2 · Cerro Esperanza{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="manifest" href="{{ url_for('manifiesto') }}">
+<meta name="theme-color" content="#0f3822">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/app/icono-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='img/app/icono-180.png') }}">
+<meta name="apple-mobile-web-app-title" content="JJVV 2 Esperanza">
 {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -38,6 +43,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
   <div class="container">
     <a class="navbar-brand" href="{{ url_for('index') }}">
+      {% include "_marca.html" %}
       <span>Junta de Vecinos N.° 2<br><small>Cerro Esperanza</small></span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuPrincipal" aria-label="Abrir menú" aria-controls="menuPrincipal" aria-expanded="false">

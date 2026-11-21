@@ -396,7 +396,102 @@
     }
   }
 
+  // Lee en voz alta noticias e hitos con la voz que ya trae el celular o el computador.
+  function inicializarEscuchar() {
+    var botones = document.querySelectorAll("[data-escuchar]");
+    if (!botones.length || !("speechSynthesis" in window)) return;
+    var voz = window.speechSynthesis;
+    var botonActivo = null;
+
+    function restablecer() {
+      if (botonActivo) botonActivo.textContent = botonActivo.getAttribute("data-texto-original");
+      botonActivo = null;
+    }
+
+    function vozEnEspanol() {
+      var voces = voz.getVoices();
+      var preferidas = ["es-CL", "es-419", "es-US", "es-MX", "es-ES"];
+      for (var i = 0; i < preferidas.length; i++) {
+        for (var j = 0; j < voces.length; j++) {
+          if (voces[j].lang.replace("_", "-") === preferidas[i]) return voces[j];
+        }
+      }
+      for (var k = 0; k < voces.length; k++) {
+        if (voces[k].lang.indexOf("es") === 0) return voces[k];
+      }
+      return null;
+    }
+
+    for (var i = 0; i < botones.length; i++) {
+      botones[i].hidden = false;
+      botones[i].setAttribute("data-texto-original", botones[i].textContent);
+      botones[i].addEventListener("click", function () {
+        var boton = this;
+        var eraEste = botonActivo === boton;
+        voz.cancel();
+        restablecer();
+        if (eraEste) return;
+        var destino = document.querySelector(boton.getAttribute("data-escuchar"));
+        if (!destino) return;
+        var lectura = new SpeechSynthesisUtterance(
+          (boton.getAttribute("data-titulo") || "") + ". " + destino.innerText
+        );
+        lectura.lang = "es-CL";
+        lectura.rate = 0.9;
+        var elegida = vozEnEspanol();
+        if (elegida) lectura.voice = elegida;
+        lectura.onend = restablecer;
+        lectura.onerror = restablecer;
+        botonActivo = boton;
+        boton.textContent = "⏹ Detener lectura";
+        voz.speak(lectura);
+      });
+    }
+    window.addEventListener("pagehide", function () { voz.cancel(); });
+  }
+
+  // La entrada se salta con un clic o cualquier tecla.
+  function inicializarEntrada() {
+    var entrada = document.querySelector(".entrada");
+    if (!entrada || !raiz.classList.contains("con-entrada")) return;
+    function saltar() {
+      raiz.classList.add("entrada-saltada");
+      document.removeEventListener("keydown", saltar);
+    }
+    entrada.addEventListener("click", saltar);
+    document.addEventListener("keydown", saltar);
+  }
+
+  // Parallax suave de los cerros de la portada: cada capa se mueve a distinto ritmo.
+  function inicializarParallax() {
+    var cerros = document.querySelector("[data-parallax]");
+    if (!cerros || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var capas = cerros.querySelectorAll(".cerro-capa");
+    var ritmos = [0.18, 0.1, 0.04];
+    var pendiente = false;
+    function mover() {
+      pendiente = false;
+      var bajada = Math.min(window.scrollY, 600);
+      for (var i = 0; i < capas.length; i++) {
+        capas[i].style.transform = "translateY(" + (bajada * ritmos[i]).toFixed(1) + "px)";
+      }
+    }
+    window.addEventListener("scroll", function () {
+      if (!pendiente) { pendiente = true; window.requestAnimationFrame(mover); }
+    }, { passive: true });
+  }
+
+  function registrarAppInstalable() {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js").catch(function () { /* el sitio funciona igual */ });
+    });
+  }
+
   function inicializarSitio() {
+    inicializarEntrada();
+    inicializarParallax();
+    inicializarEscuchar();
     inicializarTelefonos();
     inicializarFiltrosPanel();
     inicializarDirecciones();
@@ -411,6 +506,7 @@
   }
 
   aplicarPreferencias();
+  registrarAppInstalable();
 })();
 
   // Protección anti-descarga e impresión en visor de documentos

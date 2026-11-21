@@ -322,7 +322,11 @@ CREATE TABLE IF NOT EXISTS hitos_historia (
     imagen_url TEXT DEFAULT '',
     galeria_fotos TEXT DEFAULT '',
     videos_youtube TEXT DEFAULT '',
-    orden INTEGER NOT NULL DEFAULT 0
+    orden INTEGER NOT NULL DEFAULT 0,
+    publicado INTEGER NOT NULL DEFAULT 1,
+    aportado_por TEXT DEFAULT '',
+    contacto_aporte TEXT DEFAULT '',
+    fecha_aporte TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS avisos (

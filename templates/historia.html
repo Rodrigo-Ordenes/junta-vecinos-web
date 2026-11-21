@@ -10,6 +10,10 @@
         {% if anios_de_historia %}Más de {{ anios_de_historia }} años de organización vecinal en el Cerro Esperanza.{% else %}La memoria de nuestra organización vecinal.{% endif %}
       </p>
       <p>{{ conf.historia }}</p>
+      <div class="caja d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+        <p class="mb-0 fw-semibold">¿Guardas una foto antigua del cerro? Súmala a nuestra memoria.</p>
+        <a class="btn btn-primary" href="{{ url_for('compartir_recuerdo') }}">Compartir un recuerdo</a>
+      </div>
 
       {% if hitos %}
         <ol class="linea-tiempo" aria-label="Línea de tiempo de la junta de vecinos">
@@ -23,7 +27,9 @@
                 {% if h.imagen_url %}
                   <img src="{{ h.imagen_url }}" alt="{{ h.titulo or ('Hito ' ~ h.anio) }}" class="img-fluid rounded mb-3" loading="lazy">
                 {% endif %}
-                <p class="linea-tiempo-texto">{{ h.texto }}</p>
+                <p class="linea-tiempo-texto" id="hito-{{ h.id }}">{{ h.texto }}</p>
+                {% if h.aportado_por %}<p class="small text-muted">Recuerdo de {{ h.aportado_por }}</p>{% endif %}
+                <button type="button" class="btn btn-sm btn-outline-primary btn-escuchar mb-2" data-escuchar="#hito-{{ h.id }}" data-titulo="{{ h.anio }}. {{ h.titulo }}" hidden>🔊 Escuchar</button>
                 {{ bloque_multimedia(h.galeria_fotos, h.videos_youtube) }}
               </article>
             </li>
@@ -31,7 +37,7 @@
         </ol>
       {% else %}
         <div class="caja mt-4">
-          <p class="mb-0">Estamos reuniendo los hitos de nuestra historia. Si guardas fotografías, documentos o recuerdos del cerro, compártelos en la <a href="{{ url_for('contacto') }}">sede o por contacto</a>.</p>
+          <p class="mb-0">Estamos reuniendo los hitos de nuestra historia. Si guardas fotografías o recuerdos del cerro, <a href="{{ url_for('compartir_recuerdo') }}">compártelos aquí</a>.</p>
         </div>
       {% endif %}
 

@@ -13,12 +13,12 @@
   --crema: #e8dcc4;
   --crema-fondo: #e2ede6;
   --crema-borde: #7e9c88;
-  --fondo: #d6e3da;
-  --papel: #ffffff;
+  --fondo: #a9c1b1; /* salvia medio: en un data saturado no se quema a blanco y separa las tarjetas */
+  --papel: #f4f0e6; /* crema: encandila menos que el blanco puro */
   --texto: #0d1f16;
   --color-texto: #0d1f16;
-  --gris: #283d32;
-  --borde: #62816c;
+  --gris: #1d3027;
+  --borde: #4a6b56; /* más oscuro: en proyector las sombras desaparecen y el borde es lo que separa */
   --dorado: #e0b43b;
   --terracota: #96442c;
   --radio: 1rem;
@@ -36,7 +36,7 @@ body {
   margin: 0;
   font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   color: var(--texto);
-  background: linear-gradient(180deg, #d6e2dc 0%, #e4dfd2 52%, #d6e2dc 100%);
+  background: var(--fondo); /* parejo: el beige del degradado se veía sucio en el proyector */
   line-height: 1.55;
 }
 
@@ -223,7 +223,7 @@ main, #contenido {
 .text-end { text-align: right; }
 .text-uppercase { text-transform: uppercase; letter-spacing: 0.04em; }
 .text-muted { color: var(--gris); }
-.text-success { color: var(--verde-cerro); }
+.text-success { color: var(--verde-oscuro); }
 .text-dark { color: #212529; }
 .small, .small * { font-size: 0.88rem; }
 .fs-5 { font-size: 1.2rem; }
@@ -292,7 +292,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .navbar.sticky-top { position: sticky; top: 0; z-index: 1000; }
 .navbar .container { display: flex; flex-wrap: wrap; align-items: center; padding-top: 0.6rem; padding-bottom: 0.6rem; }
 .navbar-brand { color: #fff; text-decoration: none; font-weight: 700; line-height: 1.15; display: inline-flex; align-items: center; gap: 0.7rem; }
-.navbar-brand::before { content: "2"; display: grid; place-items: center; width: 2.45rem; height: 2.45rem; flex: 0 0 auto; border-radius: 0.8rem; background: var(--dorado); color: var(--verde-profundo); font-size: 1.25rem; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35); }
+.marca-junta { display: block; width: 2.45rem; height: 2.45rem; flex: 0 0 auto; border-radius: 0.8rem; overflow: hidden; box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
 .navbar-brand small { display: block; font-weight: 400; font-size: 0.82rem; opacity: 0.85; }
 .navbar-toggler {
   margin-left: auto; background: transparent; border: 2px solid rgba(255,255,255,0.6);
@@ -361,12 +361,12 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 }
 .btn-sm { min-height: 44px; padding: 0.35rem 0.85rem; font-size: 0.88rem; border-radius: 0.5rem; }
 .btn-lg { min-height: 52px; padding: 0.75rem 1.6rem; font-size: 1.08rem; border-radius: 0.75rem; }
-.btn-primary { background: var(--verde-medio); border-color: var(--verde-medio); color: #fff; }
-.btn-primary:hover { background: var(--verde-profundo); border-color: var(--verde-profundo); }
+.btn-primary { background: var(--verde-oscuro); border-color: var(--verde-oscuro); color: #fff; }
+.btn-primary:hover { background: var(--verde-cerro); border-color: var(--verde-cerro); }
 .btn-success { background: var(--verde-cerro); border-color: var(--verde-cerro); color: #fff; }
 .btn-light { background: #fff; border-color: var(--borde); color: var(--verde-profundo); }
-.btn-outline-primary { background: #fff; border-color: var(--verde-medio); color: var(--verde-medio); }
-.btn-outline-primary:hover { background: var(--verde-medio); color: #fff; }
+.btn-outline-primary { background: #fff; border-color: var(--verde-oscuro); color: var(--verde-oscuro); }
+.btn-outline-primary:hover { background: var(--verde-oscuro); color: #fff; }
 .btn-outline-secondary { background: #fff; border-color: var(--gris); color: var(--gris); }
 .btn-outline-secondary:hover { background: var(--gris); color: #fff; }
 .btn-outline-danger { background: #fff; border-color: var(--rojo); color: var(--rojo); }
@@ -393,7 +393,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 /* --- Portada ------------------------------------------------------------- */
 .hero {
   position: relative; isolation: isolate; overflow: hidden;
-  background: linear-gradient(118deg, #0c2e1c 0%, #154d2f 56%, #1f6941 100%);
+  background: linear-gradient(118deg, #0c2e1c 0%, #134a2d 60%, var(--verde-cerro) 100%);
   border-bottom: 4px solid var(--dorado);
   color: #fff; padding: clamp(3.2rem, 6.5vw, 6rem) 0;
   border-radius: 0 0 2.25rem 2.25rem;
@@ -416,7 +416,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .hero-card-heading > div { display: grid; gap: 0.2rem; }
 .hero-card-heading strong { font-size: 1.05rem; }
 .hero-card-mark { width: 3.3rem; height: 3.3rem; display: grid; place-items: center; position: relative; border-radius: 1.05rem; background: var(--dorado); color: var(--verde-profundo); font-size: 1.2rem; font-weight: 900; letter-spacing: -0.08em; }
-.hero-card-mark span { font-size: 0.85rem; align-self: start; margin: 0.45rem 0 0 -0.32rem; }
+.hero-card-mark .marca-junta { width: 100%; height: 100%; border-radius: inherit; box-shadow: none; }
 .hero-card-overline { color: #f6d99d; font-size: 0.82rem; }
 .hero-card-rule { height: 1px; margin: 1.35rem 0; background: rgba(255,255,255,0.24); }
 .hero-card p { color: rgba(255,255,255,0.88); margin: 0; }
@@ -459,7 +459,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .section-title::before { content: ""; display: inline-block; width: 0.35rem; height: 1.25em; margin-right: 0.65rem; vertical-align: -0.18em; border-radius: 1rem; background: linear-gradient(180deg, var(--dorado), var(--terracota)); }
 
 .card {
-  position: relative; overflow: hidden; background: var(--papel); border-radius: 1.15rem; border: 1.5px solid var(--borde);
+  position: relative; overflow: hidden; background: var(--papel); border-radius: 1.15rem; border: 2px solid var(--borde);
   box-shadow: var(--sombra-suave); height: 100%; transition: transform 180ms ease, box-shadow 180ms ease;
 }
 .card:hover { transform: translateY(-3px); box-shadow: var(--sombra-flotante); }
@@ -468,7 +468,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 .card-text { margin-top: 0; }
 
 .caja {
-  background: linear-gradient(145deg, #ffffff, #f2ede2); border: 1.5px solid var(--borde);
+  background: var(--papel); border: 2px solid var(--borde);
   border-radius: 1.15rem; padding: clamp(1.1rem, 2vw, 1.5rem); box-shadow: var(--sombra-suave);
 }
 .border-start.border-4.border-warning { border-left: 6px solid #c98a00; }
@@ -489,13 +489,13 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible {
 
 /* --- Calendario de la sede ---------------------------------------------- */
 .dia-sede {
-  border: 1.5px solid var(--borde); border-radius: 1.1rem; padding: 1.1rem;
+  border: 2px solid var(--borde); border-radius: 1.1rem; padding: 1.1rem;
   height: 100%; background: var(--papel); box-shadow: var(--sombra-suave); transition: transform 160ms ease, box-shadow 160ms ease;
 }
 .dia-sede:hover { transform: translateY(-2px); box-shadow: var(--sombra-flotante); }
 .dia-sede.libre { border: 2px solid #4d8a5c; background: linear-gradient(145deg, #e0f2e3, #ffffff); }
 .dia-sede.hoy { border: 2px solid var(--verde-profundo); box-shadow: 0 0 0 3px rgba(20,84,80,0.28), var(--sombra-suave); }
-.dia-sede.pasado { opacity: 0.72; background: #e8eeec; }
+.dia-sede.pasado { background: #e3eae6; border-style: dashed; }
 .dia-sede h3 { font-size: 1.1rem; color: var(--verde-profundo); margin-bottom: 0.15rem; }
 .dia-sede .fecha { font-size: 0.85rem; color: var(--gris); font-weight: 600; }
 .franja {
@@ -1375,7 +1375,7 @@ html.alto-contraste .accesibilidad-tamanio-grupo .btn-accesible {
 .tarjeta-horizontal-titulo {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--verde-cerro);
+  color: var(--verde-oscuro);
   margin-bottom: 0.35rem;
   line-height: 1.35;
 }
@@ -2504,3 +2504,95 @@ summary.btn::-webkit-details-marker { display: none; }
   .d-md-none { display: none; } .p-md-4 { padding: 1.5rem; }
 }
 @media (min-width: 992px) { .mb-lg-0 { margin-bottom: 0 !important; } }
+
+/* --- Entrada de la portada: amanece sobre el cerro y se abre como un telón */
+/* Solo existe cuando la cabecera agregó .con-entrada (una vez por visita y
+   nunca con "reducir movimiento"); al terminar queda oculta aunque falle el JS.
+   Tiempos: cerros 0-1.1 s · sol y amanecer 0.3-1.6 s · nombre 0.7-1.4 s ·
+   telón 1.9-2.9 s · portada en cascada desde 2.1 s. */
+.entrada { display: none; }
+html.con-entrada .entrada {
+  display: block; position: fixed; inset: 0; z-index: 2000; cursor: pointer;
+  animation: entrada-fin 0s linear 3s forwards;
+}
+.entrada-mitad {
+  position: absolute; inset: 0; overflow: hidden;
+  background: linear-gradient(180deg, #04120a 0%, #0c2e1c 65%, #134a2d 100%);
+  animation: 1s cubic-bezier(0.7, 0, 0.3, 1) 1.9s forwards;
+}
+/* Luz dorada del amanecer que sube desde el horizonte. */
+.entrada-mitad::before {
+  content: ""; position: absolute; inset: 0; opacity: 0;
+  background: radial-gradient(120% 70% at 50% 100%, rgba(242, 204, 89, 0.55) 0%, rgba(224, 180, 59, 0.18) 45%, rgba(224, 180, 59, 0) 70%);
+  animation: entrada-amanecer 1.3s ease-out 0.3s forwards;
+}
+.entrada-izquierda { clip-path: inset(0 50% 0 0); animation-name: entrada-abre-izquierda; }
+.entrada-derecha { clip-path: inset(0 0 0 50%); animation-name: entrada-abre-derecha; }
+.entrada-sol {
+  position: absolute; left: 50%; bottom: 20vh; width: 30vmin; height: 30vmin; margin-left: -15vmin;
+  border-radius: 50%; background: radial-gradient(circle, #fbe3a0 0%, #f2cc59 45%, var(--dorado) 70%);
+  box-shadow: 0 0 0 0 rgba(242, 204, 89, 0.35);
+  transform: translateY(60%) scale(0.85); opacity: 0;
+  animation: entrada-sol 1.3s cubic-bezier(0.23, 1, 0.32, 1) 0.3s forwards,
+             entrada-acerca 1s cubic-bezier(0.7, 0, 0.3, 1) 1.9s forwards;
+}
+.entrada-titulo {
+  position: absolute; left: 0; right: 0; top: 20vh; display: grid; justify-items: center; gap: 0.4rem;
+  color: #fff; text-align: center; opacity: 0; transform: translateY(18px);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+  animation: entrada-titulo 0.7s cubic-bezier(0.23, 1, 0.32, 1) 0.7s forwards,
+             entrada-acerca 1s cubic-bezier(0.7, 0, 0.3, 1) 1.9s forwards;
+}
+.entrada-titulo strong { font-size: clamp(1.9rem, 5vw, 3.6rem); line-height: 1.1; letter-spacing: 0.06em; animation: entrada-letras 0.9s cubic-bezier(0.23, 1, 0.32, 1) 0.7s forwards; }
+.entrada-titulo span:last-child { font-size: clamp(1.4rem, 3.4vw, 2.4rem); font-weight: 700; color: #f2cc59; }
+.entrada-marca .marca-junta { width: 4rem; height: 4rem; border-radius: 1.1rem; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+.entrada .cerros { position: absolute; left: 0; bottom: 0; width: 100%; height: 48vh; }
+/* Cada capa sube desde abajo, la más lejana primero. */
+.entrada .cerro-capa {
+  transform-box: fill-box; transform: translateY(110%);
+  animation: entrada-cerro 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+.entrada .cerro-medio { animation-delay: 0.12s; }
+.entrada .cerro-frente { animation-delay: 0.24s; }
+
+@keyframes entrada-cerro { to { transform: none; } }
+@keyframes entrada-amanecer { to { opacity: 1; } }
+@keyframes entrada-sol {
+  to { transform: none; opacity: 1; box-shadow: 0 0 0 4vmin rgba(242, 204, 89, 0.12), 0 0 0 9vmin rgba(242, 204, 89, 0.06); }
+}
+@keyframes entrada-titulo { to { opacity: 1; transform: none; } }
+@keyframes entrada-letras { to { letter-spacing: 0; } }
+@keyframes entrada-acerca { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(1.25); } }
+@keyframes entrada-abre-izquierda { to { transform: translateX(-100%); } }
+@keyframes entrada-abre-derecha { to { transform: translateX(100%); } }
+@keyframes entrada-fin { to { visibility: hidden; pointer-events: none; } }
+html.entrada-saltada .entrada { display: none; }
+
+/* Tras el telón, la portada aparece en cascada. */
+html.con-entrada .hero-eyebrow,
+html.con-entrada .hero h1,
+html.con-entrada .hero p.lead,
+html.con-entrada .hero-copy .d-flex,
+html.con-entrada .hero-card {
+  animation: entrada-cascada 0.6s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+html.con-entrada .hero-eyebrow { animation-delay: 2.1s; }
+html.con-entrada .hero h1 { animation-delay: 2.18s; }
+html.con-entrada .hero p.lead { animation-delay: 2.26s; }
+html.con-entrada .hero-copy .d-flex { animation-delay: 2.34s; }
+html.con-entrada .hero-card { animation-delay: 2.3s; }
+html.entrada-saltada .hero-eyebrow, html.entrada-saltada .hero h1, html.entrada-saltada .hero p.lead,
+html.entrada-saltada .hero-copy .d-flex, html.entrada-saltada .hero-card { animation: none; }
+@keyframes entrada-cascada { from { opacity: 0; transform: translateY(14px); } }
+
+/* Colores de las capas del cerro, del más lejano al más cercano. */
+.cerro-fondo { fill: #24704a; }
+.cerro-medio { fill: #175234; }
+.cerro-frente { fill: #0c2e1c; }
+
+/* Cerros al pie de la portada, con un parallax suave al bajar. */
+.hero > .container { position: relative; z-index: 1; }
+.hero-cerros { position: absolute; left: 0; right: 0; bottom: 0; height: clamp(4.5rem, 11vw, 9rem); z-index: 0; pointer-events: none; }
+.hero-cerros .cerros { width: 100%; height: 100%; display: block; }
+.hero-cerros .cerro-capa { will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .hero-cerros .cerro-capa { will-change: auto; } }

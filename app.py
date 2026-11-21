@@ -626,7 +626,8 @@ RECURSOS = {
         "singular": "hito histórico",
         "tabla": "hitos_historia",
         "orden": "CAST(anio AS INTEGER), anio, orden, id",
-        "columnas": [("anio", "Año"), ("titulo", "Título"), ("texto", "Detalle"), ("orden", "Orden")],
+        "columnas": [("anio", "Año"), ("titulo", "Título"), ("aportado_por", "Enviado por"),
+                     ("publicado", "Publicado")],
         "campos": [
             campo("anio", "Año o época (ej: 1908)", requerido=True),
             campo("titulo", "Título del hito", requerido=True),
@@ -638,6 +639,11 @@ RECURSOS = {
             campo("videos_youtube", "Videos de YouTube (opcional)", "textarea", filas=3,
                   ayuda="Pega uno o varios enlaces de YouTube (uno por línea; si quieres, agrega su título así: enlace | título). Pueden estar ocultos al público general."),
             campo("orden", "Orden dentro del mismo año", "numero", defecto=0),
+            campo("aportado_por", "Recuerdo enviado por (opcional)",
+                  ayuda="Se muestra en la historia como «Recuerdo de…»."),
+            campo("contacto_aporte", "Contacto de quien lo envió (no se publica)"),
+            campo("publicado", "Publicado en la historia", "casilla", defecto=1,
+                  ayuda="Los recuerdos que envían los vecinos llegan sin publicar: revísalos y marca esta casilla."),
         ],
     },
     "directiva": {
@@ -927,9 +933,9 @@ def avisar_servicio_aprobado(servicio):
     return correo.enviar(destino, "Tu solicitud fue aceptada: emprendimiento publicado", cuerpo)
 
 
-def avisar_a_la_junta(asunto, texto, endpoint_panel):
+def avisar_a_la_junta(asunto, texto, endpoint_panel, **argumentos):
     destino = obtener_config()["email_contacto"]
-    enlace = url_for(endpoint_panel, _external=True)
+    enlace = url_for(endpoint_panel, _external=True, **argumentos)
     correo.enviar(destino, asunto, f"{texto}\n\nRevísalo en el panel: {enlace}")
 
 
@@ -952,6 +958,7 @@ def contexto_global():
             "certificados": "SELECT COUNT(*) c FROM certificados WHERE estado = 'Recibida'",
             "servicios_pendientes": "SELECT COUNT(*) c FROM servicios WHERE aprobado = 0",
             "mensajes": "SELECT COUNT(*) c FROM mensajes WHERE leido = 0",
+            "hitos": "SELECT COUNT(*) c FROM hitos_historia WHERE publicado = 0",
             "usuarios_pendientes": "SELECT COUNT(*) c FROM usuarios WHERE rol = 'socio' "
                                    "AND estado_aprobacion = 'Pendiente'",
         }
@@ -1414,9 +1421,8 @@ def sede():
     dias_visibles = semana["dias"]
     if solo_disponibles:
         dias_visibles = [dia for dia in dias_visibles if dia["horarios"]]
-    imagen_salon = (
-        conf.get(f"imagen_{salon}_url") or conf.get("imagen_sede_url") or ""
-    )
+    # Cada salón muestra solo su propia foto, para que no se repita la misma en ambos.
+    imagen_salon = conf.get(f"imagen_{salon}_url") or ""
     return render_template(
         "sede.html",
         salon=salon,
@@ -2026,12 +2032,131 @@ def historia():
         fecha_hoy().year - int(anio_fundacion) if anio_fundacion.isdigit() else None
     )
     filas = [dict(f) for f in consultar(
-        "SELECT * FROM hitos_historia ORDER BY CAST(anio AS INTEGER), anio, orden, id"
+        "SELECT * FROM hitos_historia WHERE publicado = 1 "
+        "ORDER BY CAST(anio AS INTEGER), anio, orden, id"
     )]
     return render_template(
         "historia.html", hitos=filas,
         anios_de_historia=anios,
     )
+
+
+@app.route("/presentacion")
+def presentacion():
+    """Modo asamblea: diapositivas que pasan solas, para dejar en el proyector de la sede."""
+    conf = obtener_config()
+    hoy = fecha_hoy()
+    agenda = []
+    for codigo, nombre in salones_sede(conf):
+        dias = semana_de(hoy, conf, codigo)["dias"] + semana_de(hoy + timedelta(days=7), conf, codigo)["dias"]
+        agenda.append({"nombre": nombre, "dias": [d for d in dias if d["fecha"] >= hoy][:7]})
+    proximas = consultar(
+        "SELECT * FROM noticias WHERE publicado = 1 AND fecha_evento >= ? "
+        "ORDER BY fecha_evento LIMIT 4",
+        (hoy.isoformat(),),
+    )
+    noticias_con_foto = consultar(
+        "SELECT * FROM noticias WHERE publicado = 1 AND imagen_url != '' "
+        "ORDER BY fecha_publicacion DESC LIMIT 3"
+    )
+    hito = consultar(
+        "SELECT * FROM hitos_historia WHERE publicado = 1 AND imagen_url != '' "
+        "ORDER BY RANDOM() LIMIT 1",
+        uno=True,
+    )
+    return render_template(
+        "presentacion.html", agenda=agenda, proximas=proximas,
+        noticias_con_foto=noticias_con_foto, hito=hito, hoy=hoy,
+    )
+
+
+@app.route("/manifest.webmanifest")
+def manifiesto():
+    """Permite instalar el sitio en la pantalla de inicio del celular."""
+    datos = {
+        "name": "Junta de Vecinos N.° 2 · Cerro Esperanza",
+        "short_name": "JJVV 2 Esperanza",
+        "description": "Noticias, reservas de la sede y trámites de la Junta de Vecinos N.° 2.",
+        "lang": "es-CL",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#d6e3da",
+        "theme_color": "#0f3822",
+        "icons": [
+            {"src": url_for("static", filename=f"img/app/icono-{t}.png"),
+             "sizes": f"{t}x{t}", "type": "image/png"}
+            for t in (192, 512)
+        ],
+    }
+    return Response(json.dumps(datos, ensure_ascii=False), mimetype="application/manifest+json")
+
+
+SERVICE_WORKER = """
+// Solo muestra un aviso amable cuando no hay internet; no guarda páginas en caché,
+// así el sitio siempre muestra la información al día.
+self.addEventListener("install", function () { self.skipWaiting(); });
+self.addEventListener("activate", function (e) { e.waitUntil(self.clients.claim()); });
+self.addEventListener("fetch", function (e) {
+  if (e.request.mode !== "navigate") return;
+  e.respondWith(fetch(e.request).catch(function () {
+    return new Response(
+      '<!doctype html><html lang="es"><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>Sin conexión</title><body style="font-family:system-ui,sans-serif;' +
+      'background:#d6e3da;color:#0d1f16;padding:2rem;font-size:1.25rem;line-height:1.5">' +
+      '<h1 style="color:#0f3822">Sin conexión a internet</h1>' +
+      '<p>Revisa tu señal o tu wifi y vuelve a intentarlo.</p>' +
+      '<p><button onclick="location.reload()" style="font-size:1.25rem;padding:.75rem 1.5rem;' +
+      'background:#0f3822;color:#fff;border:0;border-radius:.75rem">Reintentar</button></p>',
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+    );
+  }));
+});
+"""
+
+
+@app.route("/sw.js")
+def service_worker():
+    respuesta = Response(SERVICE_WORKER, mimetype="text/javascript")
+    respuesta.headers["Cache-Control"] = "no-cache"
+    return respuesta
+
+
+CAMPOS_RECUERDO = ("nombre", "contacto", "anio", "titulo", "texto")
+
+
+@app.route("/historia/compartir", methods=["GET", "POST"])
+def compartir_recuerdo():
+    """Los vecinos envían una foto antigua; queda oculta hasta que la directiva la publica."""
+    datos = {}
+    if request.method == "POST":
+        datos = {k: (request.form.get(k) or "").strip()[:2000] for k in CAMPOS_RECUERDO}
+        if not all(datos.values()):
+            flash("Completa todos los campos: tu nombre, un contacto, la época, el título "
+                  "y qué muestra la foto.", "error")
+        elif not request.form.get("autorizo"):
+            flash("Para publicarla necesitamos que confirmes que podemos usar la foto.", "error")
+        elif not (request.files.get("foto") and request.files["foto"].filename):
+            flash("Adjunta la fotografía que quieres compartir.", "error")
+        else:
+            foto = guardar_archivo("foto", extensiones={"jpg", "jpeg", "png", "webp"})
+            if foto:
+                ejecutar(
+                    "INSERT INTO hitos_historia (anio, titulo, texto, imagen_url, publicado, "
+                    "aportado_por, contacto_aporte, fecha_aporte) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
+                    (datos["anio"], datos["titulo"], datos["texto"],
+                     url_for("static", filename=f"uploads/{foto}"), datos["nombre"],
+                     datos["contacto"], datetime.now().isoformat(timespec="seconds")),
+                )
+                avisar_a_la_junta(
+                    "Nuevo recuerdo para la Historia del Cerro",
+                    f"{datos['nombre']} compartió una fotografía: «{datos['titulo']}» ({datos['anio']}).",
+                    "panel_listado", recurso="hitos",
+                )
+                flash("¡Gracias! La directiva revisará tu recuerdo antes de publicarlo.", "success")
+                return redirect(url_for("historia"))
+    return render_template("compartir_recuerdo.html", datos=datos)
 
 
 @app.route("/como-asociarse")
@@ -2083,7 +2208,7 @@ def contacto():
 # ---------------------------------------------------------------------------
 # Sesión
 # ---------------------------------------------------------------------------
-RUTAS_SIN_CAMBIO_DE_CLAVE = {"static", "cambiar_clave", "logout"}
+RUTAS_SIN_CAMBIO_DE_CLAVE = {"static", "cambiar_clave", "logout", "manifiesto", "service_worker"}
 MINUTOS_VALIDEZ_RECUPERACION = 60
 MAXIMO_CORREOS_RECUPERACION = 3  # por cuenta, mientras sigan vigentes los enlaces
 RUTAS_SIN_DATOS_COMPLETOS = RUTAS_SIN_CAMBIO_DE_CLAVE | {"mis_datos"}
@@ -3434,14 +3559,15 @@ CAMPOS_CONTENIDO = [
     ("salon_1_nombre", "Nombre del salón chico (por defecto: Salón Doña Rosenda)", "texto"),
     ("salon_2_nombre", "Nombre del salón grande (por defecto: Salón Esperanza)", "texto"),
     ("imagen_sede_url", "Fotografía general de la sede vecinal", "imagen"),
-    ("sede_galeria_fotos", "Galería de fotos general de la sede", "galeria"),
+    ("sede_galeria_fotos", "Galería general de la sede (se muestra aparte, en ambos salones: "
+     "usa la de cada salón para sus fotos propias)", "galeria"),
     ("sede_videos_youtube", "Videos de YouTube de la sede (un enlace por línea)", "textarea"),
-    ("imagen_salon_1_url", "Fotografía del Salón 1", "imagen"),
-    ("salon_1_galeria_fotos", "Galería de fotos del Salón 1", "galeria"),
-    ("salon_1_videos_youtube", "Videos de YouTube del Salón 1 (un enlace por línea)", "textarea"),
-    ("imagen_salon_2_url", "Fotografía del Salón 2", "imagen"),
-    ("salon_2_galeria_fotos", "Galería de fotos del Salón 2", "galeria"),
-    ("salon_2_videos_youtube", "Videos de YouTube del Salón 2 (un enlace por línea)", "textarea"),
+    ("imagen_salon_1_url", "Fotografía principal del salón chico (Salón Doña Rosenda)", "imagen"),
+    ("salon_1_galeria_fotos", "Galería de fotos del salón chico (Salón Doña Rosenda)", "galeria"),
+    ("salon_1_videos_youtube", "Videos de YouTube del salón chico (un enlace por línea)", "textarea"),
+    ("imagen_salon_2_url", "Fotografía principal del salón grande (Salón Esperanza)", "imagen"),
+    ("salon_2_galeria_fotos", "Galería de fotos del salón grande (Salón Esperanza)", "galeria"),
+    ("salon_2_videos_youtube", "Videos de YouTube del salón grande (un enlace por línea)", "textarea"),
     ("email_contacto", "Correo de contacto", "texto"),
     ("telefono_contacto", "Teléfono de contacto", "texto"),
     ("whatsapp_grupo", "Enlace al grupo de WhatsApp", "texto"),
