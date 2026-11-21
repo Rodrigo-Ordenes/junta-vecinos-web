@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_campos.html" import bloque_multimedia %}
 {% block title %}{{ noticia.titulo }} · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container my-4 my-md-5">
@@ -13,6 +14,8 @@
   {% endif %}
   <p class="lead">{{ noticia.resumen }}</p>
   <div style="white-space: pre-line;">{{ noticia.contenido }}</div>
+
+  {{ bloque_multimedia(noticia.galeria_fotos, noticia.videos_youtube, "Fotografías y videos") }}
 
   <div class="caja mt-4">
     <p class="mb-2 fw-semibold">Comparte esta información con tus vecinos</p>

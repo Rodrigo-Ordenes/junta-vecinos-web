@@ -69,10 +69,12 @@
   <h2 class="h5">📒 Registro de socios (Ley 19.418, art. 15)</h2>
   <p class="small text-muted mb-2">
     La junta debe entregar al secretario municipal una copia actualizada del registro <strong>en marzo de cada año</strong>
-    y, <strong>cada seis meses</strong>, una certificación de las incorporaciones y retiros. Aquí puedes descargar ambos en un archivo que se abre en Excel.
+    y, <strong>cada seis meses</strong>, una certificación de las incorporaciones y retiros. Los cambios hechos en el sitio
+    (bajas, teléfonos, correos y fechas de nacimiento) quedan guardados aquí como registro oficial y puedes descargarlos en cualquier momento para abrirlos en Excel.
   </p>
   <div class="d-flex flex-wrap gap-2 align-items-end">
-    <a class="btn btn-outline-primary" href="{{ url_for('panel_socios_registro') }}">⬇️ Registro vigente</a>
+    <a class="btn btn-primary" href="{{ url_for('panel_socios_padron_completo') }}">⬇️ Padrón completo actualizado (Excel)</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('panel_socios_registro') }}">⬇️ Registro vigente (Municipalidad)</a>
     <form class="d-flex flex-wrap gap-2 align-items-end" method="get" action="{{ url_for('panel_socios_altas_bajas') }}">
       <div>
         <label class="form-label small mb-0" for="desde">Altas y bajas desde</label>

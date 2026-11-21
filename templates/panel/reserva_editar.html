@@ -8,15 +8,23 @@
 
 <form method="post" class="row g-3 caja">
   {{ csrf_campo() }}
-  <div class="col-md-4">
+  <div class="col-md-3">
+    <label class="form-label" for="salon">Salón / Espacio <span class="obligatorio">*</span></label>
+    <select class="form-select" id="salon" name="salon" required>
+      {% for codigo, nombre in salones %}
+        <option value="{{ codigo }}" {% if (reserva.salon or 'salon_1') == codigo %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
     <label class="form-label" for="fecha">Fecha <span class="obligatorio">*</span></label>
     <input class="form-control" type="date" id="fecha" name="fecha" value="{{ reserva.fecha }}" required>
   </div>
-  <div class="col-md-4">
+  <div class="col-md-3">
     <label class="form-label" for="hora_inicio">Hora de inicio <span class="obligatorio">*</span></label>
     <input class="form-control" type="time" id="hora_inicio" name="hora_inicio" value="{{ reserva.hora_inicio }}" required>
   </div>
-  <div class="col-md-4">
+  <div class="col-md-3">
     <label class="form-label" for="hora_fin">Hora de término <span class="obligatorio">*</span></label>
     <input class="form-control" type="time" id="hora_fin" name="hora_fin" value="{{ reserva.hora_fin }}" required>
   </div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_campos.html" import bloque_multimedia %}
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/asistente.css') }}">
 <script src="{{ url_for('static', filename='js/asistente.js') }}" defer></script>
@@ -11,7 +12,7 @@
       <div class="hero-copy">
         <p class="hero-eyebrow">Portal comunitario · Valparaíso</p>
         <h1>Junta de Vecinos N.º&nbsp;2<br><span>Cerro Esperanza</span></h1>
-        <p class="lead">Información clara, cuentas transparentes y una sede abierta a la comunidad.</p>
+        <p class="lead">{{ conf.hero_subtitulo or 'Información clara, cuentas transparentes y una sede abierta a la comunidad.' }}</p>
         <div class="d-flex flex-wrap gap-2 mt-3">
           <a href="{{ url_for('sede') }}" class="btn btn-light btn-lg">Ver disponibilidad de la sede</a>
       {% if conf.whatsapp_grupo %}
@@ -25,9 +26,11 @@
             <span class="hero-card-mark" aria-hidden="true">JV<span>2</span></span>
             <div><span class="hero-card-overline">CERRO ESPERANZA</span><strong>La comunidad, más cerca</strong></div>
           </div>
+          {% if conf.imagen_hero_url %}
           <div class="hero-card-foto mt-3 mb-2">
-            <img src="{{ url_for('static', filename='img/hero_comunidad.jpg') }}" alt="Vecinas y vecinos de Cerro Esperanza reunidos" class="hero-img-comunidad" loading="lazy">
+            <img src="{{ conf.imagen_hero_url }}" alt="Vecinas y vecinos de Cerro Esperanza reunidos" class="hero-img-comunidad" loading="lazy">
           </div>
+          {% endif %}
           <div class="hero-card-rule"></div>
           <p>Un espacio para informarte, participar y encontrarnos como barrio.</p>
           <div class="hero-card-tags"><span>Comunidad</span><span>Participación</span><span>Transparencia</span></div>
@@ -38,6 +41,14 @@
     </div>
   </div>
 </section>
+
+{% if conf.portada_galeria_fotos or conf.portada_videos_youtube %}
+<section class="container my-4">
+  <div class="caja">
+    {{ bloque_multimedia(conf.portada_galeria_fotos, conf.portada_videos_youtube, "Galería y videos del barrio") }}
+  </div>
+</section>
+{% endif %}
 
 <section class="container my-4 my-md-5" id="asistente">
   <h2 class="section-title h4">¿Qué necesitas hacer hoy?</h2>
@@ -96,8 +107,13 @@
 
 <section class="container my-4 my-md-5">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-    <h2 class="section-title mb-0">Agenda de la sede esta semana</h2>
-    <a href="{{ url_for('sede') }}" class="btn btn-outline-primary">Ver calendario completo</a>
+    <h2 class="section-title mb-0">Agenda de la sede esta semana · {{ semana.salon_nombre }}</h2>
+    <div class="d-flex flex-wrap gap-2">
+      {% for codigo, nombre in salones_sede %}
+        <a href="{{ url_for('index', salon=codigo) }}" class="btn btn-sm {{ 'btn-primary' if semana.salon == codigo else 'btn-outline-primary' }}">{{ nombre }}</a>
+      {% endfor %}
+      <a href="{{ url_for('sede', salon=semana.salon) }}" class="btn btn-sm btn-outline-primary">Ver calendario completo</a>
+    </div>
   </div>
   <div class="row g-3 mt-1">
     {% for dia in semana.dias %}

@@ -3,7 +3,12 @@
 {% block panel %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
   <h1 class="section-title mb-0 h3">{{ definicion.titulo }}</h1>
-  <a class="btn btn-primary" href="{{ url_for('panel_nuevo', recurso=recurso) }}">+ Agregar</a>
+  <div class="d-flex flex-wrap gap-2">
+    {% if recurso == 'bloques' and puede('contenido') %}
+      <a class="btn btn-outline-primary" href="{{ url_for('panel_contenido') }}#seccion-sede">⚙️ Fotos, nombres de salones y horarios</a>
+    {% endif %}
+    <a class="btn btn-primary" href="{{ url_for('panel_nuevo', recurso=recurso) }}">+ Agregar</a>
+  </div>
 </div>
 
 {% if recurso == 'servicios' %}
@@ -172,6 +177,8 @@
                 {{ 'Sí' if valor else 'No' }}
               {% elif campo == 'estado_aprobacion' %}
                 <span class="badge-estado {{ valor|clase_estado }}">{{ valor }}</span>
+              {% elif campo == 'salon' %}
+                <span class="badge-estado badge-fija">{{ valor|nombre_salon }}</span>
               {% elif campo == 'dia_semana' %}
                 {{ dias_semana[valor] }}
               {% elif campo == 'monto' %}

@@ -1550,3 +1550,247 @@ def test_panel_no_guarda_edicion_con_titulo_vacio(cliente, app_prueba):
     with app_prueba.app_context():
         assert base.consultar("SELECT titulo FROM noticias WHERE id = ?", (noticia["id"],),
                               uno=True)["titulo"] == noticia["titulo"]
+
+
+def test_dos_salones_independientes_con_nombres_editables(cliente, app_prueba):
+    hoy = fecha_local()
+    lunes = hoy + timedelta(days=(7 - hoy.weekday()) % 7 or 7)
+    # El lunes de 16:00 a 18:30 está ocupado en salon_1 (Salón Mesón) por el grupo de adulto mayor,
+    # pero en salon_2 (Gimnasio) está libre y no debe bloquearse.
+    cliente.post(
+        "/sede/reservar",
+        data={
+            "salon": "salon_2",
+            "fecha": lunes.isoformat(),
+            "hora_inicio": "17:00",
+            "hora_fin": "19:00",
+            "actividad": "Básquetbol en Gimnasio",
+            "solicitante": "Club Juvenil",
+            "telefono": "+56912345678",
+            "acepta_aporte": "on",
+        },
+        follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        res_gimnasio = base.consultar(
+            "SELECT * FROM reservas WHERE actividad = 'Básquetbol en Gimnasio'", uno=True
+        )
+        assert res_gimnasio is not None and res_gimnasio["salon"] == "salon_2"
+
+    # En cambio, ese mismo horario en salon_2 ahora sí está bloqueado para otra reserva en salon_2,
+    # pero las 10:00 a 12:00 en salon_1 sigue libre.
+    cliente.post(
+        "/sede/reservar",
+        data={
+            "salon": "salon_2",
+            "fecha": lunes.isoformat(),
+            "hora_inicio": "17:30",
+            "hora_fin": "18:30",
+            "actividad": "Choque en Gimnasio",
+            "solicitante": "Otro",
+            "telefono": "+56912345678",
+            "acepta_aporte": "on",
+        },
+    )
+    with app_prueba.app_context():
+        assert base.consultar(
+            "SELECT * FROM reservas WHERE actividad = 'Choque en Gimnasio'", uno=True
+        ) is None
+
+    # Editar los nombres de los salones desde el panel
+    ingresar(cliente)
+    cliente.post(
+        "/panel/contenido",
+        data={
+            "horario_sede_inicio": "09:00",
+            "horario_sede_fin": "21:00",
+            "salon_1_nombre": "Salón Principal Mesón",
+            "salon_2_nombre": "Multicancha y Gimnasio",
+        },
+        follow_redirects=True,
+    )
+    html_sede = cliente.get("/sede?salon=salon_2").get_data(as_text=True)
+    assert "Salón Principal Mesón" in html_sede
+    assert "Multicancha y Gimnasio" in html_sede
+
+
+def test_linea_del_tiempo_hitos_con_fotos_videos_y_migracion_automatica(cliente, app_prueba):
+    with app_prueba.app_context():
+        base.ejecutar("DELETE FROM hitos_historia")
+        base.guardar_config("hitos_historia", "1955 | Construcción del primer salón comunitario")
+        # Al arrancar el sitio se traspasa a la tabla hitos_historia
+        base.migrar_hitos_historia()
+    html = cliente.get("/historia").get_data(as_text=True)
+    assert "1955" in html and "Construcción del primer salón comunitario" in html
+
+    # Crear ficha completa desde el panel con múltiples fotos y video de YouTube oculto
+    ingresar(cliente)
+    cliente.post(
+        "/panel/hitos/nuevo",
+        data={
+            "anio": "1985",
+            "titulo": "Reconstrucción solidaria",
+            "texto": "Vecinas y vecinos levantaron nuevamente la sede tras el terremoto.",
+            "imagen_url": "/static/img/logo_junta.jpg",
+            "galeria_fotos": "/static/img/sede_comunitaria.jpg | Vista exterior",
+            "videos_youtube": "https://youtu.be/dQw4w9WgXcQ",
+            "orden": "2",
+        },
+        follow_redirects=True,
+    )
+    html_nuevo = cliente.get("/historia").get_data(as_text=True)
+    assert "Reconstrucción solidaria" in html_nuevo
+    assert "youtube-nocookie.com/embed/dQw4w9WgXcQ" in html_nuevo
+    assert "Vista exterior" in html_nuevo
+
+
+def test_cada_video_tiene_su_propio_titulo():
+    import app as modulo
+
+    videos = modulo.videos_youtube_de(
+        "https://youtu.be/dQw4w9WgXcQ | Aniversario 118 años\nhttps://youtu.be/M7lc1UVf-VE"
+    )
+    assert [v["titulo"] for v in videos] == ["Aniversario 118 años", "Video 2"]
+    assert videos[0]["url"].endswith("/embed/dQw4w9WgXcQ?rel=0")
+
+
+def test_hito_borrado_no_reaparece_y_el_texto_rapido_se_traspasa_una_vez(cliente, app_prueba):
+    with app_prueba.app_context():
+        base.ejecutar("DELETE FROM hitos_historia")
+        base.guardar_config("hitos_historia", "1955 | Construcción del primer salón comunitario")
+        base.migrar_hitos_historia()
+        assert base.obtener_config()["hitos_historia"] == ""
+        hito = base.consultar("SELECT id FROM hitos_historia WHERE anio = '1955'", uno=True)
+    ingresar(cliente)
+    cliente.post(f"/panel/hitos/{hito['id']}/eliminar")
+    cliente.get("/historia")
+    with app_prueba.app_context():
+        base.migrar_hitos_historia()
+        assert base.consultar("SELECT COUNT(*) c FROM hitos_historia", uno=True)["c"] == 0
+
+
+def test_imagenes_y_videos_administrables_en_noticias_proyectos_y_secciones(cliente, app_prueba):
+    ingresar(cliente)
+    cliente.post(
+        "/panel/noticias/nuevo",
+        data={
+            "titulo": "Noticia con galería y video",
+            "resumen": "Resumen",
+            "contenido": "Detalle completo",
+            "videos_youtube": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+            "publicado": "on",
+            "archivos_galeria_fotos": [
+                (BytesIO(b"foto1"), "galeria1.jpg"),
+                (BytesIO(b"foto2"), "galeria2.png"),
+            ],
+        },
+        follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        n = base.consultar(
+            "SELECT * FROM noticias WHERE titulo = 'Noticia con galería y video'", uno=True
+        )
+        assert "galeria1.jpg" in n["galeria_fotos"] and "galeria2.png" in n["galeria_fotos"]
+    detalle = cliente.get(f"/noticias/{n['id']}").get_data(as_text=True)
+    assert "youtube-nocookie.com/embed/M7lc1UVf-VE" in detalle
+    assert "galeria1.jpg" in detalle
+
+
+def test_padron_respeta_datos_y_bajas_del_sitio_y_descarga_completa(cliente, app_prueba):
+    ingresar(cliente)
+    csv_inicial = (
+        "numero_socio,rut,nombre,apellidos,direccion,telefono,email\n"
+        "201,11.111.111-1,Pedro,Soto,Tolson 10,+56911111111,pedro_viejo@ejemplo.cl\n"
+        "202,12.222.222-5,Marta,Rojas,Aspillaga 20,,\n"
+    ).encode("utf-8")
+    cliente.post(
+        "/panel/cargar-padron",
+        data={"archivo": (BytesIO(csv_inicial), "padron.csv")},
+        follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        pedro = base.consultar("SELECT * FROM usuarios WHERE numero_socio = '201'", uno=True)
+        marta = base.consultar("SELECT * FROM usuarios WHERE numero_socio = '202'", uno=True)
+        # Pedro ya entró al sitio, cambió su clave y actualizó su correo y teléfono
+        base.ejecutar(
+            "UPDATE usuarios SET debe_cambiar_clave = 0, email = 'pedro_nuevo@sitio.cl', "
+            "telefono = '+56999998888' WHERE id = ?",
+            (pedro["id"],),
+        )
+    # Marta es dada de baja en el sitio
+    cliente.post(
+        f"/panel/socios/{marta['id']}/baja",
+        data={"motivo_baja": "Renuncia", "fecha_baja": fecha_local().isoformat()},
+    )
+    # Se vuelve a subir el mismo Excel antiguo
+    cliente.post(
+        "/panel/cargar-padron",
+        data={"archivo": (BytesIO(csv_inicial), "padron.csv")},
+        follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        pedro_despues = base.consultar("SELECT * FROM usuarios WHERE id = ?", (pedro["id"],), uno=True)
+        marta_despues = base.consultar("SELECT * FROM usuarios WHERE id = ?", (marta["id"],), uno=True)
+        assert pedro_despues["email"] == "pedro_nuevo@sitio.cl"
+        assert pedro_despues["telefono"] == "+56999998888"
+        assert marta_despues["activo"] == 0 and marta_despues["motivo_baja"] == "Renuncia"
+
+    # Descargar padrón completo actualizado desde el panel
+    descarga = cliente.get("/panel/socios/padron-completo.csv")
+    assert descarga.status_code == 200
+    texto_csv = descarga.get_data(as_text=True)
+    assert "pedro_nuevo@sitio.cl" in texto_csv
+    assert "Baja (Renuncia)" in texto_csv
+
+
+def test_correos_automaticos_de_activacion_y_aprobacion(cliente, app_prueba, monkeypatch):
+    import correo
+
+    enviados = []
+    monkeypatch.setattr(correo, "enviar", lambda a, asunto, cuerpo: enviados.append((a, asunto, cuerpo)) or True)
+
+    # 1. Registro de cuenta y activación por la directiva
+    cliente.post(
+        "/registro",
+        data={
+            "nombre": "Socio Correo",
+            "rut": "15.555.555-6",
+            "usuario": "socio_correo",
+            "email": "socio_correo@ejemplo.cl",
+            "clave": "clave-segura-123",
+            "confirmar_clave": "clave-segura-123",
+        },
+        follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        cuenta = base.consultar("SELECT * FROM usuarios WHERE usuario = 'socio_correo'", uno=True)
+    ingresar(cliente)
+    cliente.post(f"/panel/usuarios/{cuenta['id']}/aprobar")
+    assert any(
+        dest == "socio_correo@ejemplo.cl" and "Tu cuenta fue activada" in asunto
+        for dest, asunto, _ in enviados
+    )
+
+    # 2. Aprobación de emprendimiento avisa al socio
+    cliente.get("/logout")
+    ingresar(cliente, "socio_correo", "clave-segura-123")
+    cliente.post(
+        "/inscribir-servicio",
+        data={
+            "nombre_servicio": "Taller de Bicicletas",
+            "vecino": "Socio Correo",
+            "rubro": "Otros",
+            "telefono": "+56912345678",
+            "email": "socio_correo@ejemplo.cl",
+        },
+        follow_redirects=True,
+    )
+    with app_prueba.app_context():
+        srv = base.consultar("SELECT * FROM servicios WHERE nombre_servicio = 'Taller de Bicicletas'", uno=True)
+    cliente.get("/logout")
+    ingresar(cliente)
+    cliente.post(f"/panel/directorio/{srv['id']}/aprobar")
+    assert any(
+        dest == "socio_correo@ejemplo.cl" and "Tu solicitud fue aceptada" in asunto
+        for dest, asunto, _ in enviados
+    )

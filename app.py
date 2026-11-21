@@ -281,8 +281,7 @@ def carpeta_privada():
     return app.config.get("PRIVATE_UPLOAD_FOLDER", CARPETA_COMPROBANTES_PRIVADOS)
 
 
-def guardar_archivo(campo, privado=False, prefijo_privado=None, extensiones=None):
-    archivo = request.files.get(campo)
+def guardar_archivo_objeto(archivo, privado=False, prefijo_privado=None, extensiones=None):
     if not archivo or not archivo.filename:
         return None
     nombre = secure_filename(archivo.filename)
@@ -299,6 +298,102 @@ def guardar_archivo(campo, privado=False, prefijo_privado=None, extensiones=None
     if privado:
         return f"{prefijo_privado or ARCHIVO_PRIVADO_PREFIX}{nombre_final}"
     return nombre_final
+
+
+def guardar_archivo(campo, privado=False, prefijo_privado=None, extensiones=None):
+    return guardar_archivo_objeto(
+        request.files.get(campo), privado=privado, prefijo_privado=prefijo_privado,
+        extensiones=extensiones,
+    )
+
+
+def guardar_archivos_multiples(campo, extensiones=None):
+    """Guarda varios archivos subidos en un mismo campo y devuelve sus rutas públicas."""
+    rutas = []
+    for archivo in request.files.getlist(campo):
+        subida = guardar_archivo_objeto(
+            archivo, extensiones=extensiones or {"jpg", "jpeg", "png", "webp"}
+        )
+        if subida:
+            rutas.append(url_for("static", filename=f"uploads/{subida}"))
+    return rutas
+
+
+PATRON_YOUTUBE = re.compile(
+    r"(?:youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})"
+)
+
+
+def youtube_embed_url(enlace):
+    """Convierte un enlace de YouTube (público o no listado) en URL embebible liviana."""
+    texto = (enlace or "").strip()
+    if not texto:
+        return ""
+    m = PATRON_YOUTUBE.search(texto)
+    if m:
+        return f"https://www.youtube-nocookie.com/embed/{m.group(1)}?rel=0"
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", texto):
+        return f"https://www.youtube-nocookie.com/embed/{texto}?rel=0"
+    return ""
+
+
+def videos_youtube_de(texto):
+    """Extrae los videos de un texto con líneas «enlace» o «enlace | título».
+
+    Cada video lleva su propio título para que los lectores de pantalla los distingan.
+    """
+    videos = []
+    for linea in str(texto or "").splitlines():
+        enlace, _, titulo = linea.partition("|")
+        url = youtube_embed_url(enlace.strip())
+        if url and url not in [v["url"] for v in videos]:
+            videos.append({"url": url, "titulo": titulo.strip() or f"Video {len(videos) + 1}"})
+    return videos
+
+
+def fotos_galeria_de(texto):
+    """Convierte líneas «url» o «url | título | descripción» en diccionarios de galería."""
+    fotos = []
+    for linea in str(texto or "").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        partes = [p.strip() for p in linea.split("|")]
+        url = partes[0]
+        if not url:
+            continue
+        titulo = partes[1] if len(partes) > 1 else ""
+        descripcion = partes[2] if len(partes) > 2 else ""
+        fotos.append({"url": url, "titulo": titulo, "descripcion": descripcion})
+    return fotos
+
+
+CODIGOS_SALON = ("salon_1", "salon_2")
+
+
+def salon_valido(valor):
+    return "salon_2" if str(valor or "").strip() == "salon_2" else "salon_1"
+
+
+def salones_sede(conf=None):
+    conf = conf or obtener_config()
+    return [
+        ("salon_1", (conf.get("salon_1_nombre") or "").strip() or "Salón Doña Rosenda"),
+        ("salon_2", (conf.get("salon_2_nombre") or "").strip() or "Salón Esperanza"),
+    ]
+
+
+def nombre_salon(codigo, conf=None):
+    codigo = salon_valido(codigo)
+    return dict(salones_sede(conf))[codigo]
+
+
+app.jinja_env.filters["videos_youtube_de"] = videos_youtube_de
+app.jinja_env.filters["fotos_galeria_de"] = fotos_galeria_de
+app.jinja_env.filters["nombre_salon"] = nombre_salon
+app.jinja_env.globals["videos_youtube_de"] = videos_youtube_de
+app.jinja_env.globals["fotos_galeria_de"] = fotos_galeria_de
+app.jinja_env.globals["nombre_salon"] = nombre_salon
 
 
 def migrar_comprobantes_privados():
@@ -383,6 +478,10 @@ RECURSOS = {
             campo("fecha_evento", "Fecha de la actividad (opcional)", "fecha"),
             campo("imagen_url", "Imagen para la noticia (opcional)", "imagen",
                   ayuda="Sube una imagen JPG, PNG o WebP, o pega un enlace directo."),
+            campo("galeria_fotos", "Galería de fotografías adicionales (opcional)", "galeria",
+                  ayuda="Puedes subir varias fotos más o escribir una ruta por línea."),
+            campo("videos_youtube", "Videos de YouTube (opcional)", "textarea", filas=3,
+                  ayuda="Pega uno o varios enlaces de YouTube (uno por línea; si quieres, agrega su título así: enlace | título). Pueden ser videos ocultos al público general."),
             campo("publicado", "Publicada en el sitio", "casilla", defecto=1),
         ],
         "extra_nuevo": {"fecha_publicacion": lambda: datetime.now().isoformat(timespec="seconds")},
@@ -406,6 +505,10 @@ RECURSOS = {
             campo("monto", "Monto en pesos", "numero"),
             campo("imagen_url", "Fotografía o imagen del proyecto (opcional)", "imagen",
                   ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
+            campo("galeria_fotos", "Galería de fotografías adicionales (opcional)", "galeria",
+                  ayuda="Puedes subir varias fotos más o escribir una ruta por línea."),
+            campo("videos_youtube", "Videos de YouTube (opcional)", "textarea", filas=3,
+                  ayuda="Pega uno o varios enlaces de YouTube (uno por línea; si quieres, agrega su título así: enlace | título). Pueden ser videos ocultos al público general."),
         ],
         "extra_siempre": {"fecha_actualizacion": lambda: datetime.now().isoformat(timespec="seconds")},
     },
@@ -429,10 +532,13 @@ RECURSOS = {
         "titulo": "Actividades fijas de la sede",
         "singular": "actividad fija",
         "tabla": "bloques_fijos",
-        "orden": "dia_semana, hora_inicio",
-        "columnas": [("dia_semana", "Día"), ("hora_inicio", "Desde"), ("hora_fin", "Hasta"),
-                     ("actividad", "Actividad"), ("activo", "Activa")],
+        "orden": "salon, dia_semana, hora_inicio",
+        "columnas": [("salon", "Salón"), ("dia_semana", "Día"), ("hora_inicio", "Desde"),
+                     ("hora_fin", "Hasta"), ("actividad", "Actividad"), ("activo", "Activa")],
         "campos": [
+            campo("salon", "Salón / Espacio", "opciones",
+                  opciones=[("salon_1", "Salón Doña Rosenda"), ("salon_2", "Salón Esperanza")],
+                  requerido=True),
             campo("actividad", "Actividad", requerido=True),
             campo("dia_semana", "Día de la semana", "opciones",
                   opciones=list(enumerate(DIAS_SEMANA)), requerido=True, valores_numericos=True),
@@ -507,8 +613,31 @@ RECURSOS = {
             campo("longitud", "Longitud", "decimal", requerido=True),
             campo("foto_url", "Fotografía (opcional)", "imagen",
                   ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
+            campo("galeria_fotos", "Galería de fotografías adicionales (opcional)", "galeria",
+                  ayuda="Puedes subir varias fotos más o escribir una ruta por línea."),
+            campo("videos_youtube", "Videos de YouTube (opcional)", "textarea", filas=3,
+                  ayuda="Pega enlaces de YouTube (uno por línea; si quieres, agrega su título así: enlace | título). Pueden ser videos ocultos al público general."),
             campo("orden", "Orden en la lista", "numero", defecto=0),
             campo("activo", "Visible en el mapa", "casilla", defecto=1),
+        ],
+    },
+    "hitos": {
+        "titulo": "Línea del tiempo de la historia",
+        "singular": "hito histórico",
+        "tabla": "hitos_historia",
+        "orden": "CAST(anio AS INTEGER), anio, orden, id",
+        "columnas": [("anio", "Año"), ("titulo", "Título"), ("texto", "Detalle"), ("orden", "Orden")],
+        "campos": [
+            campo("anio", "Año o época (ej: 1908)", requerido=True),
+            campo("titulo", "Título del hito", requerido=True),
+            campo("texto", "Relato o descripción del hito", "textarea", requerido=True, filas=5),
+            campo("imagen_url", "Fotografía principal del hito (opcional)", "imagen",
+                  ayuda="Sube una foto JPG, PNG o WebP, o escribe un enlace directo."),
+            campo("galeria_fotos", "Más fotografías del hito (opcional)", "galeria",
+                  ayuda="Puedes subir varias fotografías adicionales para este hito."),
+            campo("videos_youtube", "Videos de YouTube (opcional)", "textarea", filas=3,
+                  ayuda="Pega uno o varios enlaces de YouTube (uno por línea; si quieres, agrega su título así: enlace | título). Pueden estar ocultos al público general."),
+            campo("orden", "Orden dentro del mismo año", "numero", defecto=0),
         ],
     },
     "directiva": {
@@ -598,6 +727,7 @@ PERMISOS_COORDINADOR = {
     "servicios_pendientes": "permiso_directorio",
     "avisos": "permiso_noticias",
     "mapa": "permiso_noticias",
+    "hitos": "permiso_noticias",
     "socios": "permiso_socios",
     "usuarios_pendientes": "permiso_socios",
     "crear_socios": "permiso_socios",
@@ -638,6 +768,7 @@ MENU_PANEL = [
         ("noticias", "Noticias y actividades", "📢"),
         ("avisos", "Avisos y alertas del sitio", "🚨"),
         ("mapa", "Mapa de movilidad", "🗺️"),
+        ("hitos", "Línea del tiempo (Historia)", "🕰️"),
         ("documentos", "Documentos", "📚"),
         ("directiva", "Directiva", "👥"),
         ("contenido", "Textos del sitio", "⚙️"),
@@ -741,12 +872,15 @@ def correo_de_la_solicitud(fila):
 
 
 def avisar_reserva(reserva, estado, observacion):
+    conf = obtener_config()
+    espacio = nombre_salon(reserva["salon"] if "salon" in reserva.keys() else "salon_1", conf)
+    intro = "¡Tu solicitud fue aceptada!\n\n" if estado == "Aprobada" else ""
     detalle = (
-        f"Tu solicitud de la sede para «{reserva['actividad']}» el {fecha_larga(reserva['fecha'])}, "
-        f"de {reserva['hora_inicio']} a {reserva['hora_fin']}, quedó: {estado}."
+        f"{intro}Tu solicitud de la sede ({espacio}) para «{reserva['actividad']}» el "
+        f"{fecha_larga(reserva['fecha'])}, de {reserva['hora_inicio']} a {reserva['hora_fin']}, "
+        f"quedó: {estado}."
     )
     if estado == "Aprobada":
-        conf = obtener_config()
         detalle += "\n\nRecuerda el aporte por el uso de la sede"
         detalle += f" ({conf['reserva_valor']})." if conf["reserva_valor"] else "."
     if observacion:
@@ -755,7 +889,8 @@ def avisar_reserva(reserva, estado, observacion):
 
 
 def avisar_certificado(solicitud, estado, observacion):
-    detalle = f"Tu solicitud de certificado de residencia quedó: {estado}."
+    intro = "¡Tu solicitud fue aceptada!\n\n" if estado in ("Lista para retiro", "Entregada") else ""
+    detalle = f"{intro}Tu solicitud de certificado de residencia quedó: {estado}."
     if estado == "Lista para retiro":
         conf = obtener_config()
         detalle += f"\n\nPuedes retirarlo en la sede ({conf['direccion_sede']})."
@@ -765,6 +900,31 @@ def avisar_certificado(solicitud, estado, observacion):
     return correo.enviar(
         correo_de_la_solicitud(solicitud), f"Tu certificado de residencia: {estado}", detalle
     )
+
+
+def avisar_cuenta_activada(usuario):
+    if not usuario or not (usuario["email"] or "").strip():
+        return False
+    enlace = url_for("login", _external=True)
+    cuerpo = (
+        f"Hola {usuario['nombre']}:\n\n"
+        f"¡Tu cuenta fue activada! La directiva validó tu inscripción en el padrón de socios.\n\n"
+        f"Ya puedes ingresar con tu usuario «{usuario['usuario']}» en:\n{enlace}"
+    )
+    return correo.enviar(usuario["email"], "Tu cuenta fue activada · Junta de Vecinos N.° 2", cuerpo)
+
+
+def avisar_servicio_aprobado(servicio):
+    destino = correo_de_la_solicitud(servicio)
+    if not destino:
+        return False
+    enlace = url_for("directorio", _external=True)
+    cuerpo = (
+        f"Hola {servicio['vecino']}:\n\n"
+        f"¡Tu solicitud fue aceptada! Tu emprendimiento «{servicio['nombre_servicio']}» "
+        f"fue aprobado por la directiva y ya está publicado en Servicios Comunales:\n{enlace}"
+    )
+    return correo.enviar(destino, "Tu solicitud fue aceptada: emprendimiento publicado", cuerpo)
 
 
 def avisar_a_la_junta(asunto, texto, endpoint_panel):
@@ -819,6 +979,7 @@ def contexto_global():
     return {
         "avisos_vigentes": avisos_vigentes,
         "conf": conf,
+        "salones_sede": salones_sede(conf),
         "usuario": usuario,
         "puede": puede,
         "puede_entrar_al_panel": puede_entrar_al_panel(usuario),
@@ -870,10 +1031,12 @@ def index():
         ["p.horizonte = 'Actual'"],
         orden="COALESCE(a.id, 0) DESC, p.fecha_actualizacion DESC LIMIT 3",
     )
-    semana = semana_de(fecha_hoy())
+    salon = salon_valido(request.args.get("salon"))
+    semana = semana_de(fecha_hoy(), salon=salon)
     pregunta = (request.args.get("q") or "").strip()
     return render_template(
         "index.html", noticias=noticias, proyectos=proyectos, semana=semana,
+        salon=salon,
         pregunta=pregunta,
         respuesta_asistente=respuesta_del_asistente(pregunta) if pregunta else None,
     )
@@ -1151,16 +1314,22 @@ def intervalos_disponibles(dia, actividades, apertura, cierre):
     return libres
 
 
-def semana_de(dia_referencia, conf=None):
-    """Devuelve la semana de lunes a domingo, con actividades y horas libres."""
+def semana_de(dia_referencia, conf=None, salon="salon_1"):
+    """Devuelve la semana de lunes a domingo, con actividades y horas libres para el salón."""
     conf = conf or obtener_config()
+    salon = salon_valido(salon)
     lunes = dia_referencia - timedelta(days=dia_referencia.weekday())
-    bloques = consultar("SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY hora_inicio")
+    bloques = consultar(
+        "SELECT * FROM bloques_fijos WHERE activo = 1 "
+        "AND COALESCE(NULLIF(salon, ''), 'salon_1') = ? ORDER BY hora_inicio",
+        (salon,),
+    )
     domingo = lunes + timedelta(days=6)
     reservas = consultar(
         "SELECT * FROM reservas WHERE fecha BETWEEN ? AND ? AND estado IN "
-        "('Aprobada', 'Pendiente') ORDER BY hora_inicio",
-        (lunes.isoformat(), domingo.isoformat()),
+        "('Aprobada', 'Pendiente') AND COALESCE(NULLIF(salon, ''), 'salon_1') = ? "
+        "ORDER BY hora_inicio",
+        (lunes.isoformat(), domingo.isoformat(), salon),
     )
     dias = []
     for i in range(7):
@@ -1205,7 +1374,13 @@ def semana_de(dia_referencia, conf=None):
                 "hoy": dia == fecha_hoy(),
             }
         )
-    return {"lunes": lunes, "domingo": domingo, "dias": dias}
+    return {
+        "lunes": lunes,
+        "domingo": domingo,
+        "dias": dias,
+        "salon": salon,
+        "salon_nombre": nombre_salon(salon, conf),
+    }
 
 
 def fecha_del_mes(valor):
@@ -1220,17 +1395,18 @@ def fecha_del_mes(valor):
 @app.route("/sede")
 def sede():
     conf = obtener_config()
+    salon = salon_valido(request.args.get("salon"))
     vista_mes = request.args.get("vista") == "mes" or bool(request.args.get("mes"))
     solo_disponibles = request.args.get("disponibles") == "1"
     referencia = a_fecha(request.args.get("semana")) or fecha_hoy()
-    semana = semana_de(referencia, conf)
+    semana = semana_de(referencia, conf, salon=salon)
     mes_ref = fecha_del_mes(
         request.args.get("mes") or referencia.strftime("%Y-%m")
     )
     semanas_mes = []
     if vista_mes:
         semanas_mes = [
-            semana_de(fechas[0], conf)["dias"]
+            semana_de(fechas[0], conf, salon=salon)["dias"]
             for fechas in calendar.Calendar(firstweekday=0).monthdatescalendar(
                 mes_ref.year, mes_ref.month
             )
@@ -1238,8 +1414,17 @@ def sede():
     dias_visibles = semana["dias"]
     if solo_disponibles:
         dias_visibles = [dia for dia in dias_visibles if dia["horarios"]]
+    imagen_salon = (
+        conf.get(f"imagen_{salon}_url") or conf.get("imagen_sede_url") or ""
+    )
     return render_template(
         "sede.html",
+        salon=salon,
+        salon_nombre=nombre_salon(salon, conf),
+        salones=salones_sede(conf),
+        imagen_salon_url=imagen_salon,
+        galeria_salon=conf.get(f"{salon}_galeria_fotos", ""),
+        videos_salon=conf.get(f"{salon}_videos_youtube", ""),
         semana=semana,
         dias_visibles=dias_visibles,
         vista_mes=vista_mes,
@@ -1252,7 +1437,9 @@ def sede():
         anterior=(semana["lunes"] - timedelta(days=7)).isoformat(),
         siguiente=(semana["lunes"] + timedelta(days=7)).isoformat(),
         bloques=consultar(
-            "SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY dia_semana, hora_inicio"
+            "SELECT * FROM bloques_fijos WHERE activo = 1 "
+            "AND COALESCE(NULLIF(salon, ''), 'salon_1') = ? ORDER BY dia_semana, hora_inicio",
+            (salon,),
         ),
         dias_semana=DIAS_SEMANA,
         horario_inicio=conf.get("horario_sede_inicio", "09:00"),
@@ -1260,15 +1447,21 @@ def sede():
     )
 
 
-def hay_choque(fecha, inicio, fin, excluir_id=None):
-    """True si el horario pedido se cruza con una actividad fija o una reserva vigente."""
+def hay_choque(fecha, inicio, fin, excluir_id=None, salon="salon_1"):
+    """True si el horario pedido se cruza con una actividad fija o una reserva vigente en el mismo salón."""
+    salon = salon_valido(salon)
     for b in consultar(
-        "SELECT * FROM bloques_fijos WHERE activo = 1 AND dia_semana = ?", (fecha.weekday(),)
+        "SELECT * FROM bloques_fijos WHERE activo = 1 AND dia_semana = ? "
+        "AND COALESCE(NULLIF(salon, ''), 'salon_1') = ?",
+        (fecha.weekday(), salon),
     ):
         if inicio < b["hora_fin"] and fin > b["hora_inicio"]:
             return True
-    sql = ("SELECT * FROM reservas WHERE fecha = ? AND estado IN ('Aprobada', 'Pendiente')")
-    params = [fecha.isoformat()]
+    sql = (
+        "SELECT * FROM reservas WHERE fecha = ? AND estado IN ('Aprobada', 'Pendiente') "
+        "AND COALESCE(NULLIF(salon, ''), 'salon_1') = ?"
+    )
+    params = [fecha.isoformat(), salon]
     if excluir_id:
         sql += " AND id != ?"
         params.append(excluir_id)
@@ -1278,9 +1471,10 @@ def hay_choque(fecha, inicio, fin, excluir_id=None):
     return False
 
 
-def obtener_disponibilidad_mes(anio, mes):
+def obtener_disponibilidad_mes(anio, mes, salon="salon_1"):
     """Devuelve la matriz mensual de días y bloques horarios para la reserva interactiva."""
     conf = obtener_config()
+    salon = salon_valido(salon)
     apertura = conf.get("horario_sede_inicio", "09:00")
     cierre = conf.get("horario_sede_fin", "21:00")
     apertura_min = minutos_de_hora(apertura) or 540
@@ -1293,15 +1487,19 @@ def obtener_disponibilidad_mes(anio, mes):
     semanas_fechas = cal.monthdatescalendar(anio, mes)
 
     bloques_fijos = consultar(
-        "SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY hora_inicio"
+        "SELECT * FROM bloques_fijos WHERE activo = 1 "
+        "AND COALESCE(NULLIF(salon, ''), 'salon_1') = ? ORDER BY hora_inicio",
+        (salon,),
     )
 
     primer_dia = semanas_fechas[0][0].isoformat()
     ultimo_dia = semanas_fechas[-1][-1].isoformat()
 
     reservas = consultar(
-        "SELECT * FROM reservas WHERE fecha BETWEEN ? AND ? AND estado IN ('Aprobada', 'Pendiente') ORDER BY hora_inicio",
-        (primer_dia, ultimo_dia),
+        "SELECT * FROM reservas WHERE fecha BETWEEN ? AND ? "
+        "AND estado IN ('Aprobada', 'Pendiente') "
+        "AND COALESCE(NULLIF(salon, ''), 'salon_1') = ? ORDER BY hora_inicio",
+        (primer_dia, ultimo_dia, salon),
     )
     reservas_por_fecha = {}
     for r in reservas:
@@ -1354,7 +1552,7 @@ def obtener_disponibilidad_mes(anio, mes):
                 elif es_hoy and cur <= minuto_actual:
                     choca = True
                     motivo = "Hora pasada"
-                elif hay_choque(dia, h_ini, h_fin):
+                elif hay_choque(dia, h_ini, h_fin, salon=salon):
                     choca = True
                     motivo = "Horario reservado"
 
@@ -1399,6 +1597,8 @@ def obtener_disponibilidad_mes(anio, mes):
     mes_sig = (date(anio, mes, 28) + timedelta(days=4)).replace(day=1)
 
     return {
+        "salon": salon,
+        "salon_nombre": nombre_salon(salon, conf),
         "anio": anio,
         "mes": mes,
         "mes_nombre": MESES[mes - 1].capitalize(),
@@ -1413,8 +1613,9 @@ def obtener_disponibilidad_mes(anio, mes):
 @app.route("/api/sede/disponibilidad")
 def api_sede_disponibilidad():
     mes_str = request.args.get("mes")
+    salon = salon_valido(request.args.get("salon"))
     ref = fecha_del_mes(mes_str) if mes_str else fecha_hoy()
-    data = obtener_disponibilidad_mes(ref.year, ref.month)
+    data = obtener_disponibilidad_mes(ref.year, ref.month, salon=salon)
     return jsonify(data)
 
 
@@ -1422,10 +1623,14 @@ def api_sede_disponibilidad():
 def reservar():
     usuario = usuario_actual()
     conf = obtener_config()
+    salon = salon_valido(
+        request.form.get("salon") if request.method == "POST" else request.args.get("salon")
+    )
     fecha_param = request.args.get("fecha", "")
     hora_ini_param = request.args.get("hora_inicio", "")
     hora_fin_param = request.args.get("hora_fin", "")
     datos = {
+        "salon": salon,
         "fecha": fecha_param,
         "hora_inicio": hora_ini_param,
         "hora_fin": hora_fin_param,
@@ -1440,6 +1645,7 @@ def reservar():
         datos = {k: (request.form.get(k) or "").strip() for k in
                  ("fecha", "hora_inicio", "hora_fin", "actividad", "solicitante",
                   "telefono", "email", "personas", "observacion")}
+        datos["salon"] = salon
         faltan = [c for c in ("fecha", "hora_inicio", "hora_fin", "actividad",
                               "solicitante", "telefono") if not datos[c]]
         fecha = a_fecha(datos["fecha"])
@@ -1466,19 +1672,20 @@ def reservar():
                 f"La sede recibe reservas entre {conf.get('horario_sede_inicio', '09:00')} "
                 f"y {conf.get('horario_sede_fin', '21:00')}.", "error"
             )
-        elif hay_choque(fecha, datos["hora_inicio"], datos["hora_fin"]):
+        elif hay_choque(fecha, datos["hora_inicio"], datos["hora_fin"], salon=salon):
             flash(
-                "Ese horario ya está ocupado en la sede. Revisa el calendario y elige otro.",
+                f"Ese horario ya está ocupado en {nombre_salon(salon, conf)}. "
+                "Revisa el calendario o prueba con el otro salón.",
                 "error",
             )
         else:
             ejecutar(
-                "INSERT INTO reservas (fecha, hora_inicio, hora_fin, actividad, solicitante, "
+                "INSERT INTO reservas (salon, fecha, hora_inicio, hora_fin, actividad, solicitante, "
                 "telefono, email, personas, estado, observacion, revisada_por, fecha_solicitud, "
                 "usuario_id, acepta_aporte) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, '', ?, ?, 1)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, '', ?, ?, 1)",
                 (
-                    fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
+                    salon, fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
                     datos["actividad"], datos["solicitante"], datos["telefono"],
                     datos["email"], int(datos["personas"] or 0) or None,
                     datos["observacion"],
@@ -1488,7 +1695,7 @@ def reservar():
             )
             avisar_a_la_junta(
                 "Nueva solicitud de reserva de la sede",
-                f"{datos['solicitante']} pidió la sede el {fecha_larga(fecha)} de "
+                f"{datos['solicitante']} pidió {nombre_salon(salon, conf)} el {fecha_larga(fecha)} de "
                 f"{datos['hora_inicio']} a {datos['hora_fin']} para «{datos['actividad']}».",
                 "panel_reservas",
             )
@@ -1497,12 +1704,15 @@ def reservar():
                 "revisará y te contactará para confirmarla.",
                 "success",
             )
-            return redirect(url_for("sede", semana=fecha.isoformat()))
+            return redirect(url_for("sede", semana=fecha.isoformat(), salon=salon))
 
     ref_fecha = a_fecha(datos["fecha"]) or fecha_hoy()
-    disponibilidad_mes = obtener_disponibilidad_mes(ref_fecha.year, ref_fecha.month)
+    disponibilidad_mes = obtener_disponibilidad_mes(ref_fecha.year, ref_fecha.month, salon=salon)
     return render_template(
         "reservar.html",
+        salon=salon,
+        salon_nombre=nombre_salon(salon, conf),
+        salones=salones_sede(conf),
         datos=datos,
         disponibilidad_mes=disponibilidad_mes,
         disponibilidad_json=json.dumps(disponibilidad_mes),
@@ -1587,6 +1797,11 @@ def inscribir_servicio():
                     solo_digitos(whatsapp), datos["email"], datos["direccion"],
                     foto_url, ahora, ahora, usuario_actual()["id"],
                 ),
+            )
+            avisar_a_la_junta(
+                "Nuevo emprendimiento por aprobar",
+                f"{datos['vecino']} inscribió «{datos['nombre_servicio']}» en Servicios Comunales.",
+                "panel_servicios_pendientes",
             )
             flash(
                 "¡Gracias! Tu emprendimiento quedó registrado y aparecerá en Servicios "
@@ -1803,19 +2018,6 @@ def quienes_somos():
     return render_template("quienes_somos.html", miembros=miembros)
 
 
-def hitos_de(texto):
-    """Convierte las líneas «AAAA | texto» de la configuración en una línea de tiempo."""
-    hitos = []
-    for linea in (texto or "").splitlines():
-        if "|" not in linea:
-            continue
-        anio, detalle = (parte.strip() for parte in linea.split("|", 1))
-        if anio and detalle:
-            hitos.append({"anio": anio, "texto": detalle})
-    hitos.sort(key=lambda h: (int(h["anio"]) if h["anio"].isdigit() else 10**9))
-    return hitos
-
-
 @app.route("/historia")
 def historia():
     conf = obtener_config()
@@ -1823,8 +2025,11 @@ def historia():
     anios = (
         fecha_hoy().year - int(anio_fundacion) if anio_fundacion.isdigit() else None
     )
+    filas = [dict(f) for f in consultar(
+        "SELECT * FROM hitos_historia ORDER BY CAST(anio AS INTEGER), anio, orden, id"
+    )]
     return render_template(
-        "historia.html", hitos=hitos_de(conf["hitos_historia"]),
+        "historia.html", hitos=filas,
         anios_de_historia=anios,
     )
 
@@ -1838,12 +2043,15 @@ def como_asociarse():
 def movilidad():
     puntos = [
         {k: fila[k] for k in ("titulo", "categoria", "descripcion", "direccion",
-                              "latitud", "longitud", "foto_url")}
+                              "latitud", "longitud", "foto_url", "galeria_fotos", "videos_youtube")}
         for fila in consultar(
             "SELECT * FROM puntos_mapa WHERE activo = 1 ORDER BY orden, titulo"
         )
     ]
-    return render_template("movilidad.html", puntos=puntos)
+    iniciativas = consultar(
+        "SELECT * FROM proyectos WHERE horizonte = 'Actual' ORDER BY fecha_actualizacion DESC LIMIT 3"
+    )
+    return render_template("movilidad.html", puntos=puntos, iniciativas=iniciativas)
 
 
 @app.route("/contacto", methods=["GET", "POST"])
@@ -2052,6 +2260,11 @@ def registro():
                 (datos["nombre"], datos["usuario"], datos["email"],
                  generate_password_hash(clave),
                  datetime.now().isoformat(timespec="seconds"), rut),
+            )
+            avisar_a_la_junta(
+                "Nueva solicitud de cuenta de socio",
+                f"{datos['nombre']} ({formato_rut(rut)}) solicitó activar su cuenta de socio.",
+                "panel_usuarios_pendientes",
             )
             flash(
                 "Recibimos tu solicitud de activación de cuenta de socio. La directiva "
@@ -2542,6 +2755,40 @@ def panel_socios_registro():
     )
 
 
+@app.route("/panel/socios/padron-completo.csv")
+@app.route("/panel/socios/padron.csv")
+@requiere_permiso("socios")
+def panel_socios_padron_completo():
+    """Descarga del padrón completo actualizado (incluye teléfonos, correos, nacimientos y bajas)."""
+    socios = consultar(
+        "SELECT * FROM usuarios WHERE rol = 'socio' "
+        "ORDER BY CAST(numero_socio AS INTEGER), numero_socio, apellidos, nombre"
+    )
+    filas = []
+    for s in socios:
+        estado = (
+            "Fallecido" if s["fallecido"]
+            else f"Baja ({s['motivo_baja']})" if s["motivo_baja"]
+            else "Activo" if s["activo"] and s["estado_aprobacion"] == "Aprobada"
+            else s["estado_aprobacion"]
+        )
+        filas.append((
+            s["numero_socio"], formato_rut(s["rut"]), s["nombre"], s["apellidos"],
+            s["direccion"], s["telefono"], s["email"], s["fecha_nacimiento"],
+            s["fecha_ingreso"], estado, s["fecha_baja"], s["motivo_baja"],
+            "SI" if s["fallecido"] else "NO",
+        ))
+    return respuesta_csv(
+        f"padron_actualizado_{fecha_hoy().isoformat()}.csv",
+        [
+            "numero_socio", "rut", "nombre", "apellidos", "direccion",
+            "telefono", "email", "fecha_nacimiento", "fecha_ingreso",
+            "estado", "fecha_baja", "motivo_baja", "fallecido",
+        ],
+        filas,
+    )
+
+
 @app.route("/panel/socios/altas-bajas.csv")
 @requiere_permiso("socios")
 def panel_socios_altas_bajas():
@@ -2744,7 +2991,7 @@ def panel_usuarios_pendientes():
 @requiere_permiso("usuarios_pendientes")
 def panel_usuario_aprobar(usuario_id):
     usuario = consultar(
-        "SELECT id FROM usuarios WHERE id = ? AND rol = 'socio' "
+        "SELECT * FROM usuarios WHERE id = ? AND rol = 'socio' "
         "AND estado_aprobacion = 'Pendiente'",
         (usuario_id,), uno=True,
     )
@@ -2756,7 +3003,8 @@ def panel_usuario_aprobar(usuario_id):
         "THEN ? ELSE fecha_ingreso END WHERE id = ?",
         (fecha_hoy().isoformat(), usuario_id),
     )
-    flash("La cuenta de socio fue validada y ya puede ingresar.", "success")
+    aviso = " Le avisamos por correo." if avisar_cuenta_activada(usuario) else ""
+    flash(f"La cuenta de socio fue validada y ya puede ingresar.{aviso}", "success")
     return redirect(url_for("panel_usuarios_pendientes"))
 
 
@@ -2918,12 +3166,13 @@ def panel_servicios_pendientes():
 @permiso_requerido("servicios_pendientes")
 def panel_servicio_aprobar(servicio_id):
     servicio = consultar(
-        "SELECT id FROM servicios WHERE id = ? AND aprobado = 0", (servicio_id,), uno=True
+        "SELECT * FROM servicios WHERE id = ? AND aprobado = 0", (servicio_id,), uno=True
     )
     if not servicio:
         abort(404)
     ejecutar("UPDATE servicios SET aprobado = 1 WHERE id = ?", (servicio_id,))
-    flash("El emprendimiento fue aprobado y ya aparece en Servicios Comunales.", "success")
+    aviso = " Le avisamos por correo." if avisar_servicio_aprobado(servicio) else ""
+    flash(f"El emprendimiento fue aprobado y ya aparece en Servicios Comunales.{aviso}", "success")
     return redirect(url_for("panel_servicios_pendientes"))
 
 
@@ -2978,15 +3227,23 @@ def panel_proyecto_avance(proyecto_id):
 @permiso_requerido("reservas")
 def panel_reservas():
     estado = request.args.get("estado") or "Pendiente"
+    salon = (request.args.get("salon") or "").strip()
     sql = "SELECT * FROM reservas"
+    condiciones = []
     params = []
     if estado in ESTADOS_RESERVA:
-        sql += " WHERE estado = ?"
+        condiciones.append("estado = ?")
         params.append(estado)
+    if salon in CODIGOS_SALON:
+        condiciones.append("COALESCE(NULLIF(salon, ''), 'salon_1') = ?")
+        params.append(salon)
+    if condiciones:
+        sql += " WHERE " + " AND ".join(condiciones)
     sql += " ORDER BY fecha DESC, hora_inicio"
     return render_template(
         "panel/reservas.html", reservas=consultar(sql, params),
         estados=ESTADOS_RESERVA, filtro_estado=estado,
+        salones=salones_sede(), filtro_salon=salon,
     )
 
 
@@ -3017,28 +3274,32 @@ def panel_reserva_estado(reserva_id):
 @permiso_requerido("reservas")
 def panel_reserva_nueva():
     """El encargado bloquea directamente un día ocupado."""
-    datos = {"fecha": request.args.get("fecha", "")}
+    datos = {
+        "fecha": request.args.get("fecha", ""),
+        "salon": salon_valido(request.args.get("salon")),
+    }
     if request.method == "POST":
         datos = {k: (request.form.get(k) or "").strip() for k in
                  ("fecha", "hora_inicio", "hora_fin", "actividad", "solicitante",
                   "telefono", "observacion")}
+        datos["salon"] = salon_valido(request.form.get("salon"))
         fecha = a_fecha(datos["fecha"])
         if not fecha or not datos["hora_inicio"] or not datos["hora_fin"] or not datos["actividad"]:
             flash("Completa fecha, horario y actividad.", "error")
         else:
             usuario = usuario_actual()
             ejecutar(
-                "INSERT INTO reservas (fecha, hora_inicio, hora_fin, actividad, solicitante, "
+                "INSERT INTO reservas (salon, fecha, hora_inicio, hora_fin, actividad, solicitante, "
                 "telefono, email, personas, estado, observacion, revisada_por, fecha_solicitud) "
-                "VALUES (?, ?, ?, ?, ?, ?, '', NULL, 'Aprobada', ?, ?, ?)",
-                (fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"], datos["actividad"],
-                 datos["solicitante"] or "Junta de Vecinos", datos["telefono"],
+                "VALUES (?, ?, ?, ?, ?, ?, ?, '', NULL, 'Aprobada', ?, ?, ?)",
+                (datos["salon"], fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
+                 datos["actividad"], datos["solicitante"] or "Junta de Vecinos", datos["telefono"],
                  datos["observacion"], usuario["nombre"],
                  datetime.now().isoformat(timespec="seconds")),
             )
-            flash("La sede quedó marcada como ocupada en ese horario.", "success")
+            flash("El salón quedó marcado como ocupado en ese horario.", "success")
             return redirect(url_for("panel_reservas", estado="Aprobada"))
-    return render_template("panel/reserva_nueva.html", datos=datos)
+    return render_template("panel/reserva_nueva.html", datos=datos, salones=salones_sede())
 
 
 @app.route("/panel/reservas/<int:reserva_id>/editar", methods=["GET", "POST"])
@@ -3047,6 +3308,7 @@ def panel_reserva_editar(reserva_id):
     reserva = consultar("SELECT * FROM reservas WHERE id = ?", (reserva_id,), uno=True)
     if not reserva:
         abort(404)
+    salones = salones_sede()
     if request.method == "POST":
         datos = {
             k: (request.form.get(k) or "").strip()
@@ -3056,32 +3318,36 @@ def panel_reserva_editar(reserva_id):
                 "estado", "observacion",
             )
         }
+        salon = salon_valido(request.form.get("salon") or reserva["salon"])
         fecha = a_fecha(datos["fecha"])
         if not fecha or not datos["hora_inicio"] or not datos["hora_fin"] or not datos["actividad"] or not datos["solicitante"]:
             flash("Completa fecha, horarios, actividad y nombre del solicitante.", "error")
-            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA, salones=salones)
         if datos["estado"] not in ESTADOS_RESERVA:
             flash("El estado seleccionado no es válido.", "error")
-            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
-        if hay_choque(fecha, datos["hora_inicio"], datos["hora_fin"], excluir_id=reserva_id):
-            flash("Ese horario choca con otra actividad fija o reserva en la sede.", "error")
-            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA, salones=salones)
+        if hay_choque(fecha, datos["hora_inicio"], datos["hora_fin"], excluir_id=reserva_id, salon=salon):
+            flash("Ese horario choca con otra actividad fija o reserva en ese salón.", "error")
+            return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA, salones=salones)
         usuario = usuario_actual()
         ejecutar(
-            "UPDATE reservas SET fecha = ?, hora_inicio = ?, hora_fin = ?, actividad = ?, "
+            "UPDATE reservas SET salon = ?, fecha = ?, hora_inicio = ?, hora_fin = ?, actividad = ?, "
             "solicitante = ?, telefono = ?, email = ?, personas = ?, estado = ?, observacion = ?, "
             "revisada_por = ? WHERE id = ?",
             (
-                fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
+                salon, fecha.isoformat(), datos["hora_inicio"], datos["hora_fin"],
                 datos["actividad"], datos["solicitante"], datos["telefono"],
                 datos["email"], int(datos["personas"] or 0) or None,
                 datos["estado"], datos["observacion"],
                 usuario["nombre"], reserva_id,
             ),
         )
+        if datos["estado"] != reserva["estado"]:
+            actualizada = consultar("SELECT * FROM reservas WHERE id = ?", (reserva_id,), uno=True)
+            avisar_reserva(actualizada, datos["estado"], datos["observacion"])
         flash("Los cambios en la reserva fueron guardados.", "success")
         return redirect(url_for("panel_reservas", estado=datos["estado"]))
-    return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA)
+    return render_template("panel/reserva_editar.html", reserva=reserva, estados=ESTADOS_RESERVA, salones=salones)
 
 
 @app.route("/panel/reservas/<int:reserva_id>/eliminar", methods=["POST"])
@@ -3154,6 +3420,10 @@ def panel_mensaje_leido(mensaje_id):
 # --- Textos del sitio -----------------------------------------------------
 CAMPOS_CONTENIDO = [
     ("socios_inscritos", "Socias y socios inscritos (déjalo vacío para mostrar el total del padrón)", "texto"),
+    ("hero_subtitulo", "Bajada o subtítulo de la portada", "texto"),
+    ("imagen_hero_url", "Fotografía principal de la portada", "imagen"),
+    ("portada_galeria_fotos", "Galería de fotos de la portada (una ruta por línea o sube archivos)", "galeria"),
+    ("portada_videos_youtube", "Videos de YouTube en la portada (un enlace por línea; pueden ser ocultos)", "textarea"),
     ("mision", "Misión", "textarea"),
     ("vision", "Visión", "textarea"),
     ("historia", "Reseña de la organización", "textarea"),
@@ -3161,6 +3431,17 @@ CAMPOS_CONTENIDO = [
     ("horario_atencion", "Horario de atención", "texto"),
     ("horario_sede_inicio", "Apertura para reservas de sede", "hora"),
     ("horario_sede_fin", "Cierre para reservas de sede", "hora"),
+    ("salon_1_nombre", "Nombre del salón chico (por defecto: Salón Doña Rosenda)", "texto"),
+    ("salon_2_nombre", "Nombre del salón grande (por defecto: Salón Esperanza)", "texto"),
+    ("imagen_sede_url", "Fotografía general de la sede vecinal", "imagen"),
+    ("sede_galeria_fotos", "Galería de fotos general de la sede", "galeria"),
+    ("sede_videos_youtube", "Videos de YouTube de la sede (un enlace por línea)", "textarea"),
+    ("imagen_salon_1_url", "Fotografía del Salón 1", "imagen"),
+    ("salon_1_galeria_fotos", "Galería de fotos del Salón 1", "galeria"),
+    ("salon_1_videos_youtube", "Videos de YouTube del Salón 1 (un enlace por línea)", "textarea"),
+    ("imagen_salon_2_url", "Fotografía del Salón 2", "imagen"),
+    ("salon_2_galeria_fotos", "Galería de fotos del Salón 2", "galeria"),
+    ("salon_2_videos_youtube", "Videos de YouTube del Salón 2 (un enlace por línea)", "textarea"),
     ("email_contacto", "Correo de contacto", "texto"),
     ("telefono_contacto", "Teléfono de contacto", "texto"),
     ("whatsapp_grupo", "Enlace al grupo de WhatsApp", "texto"),
@@ -3168,11 +3449,24 @@ CAMPOS_CONTENIDO = [
     ("instagram", "Enlace a Instagram", "texto"),
     ("plan_maestro_intro", "Introducción del plan maestro", "textarea"),
     ("anio_fundacion", "Año de fundación de la organización", "texto"),
-    ("hitos_historia", "Línea de tiempo (una línea por hito: AAAA | texto)", "textarea"),
+    ("hitos_historia", "Línea de tiempo rápida (opcional: AAAA | texto; se traspasa a Línea del tiempo)", "textarea"),
     ("como_asociarse", "Cómo asociarse (texto para quienes aún no son socios)", "textarea"),
     ("mensaje_cumpleanos", "Saludo de cumpleaños (use {nombre})", "textarea"),
     ("reserva_valor", "Monto del aporte por uso de la sede (ej: $10.000 por actividad; vacío si se informa al aprobar)", "texto"),
     ("reserva_aviso_cobro", "Aviso del aporte por uso de la sede (se muestra al reservar)", "textarea"),
+    ("movilidad_505_descripcion", "Descripción recorrido Micro 505", "textarea"),
+    ("movilidad_505_subida", "Tarifa Micro 505 hacia el cerro", "texto"),
+    ("movilidad_505_bajada", "Tarifa Micro 505 hacia el plan", "texto"),
+    ("movilidad_505_escolar", "Tarifa escolar / TNE Micro 505", "texto"),
+    ("movilidad_505_horario", "Horario límite última Micro 505", "texto"),
+    ("movilidad_colectivos_descripcion", "Descripción recorrido Colectivos 6 y 61", "textarea"),
+    ("movilidad_colectivos_manana", "Horario punta mañana Colectivos 6 y 61", "texto"),
+    ("movilidad_colectivos_tarde", "Horario punta tarde Colectivos 6 y 61", "texto"),
+    ("movilidad_colectivos_nocturno", "Aviso horario nocturno Colectivos 6 y 61", "textarea"),
+    ("movilidad_recomendacion_1", "Recomendación de accesibilidad 1 (Adultos mayores y CESFAM)", "textarea"),
+    ("movilidad_recomendacion_2", "Recomendación de accesibilidad 2 (Días de lluvia y escaleras)", "textarea"),
+    ("movilidad_galeria_fotos", "Galería fotográfica de Movilidad (formato: ruta | título | descripción, una por línea)", "galeria"),
+    ("movilidad_videos_youtube", "Videos de YouTube en Movilidad (un enlace por línea)", "textarea"),
     ("calles", "Calles y pasajes del territorio (una por línea; se usan en los formularios)", "textarea"),
     ("requisitos_certificado", "Requisitos del certificado (uno por línea)", "textarea"),
     ("aviso_privacidad", "Aviso de privacidad aprobado por la contraparte", "textarea"),
@@ -3184,10 +3478,39 @@ CAMPOS_CONTENIDO = [
 @permiso_requerido("contenido")
 def panel_contenido():
     if request.method == "POST":
-        valores = {
-            clave: (request.form.get(clave) or "").strip()
-            for clave, _, _ in CAMPOS_CONTENIDO
-        }
+        actual = obtener_config()
+        valores = {}
+        for clave, _, tipo in CAMPOS_CONTENIDO:
+            if tipo == "imagen":
+                if request.form.get("quitar_" + clave):
+                    valores[clave] = ""
+                else:
+                    subida = guardar_archivo(
+                        "archivo_" + clave, extensiones={"jpg", "jpeg", "png", "webp"}
+                    )
+                    if subida:
+                        valores[clave] = url_for("static", filename=f"uploads/{subida}")
+                    elif clave in request.form:
+                        valores[clave] = (request.form.get(clave) or "").strip()
+                    else:
+                        valores[clave] = actual.get(clave, "")
+            elif tipo == "galeria":
+                if request.form.get("quitar_" + clave):
+                    valores[clave] = ""
+                else:
+                    base_texto = (
+                        (request.form.get(clave) or "").strip()
+                        if clave in request.form
+                        else actual.get(clave, "")
+                    )
+                    nuevas = guardar_archivos_multiples("archivos_" + clave)
+                    partes = [l for l in [base_texto, *nuevas] if l]
+                    valores[clave] = "\n".join(partes)
+            elif clave in request.form:
+                valores[clave] = (request.form.get(clave) or "").strip()
+            else:
+                valores[clave] = actual.get(clave, "")
+
         inicio = minutos_de_hora(valores["horario_sede_inicio"])
         fin = minutos_de_hora(valores["horario_sede_fin"])
         if inicio is None or fin is None:
@@ -3198,9 +3521,41 @@ def panel_contenido():
             return redirect(url_for("panel_contenido"))
         for clave, valor in valores.items():
             base.guardar_config(clave, valor)
+        base.migrar_hitos_historia()
         flash("Los textos del sitio fueron actualizados.", "success")
         return redirect(url_for("panel_contenido"))
     return render_template("panel/contenido.html", campos=CAMPOS_CONTENIDO)
+
+
+@app.route("/panel/limpiar-ejemplos", methods=["POST"])
+@login_requerido
+def panel_limpiar_ejemplos():
+    """Elimina los registros de demostración iniciales sin tocar socios ni configuraciones."""
+    usuario = usuario_actual()
+    if usuario["rol"] != "administrador":
+        abort(403)
+    ejecutar(
+        "DELETE FROM noticias WHERE titulo IN ("
+        "'Asamblea ordinaria de socias y socios', "
+        "'Comienza el mejoramiento de la plaza del cerro', "
+        "'Taller de alfabetización digital para adultos mayores')"
+    )
+    ejecutar(
+        "DELETE FROM servicios WHERE nombre_servicio IN ("
+        "'Amasandería Doña Rosa', 'Gasfitería Don Luis', 'Peluquería Carmen', 'Fletes El Cerro')"
+    )
+    ejecutar(
+        "DELETE FROM reservas WHERE solicitante IN ('Familia Rojas', 'Club Deportivo Esperanza')"
+    )
+    ejecutar(
+        "DELETE FROM eventos WHERE nombre IN ('Bingo solidario de invierno', 'Celebración Día del Niño')"
+    )
+    ejecutar(
+        "DELETE FROM rendiciones WHERE titulo = 'Rendición de cuentas anual' "
+        "AND descripcion = 'Balance de ingresos y gastos de la junta de vecinos durante el año.'"
+    )
+    flash("Se eliminaron los datos de ejemplo iniciales.", "success")
+    return redirect(url_for("panel_contenido"))
 
 
 @app.route("/privacidad")
@@ -3253,6 +3608,18 @@ def valores_desde_formulario(recurso, fila_actual=None):
                 else:
                     campo_texto = (request.form.get(nombre) or "").strip()
                     valores[nombre] = campo_texto if campo_texto else (fila_actual[nombre] if fila_actual else "")
+        elif c["tipo"] == "galeria":
+            if request.form.get("quitar_" + nombre):
+                valores[nombre] = ""
+            else:
+                base_texto = (
+                    (request.form.get(nombre) or "").strip()
+                    if nombre in request.form
+                    else (fila_actual[nombre] if fila_actual and nombre in fila_actual.keys() else "")
+                )
+                nuevas = guardar_archivos_multiples("archivos_" + nombre)
+                partes = [l for l in [base_texto, *nuevas] if l]
+                valores[nombre] = "\n".join(partes)
         elif c["tipo"] == "clave":
             clave = request.form.get(nombre) or ""
             if clave:
@@ -3265,7 +3632,17 @@ def valores_desde_formulario(recurso, fila_actual=None):
                 valores[nombre] = None
         elif c["tipo"] == "numero" or c.get("valores_numericos"):
             crudo = (request.form.get(nombre) or "").strip()
-            valores[nombre] = int(crudo) if crudo.lstrip("-").isdigit() else None
+            if crudo.lstrip("-").isdigit():
+                valores[nombre] = int(crudo)
+            elif c.get("defecto") is not None and not c.get("requerido"):
+                valores[nombre] = c["defecto"]
+            else:
+                valores[nombre] = None
+        elif nombre == "salon":
+            valores[nombre] = salon_valido(
+                request.form.get(nombre)
+                or (fila_actual["salon"] if fila_actual and "salon" in fila_actual.keys() else "salon_1")
+            )
         else:
             valores[nombre] = (request.form.get(nombre) or "").strip()
     return valores
@@ -3297,6 +3674,13 @@ def documento_financiero(recurso, fila=None, categoria=None):
 
 
 def definicion_para_panel(recurso, definicion):
+    if recurso == "bloques":
+        adaptada = dict(definicion)
+        adaptada["campos"] = [
+            dict(c, opciones=salones_sede()) if c["nombre"] == "salon" else c
+            for c in definicion["campos"]
+        ]
+        return adaptada
     if recurso not in {"documentos", "servicios"} or not coordinador_actual():
         return definicion
     adaptada = dict(definicion)

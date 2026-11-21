@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS noticias (
     resumen TEXT NOT NULL,
     contenido TEXT NOT NULL,
     imagen_url TEXT DEFAULT '',
+    galeria_fotos TEXT DEFAULT '',
+    videos_youtube TEXT DEFAULT '',
     fecha_evento TEXT,
     fecha_publicacion TEXT NOT NULL,
     publicado INTEGER NOT NULL DEFAULT 1
@@ -109,6 +111,8 @@ CREATE TABLE IF NOT EXISTS proyectos (
     monto INTEGER,
     horizonte TEXT NOT NULL DEFAULT 'Actual',
     imagen_url TEXT DEFAULT '',
+    galeria_fotos TEXT DEFAULT '',
+    videos_youtube TEXT DEFAULT '',
     fecha_actualizacion TEXT NOT NULL
 );
 
@@ -166,6 +170,7 @@ CREATE TABLE IF NOT EXISTS documentos (
 
 CREATE TABLE IF NOT EXISTS bloques_fijos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    salon TEXT NOT NULL DEFAULT 'salon_1',
     dia_semana INTEGER NOT NULL,
     hora_inicio TEXT NOT NULL,
     hora_fin TEXT NOT NULL,
@@ -176,6 +181,7 @@ CREATE TABLE IF NOT EXISTS bloques_fijos (
 
 CREATE TABLE IF NOT EXISTS reservas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    salon TEXT NOT NULL DEFAULT 'salon_1',
     fecha TEXT NOT NULL,
     hora_inicio TEXT NOT NULL,
     hora_fin TEXT NOT NULL,
@@ -302,7 +308,20 @@ CREATE TABLE IF NOT EXISTS puntos_mapa (
     latitud REAL NOT NULL,
     longitud REAL NOT NULL,
     foto_url TEXT DEFAULT '',
+    galeria_fotos TEXT DEFAULT '',
+    videos_youtube TEXT DEFAULT '',
     activo INTEGER NOT NULL DEFAULT 1,
+    orden INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS hitos_historia (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    anio TEXT NOT NULL,
+    titulo TEXT NOT NULL DEFAULT '',
+    texto TEXT NOT NULL,
+    imagen_url TEXT DEFAULT '',
+    galeria_fotos TEXT DEFAULT '',
+    videos_youtube TEXT DEFAULT '',
     orden INTEGER NOT NULL DEFAULT 0
 );
 
@@ -420,8 +439,56 @@ CONFIG_POR_DEFECTO = {
     ),
     "reserva_valor": "",
     "calles": CALLES_POR_DEFECTO,
+    "hero_subtitulo": "Información clara, cuentas transparentes y una sede abierta a la comunidad.",
     "imagen_sede_url": "/static/img/sede_comunitaria.jpg",
+    "sede_galeria_fotos": "",
+    "sede_videos_youtube": "",
     "imagen_hero_url": "/static/img/hero_comunidad.jpg",
+    "portada_galeria_fotos": "",
+    "portada_videos_youtube": "",
+    "salon_1_nombre": "Salón Doña Rosenda",
+    "salon_2_nombre": "Salón Esperanza",
+    "imagen_salon_1_url": "/static/img/sede_comunitaria.jpg",
+    "salon_1_galeria_fotos": "",
+    "salon_1_videos_youtube": "",
+    "imagen_salon_2_url": "",
+    "salon_2_galeria_fotos": "",
+    "salon_2_videos_youtube": "",
+    "movilidad_505_descripcion": (
+        "Conecta el Cerro Esperanza con el plan de Valparaíso a través de los ejes "
+        "Av. Philippi y Av. Barros Arana."
+    ),
+    "movilidad_505_subida": "$260",
+    "movilidad_505_bajada": "$190",
+    "movilidad_505_escolar": "$100",
+    "movilidad_505_horario": "21:30 hrs",
+    "movilidad_colectivos_descripcion": (
+        "Servicio continuo desde Calle Brasil / Bellavista, subiendo por "
+        "Av. Barros Arana hacia las cotas media y alta de la Unidad Vecinal N.º 2."
+    ),
+    "movilidad_colectivos_manana": "07:00 a 09:00 hrs",
+    "movilidad_colectivos_tarde": "18:00 a 20:30 hrs",
+    "movilidad_colectivos_nocturno": (
+        "Posterior a las 00:00 hrs rige alza de tarifa nocturna y la frecuencia de "
+        "circulación disminuye."
+    ),
+    "movilidad_recomendacion_1": (
+        "Para acudir al CESFAM Cerro Esperanza, se sugiere encarecidamente utilizar locomoción "
+        "colectiva o vehículos de apoyo en los tramos de pendiente pronunciada, evitando el "
+        "descenso a pie por escaleras no pavimentadas o sin baranda."
+    ),
+    "movilidad_recomendacion_2": (
+        "La Escalera Chirimoyo y pasajes de adoquín presentan alto riesgo de caídas y "
+        "resbalones en días húmedos. Utilice calzado con adherencia y prefiera rutas "
+        "alternativas con iluminación y pavimento continuo."
+    ),
+    "movilidad_galeria_fotos": (
+        "/static/img/territorio/escalera_chirimoyo_terreno.jpg | Escalera Chirimoyo | Pendiente pronunciada y desgaste de peldaños en la principal conexión peatonal.\n"
+        "/static/img/territorio/micro_505_recorrido.jpg | Eje Micro 505 | Microbús transitando por la calzada principal del cerro hacia el plan.\n"
+        "/static/img/territorio/paradero_barros_arana.jpg | Paraderos y Refugios | Infraestructura de espera para locomoción mayor y colectivos locales.\n"
+        "/static/img/territorio/transecto_participativo_aspillaga.jpg | Transecto Participativo | Equipo de Geografía PUCV recorriendo calles y pasajes de la UV2."
+    ),
+    "movilidad_videos_youtube": "",
     "plan_maestro_intro": (
         "El plan maestro reúne lo que la junta de vecinos quiere lograr en el cerro: "
         "los proyectos que están en marcha hoy y los que se postularán en los próximos años."
@@ -721,6 +788,8 @@ def _migrar_esquema():
         ("proyectos", "horizonte", "Actual"),
         ("proyectos", "eje", ""),
         ("proyectos", "estado", "Postulado"),
+        ("bloques_fijos", "salon", "salon_1"),
+        ("reservas", "salon", "salon_1"),
     ):
         if _tabla_existe(tabla):
             columnas = {f["name"] for f in consultar(f"PRAGMA table_info({tabla})")}
@@ -730,6 +799,48 @@ def _migrar_esquema():
                     (valor,),
                 )
                 db.commit()
+
+    migrar_hitos_historia()
+
+
+def migrar_hitos_historia():
+    """Traspasa a fichas los hitos escritos como texto («AAAA | texto») y vacía ese texto.
+
+    Así, un hito que se borra desde el panel no vuelve a aparecer.
+    """
+    if not _tabla_existe("hitos_historia"):
+        return
+    fila = consultar("SELECT valor FROM config WHERE clave = 'hitos_historia'", uno=True)
+    texto = (fila["valor"] if fila else "") or ""
+    db = get_db()
+    ultimo = consultar("SELECT COALESCE(MAX(orden), 0) m FROM hitos_historia", uno=True)["m"]
+    for orden, linea in enumerate(texto.splitlines(), start=ultimo + 1):
+        if "|" not in linea:
+            continue
+        partes = [p.strip() for p in linea.split("|")]
+        if len(partes) >= 3 and partes[0] and partes[2]:
+            anio, titulo, detalle = partes[0], partes[1], " | ".join(partes[2:])
+        else:
+            anio, detalle = partes[0], partes[1]
+            titulo = f"Hito de {anio}" if anio else ""
+        if anio and detalle:
+            db.execute(
+                "INSERT INTO hitos_historia (anio, titulo, texto, orden) VALUES (?, ?, ?, ?)",
+                (anio, titulo, detalle, orden),
+            )
+    if texto:
+        db.execute("UPDATE config SET valor = '' WHERE clave = 'hitos_historia'")
+    ya_iniciados = consultar("SELECT 1 FROM config WHERE clave = 'hitos_iniciados'", uno=True)
+    if not ya_iniciados and not consultar("SELECT id FROM hitos_historia LIMIT 1", uno=True):
+        db.execute(
+            "INSERT INTO hitos_historia (anio, titulo, texto, imagen_url, orden) "
+            "VALUES ('1908', 'Fundación de la Junta de Vecinos N.° 2', "
+            "'Fundada el 18 de septiembre de 1908 en el Cerro Esperanza, Valparaíso, como una de las primeras organizaciones vecinales del país.', "
+            "'/static/img/logo_junta.jpg', 1)"
+        )
+    if not ya_iniciados:
+        db.execute("INSERT INTO config (clave, valor) VALUES ('hitos_iniciados', '1')")
+    db.commit()
 
 
 _CACHE_COLUMNAS = {}

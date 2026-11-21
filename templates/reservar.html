@@ -7,10 +7,28 @@
     <div>
       <h1 class="section-title mb-1">Pedir la sede vecinal</h1>
       <p class="lead mb-0">
-        Elige en el calendario interactivo el día y horario que necesitas para tu actividad comunitaria o familiar.
+        Elige el salón y selecciona en el calendario el día y horario que necesitas para tu actividad comunitaria o familiar.
       </p>
     </div>
-    <a href="{{ url_for('sede') }}" class="btn btn-outline-primary">&larr; Ver agenda semanal de la sede</a>
+    <a href="{{ url_for('sede', salon=salon) }}" class="btn btn-outline-primary">&larr; Ver agenda semanal de la sede</a>
+  </div>
+
+  <!-- Selector de salón -->
+  <div class="caja mb-3 p-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <strong class="d-block">1. Elige el salón que necesitas:</strong>
+      <span class="small text-muted">Ambos espacios funcionan de forma independiente.</span>
+    </div>
+    <div class="btn-group" role="group" aria-label="Seleccionar salón para reservar">
+      {% for codigo, nombre in salones %}
+        <button type="button"
+                class="btn btn-lg {{ 'btn-primary' if salon == codigo else 'btn-outline-primary' }}"
+                data-salon-btn="{{ codigo }}"
+                data-salon-nombre="{{ nombre }}">
+          🏛️ {{ nombre }}
+        </button>
+      {% endfor %}
+    </div>
   </div>
 
   <!-- Contenedor interactivo del calendario y selección de horarios -->
@@ -112,6 +130,7 @@
     </p>
 
     <!-- Campos ocultos sincronizados con la selección del calendario -->
+    <input type="hidden" id="salon" name="salon" value="{{ salon }}">
     <input type="hidden" id="fecha" name="fecha" value="{{ datos.fecha }}">
     <input type="hidden" id="hora_inicio" name="hora_inicio" value="{{ datos.hora_inicio }}">
     <input type="hidden" id="hora_fin" name="hora_fin" value="{{ datos.hora_fin }}">
@@ -120,7 +139,7 @@
     <div class="caja mb-4 p-3 border-start border-4 border-warning">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-          <span class="text-muted small d-block">Fecha y horario solicitados:</span>
+          <span class="text-muted small d-block">Salón, fecha y horario solicitados (<strong id="display-salon-nombre">{{ salon_nombre }}</strong>):</span>
           <strong class="fs-5 text-dark" id="display-fecha-hora">
             {% if datos.fecha and datos.hora_inicio and datos.hora_fin %}
               {{ datos.fecha }} de {{ datos.hora_inicio }} a {{ datos.hora_fin }}
@@ -191,6 +210,7 @@
 (function() {
   // Datos iniciales entregados por el servidor
   let datosMes = {{ disponibilidad_json|safe }};
+  let salonSeleccionado = "{{ salon or 'salon_1' }}";
   let fechaSeleccionada = "{{ datos.fecha or '' }}";
   let horaInicioSeleccionada = "{{ datos.hora_inicio or '' }}";
   let horaFinSeleccionada = "{{ datos.hora_fin or '' }}";
@@ -209,8 +229,10 @@
   const resumenActiva = document.getElementById("resumen-seleccion-activa");
   const textoResumenSlot = document.getElementById("texto-resumen-slot");
   const displayFechaHora = document.getElementById("display-fecha-hora");
+  const displaySalonNombre = document.getElementById("display-salon-nombre");
   const badgeSeleccion = document.getElementById("badge-estado-seleccion");
 
+  const inputSalon = document.getElementById("salon");
   const inputFecha = document.getElementById("fecha");
   const inputHoraInicio = document.getElementById("hora_inicio");
   const inputHoraFin = document.getElementById("hora_fin");
@@ -465,7 +487,7 @@
   async function cargarMes(mesIso) {
     try {
       tituloMes.textContent = "Cargando…";
-      const resp = await fetch(`{{ url_for('api_sede_disponibilidad') }}?mes=${mesIso}`);
+      const resp = await fetch(`{{ url_for('api_sede_disponibilidad') }}?mes=${encodeURIComponent(mesIso)}&salon=${encodeURIComponent(salonSeleccionado)}`);
       if (!resp.ok) throw new Error("Error al obtener disponibilidad");
       datosMes = await resp.json();
       renderizarCalendario();
@@ -474,6 +496,21 @@
       alert("No se pudo cargar la disponibilidad de ese mes. Intenta nuevamente.");
     }
   }
+
+  document.querySelectorAll("[data-salon-btn]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      salonSeleccionado = btn.getAttribute("data-salon-btn");
+      if (inputSalon) inputSalon.value = salonSeleccionado;
+      if (displaySalonNombre) displaySalonNombre.textContent = btn.getAttribute("data-salon-nombre") || "";
+      document.querySelectorAll("[data-salon-btn]").forEach(otro => {
+        const activo = otro.getAttribute("data-salon-btn") === salonSeleccionado;
+        otro.classList.toggle("btn-primary", activo);
+        otro.classList.toggle("btn-outline-primary", !activo);
+      });
+      const mesActual = datosMes ? `${datosMes.anio}-${String(datosMes.mes).padStart(2, "0")}` : "";
+      cargarMes(mesActual);
+    });
+  });
 
   btnPrev.addEventListener("click", () => {
     if (datosMes && datosMes.mes_anterior) {
