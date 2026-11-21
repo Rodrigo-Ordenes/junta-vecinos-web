@@ -1888,4 +1888,5 @@ def test_cada_salon_muestra_solo_su_propia_foto(cliente, app_prueba):
 def test_portada_tiene_entrada_saltable_y_simbolo_sin_numero(cliente):
     html = cliente.get("/").get_data(as_text=True)
     assert 'class="entrada"' in html and "prefers-reduced-motion" in html
+    assert "Bienvenidos y bienvenidas" in html and 'class="entrada-boton"' in html
     assert 'class="marca-junta"' in html and "JV<span>2</span>" not in html

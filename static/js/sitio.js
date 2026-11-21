@@ -450,18 +450,6 @@
     window.addEventListener("pagehide", function () { voz.cancel(); });
   }
 
-  // La entrada se salta con un clic o cualquier tecla.
-  function inicializarEntrada() {
-    var entrada = document.querySelector(".entrada");
-    if (!entrada || !raiz.classList.contains("con-entrada")) return;
-    function saltar() {
-      raiz.classList.add("entrada-saltada");
-      document.removeEventListener("keydown", saltar);
-    }
-    entrada.addEventListener("click", saltar);
-    document.addEventListener("keydown", saltar);
-  }
-
   // Parallax suave de los cerros de la portada: cada capa se mueve a distinto ritmo.
   function inicializarParallax() {
     var cerros = document.querySelector("[data-parallax]");
@@ -489,7 +477,6 @@
   }
 
   function inicializarSitio() {
-    inicializarEntrada();
     inicializarParallax();
     inicializarEscuchar();
     inicializarTelefonos();
