@@ -1871,3 +1871,21 @@ def test_noticia_e_historia_tienen_boton_para_escuchar(cliente, app_prueba):
         noticia = base.consultar("SELECT id FROM noticias WHERE publicado = 1 LIMIT 1", uno=True)
     assert "data-escuchar" in cliente.get(f"/noticias/{noticia['id']}").get_data(as_text=True)
     assert "data-escuchar" in cliente.get("/historia").get_data(as_text=True)
+
+
+def test_cada_salon_muestra_solo_su_propia_foto(cliente, app_prueba):
+    with app_prueba.app_context():
+        base.guardar_config("imagen_salon_1_url", "/static/uploads/rosenda.jpg")
+        base.guardar_config("imagen_salon_2_url", "")
+        base.guardar_config("sede_galeria_fotos", "/static/uploads/fachada.jpg | Fachada")
+    chico = cliente.get("/sede?salon=salon_1").get_data(as_text=True)
+    grande = cliente.get("/sede?salon=salon_2").get_data(as_text=True)
+    assert "rosenda.jpg" in chico and "rosenda.jpg" not in grande
+    assert "sede_comunitaria.jpg" not in grande
+    assert "La sede vecinal" in grande and "Fotografías y videos de Salón Esperanza" not in grande
+
+
+def test_portada_tiene_entrada_saltable_y_simbolo_sin_numero(cliente):
+    html = cliente.get("/").get_data(as_text=True)
+    assert 'class="entrada"' in html and "prefers-reduced-motion" in html
+    assert 'class="marca-junta"' in html and "JV<span>2</span>" not in html

@@ -1,12 +1,37 @@
 {% extends "base.html" %}
 {% from "_campos.html" import bloque_multimedia %}
 {% block extra_head %}
+<script>
+  /* La entrada se muestra una vez por visita y nunca a quien pidió menos movimiento. */
+  try {
+    if (!sessionStorage.getItem("jv-entrada") &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("con-entrada");
+      sessionStorage.setItem("jv-entrada", "1");
+    }
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/asistente.css') }}">
 <script src="{{ url_for('static', filename='js/asistente.js') }}" defer></script>
 {% endblock %}
 {% block content %}
 
+<div class="entrada" aria-hidden="true">
+  {% for lado in ("izquierda", "derecha") %}
+    <div class="entrada-mitad entrada-{{ lado }}">
+      <div class="entrada-sol"></div>
+      <div class="entrada-titulo">
+        <span class="entrada-marca">{% include "_marca.html" %}</span>
+        <strong>Junta de Vecinos N.º 2</strong>
+        <span>Cerro Esperanza</span>
+      </div>
+      {% include "_cerros.html" %}
+    </div>
+  {% endfor %}
+</div>
+
 <section class="hero">
+  <div class="hero-cerros" data-parallax>{% include "_cerros.html" %}</div>
   <div class="container">
     <div class="hero-layout">
       <div class="hero-copy">
@@ -23,7 +48,7 @@
       <aside class="hero-visual" aria-label="Módulos del portal comunitario">
         <div class="hero-card">
           <div class="hero-card-heading">
-            <span class="hero-card-mark" aria-hidden="true">JV<span>2</span></span>
+            <span class="hero-card-mark" aria-hidden="true">{% include "_marca.html" %}</span>
             <div><span class="hero-card-overline">CERRO ESPERANZA</span><strong>La comunidad, más cerca</strong></div>
           </div>
           {% if conf.imagen_hero_url %}

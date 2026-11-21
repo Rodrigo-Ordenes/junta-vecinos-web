@@ -51,9 +51,14 @@
     </div>
   </section>
 
-  {% if galeria_salon or videos_salon or conf.sede_galeria_fotos or conf.sede_videos_youtube %}
+  {% if galeria_salon or videos_salon %}
     <div class="caja mb-4">
-      {{ bloque_multimedia((galeria_salon ~ '\n' ~ conf.sede_galeria_fotos)|trim, (videos_salon ~ '\n' ~ conf.sede_videos_youtube)|trim, "Fotografías y videos de " ~ salon_nombre) }}
+      {{ bloque_multimedia(galeria_salon, videos_salon, "Fotografías y videos de " ~ salon_nombre) }}
+    </div>
+  {% endif %}
+  {% if conf.sede_galeria_fotos or conf.sede_videos_youtube %}
+    <div class="caja mb-4">
+      {{ bloque_multimedia(conf.sede_galeria_fotos, conf.sede_videos_youtube, "La sede vecinal") }}
     </div>
   {% endif %}
 

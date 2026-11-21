@@ -450,6 +450,37 @@
     window.addEventListener("pagehide", function () { voz.cancel(); });
   }
 
+  // La entrada se salta con un clic o cualquier tecla.
+  function inicializarEntrada() {
+    var entrada = document.querySelector(".entrada");
+    if (!entrada || !raiz.classList.contains("con-entrada")) return;
+    function saltar() {
+      raiz.classList.add("entrada-saltada");
+      document.removeEventListener("keydown", saltar);
+    }
+    entrada.addEventListener("click", saltar);
+    document.addEventListener("keydown", saltar);
+  }
+
+  // Parallax suave de los cerros de la portada: cada capa se mueve a distinto ritmo.
+  function inicializarParallax() {
+    var cerros = document.querySelector("[data-parallax]");
+    if (!cerros || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var capas = cerros.querySelectorAll(".cerro-capa");
+    var ritmos = [0.18, 0.1, 0.04];
+    var pendiente = false;
+    function mover() {
+      pendiente = false;
+      var bajada = Math.min(window.scrollY, 600);
+      for (var i = 0; i < capas.length; i++) {
+        capas[i].style.transform = "translateY(" + (bajada * ritmos[i]).toFixed(1) + "px)";
+      }
+    }
+    window.addEventListener("scroll", function () {
+      if (!pendiente) { pendiente = true; window.requestAnimationFrame(mover); }
+    }, { passive: true });
+  }
+
   function registrarAppInstalable() {
     if (!("serviceWorker" in navigator)) return;
     window.addEventListener("load", function () {
@@ -458,6 +489,8 @@
   }
 
   function inicializarSitio() {
+    inicializarEntrada();
+    inicializarParallax();
     inicializarEscuchar();
     inicializarTelefonos();
     inicializarFiltrosPanel();

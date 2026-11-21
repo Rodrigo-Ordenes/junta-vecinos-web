@@ -1421,9 +1421,8 @@ def sede():
     dias_visibles = semana["dias"]
     if solo_disponibles:
         dias_visibles = [dia for dia in dias_visibles if dia["horarios"]]
-    imagen_salon = (
-        conf.get(f"imagen_{salon}_url") or conf.get("imagen_sede_url") or ""
-    )
+    # Cada salón muestra solo su propia foto, para que no se repita la misma en ambos.
+    imagen_salon = conf.get(f"imagen_{salon}_url") or ""
     return render_template(
         "sede.html",
         salon=salon,
@@ -3560,14 +3559,15 @@ CAMPOS_CONTENIDO = [
     ("salon_1_nombre", "Nombre del salón chico (por defecto: Salón Doña Rosenda)", "texto"),
     ("salon_2_nombre", "Nombre del salón grande (por defecto: Salón Esperanza)", "texto"),
     ("imagen_sede_url", "Fotografía general de la sede vecinal", "imagen"),
-    ("sede_galeria_fotos", "Galería de fotos general de la sede", "galeria"),
+    ("sede_galeria_fotos", "Galería general de la sede (se muestra aparte, en ambos salones: "
+     "usa la de cada salón para sus fotos propias)", "galeria"),
     ("sede_videos_youtube", "Videos de YouTube de la sede (un enlace por línea)", "textarea"),
-    ("imagen_salon_1_url", "Fotografía del Salón 1", "imagen"),
-    ("salon_1_galeria_fotos", "Galería de fotos del Salón 1", "galeria"),
-    ("salon_1_videos_youtube", "Videos de YouTube del Salón 1 (un enlace por línea)", "textarea"),
-    ("imagen_salon_2_url", "Fotografía del Salón 2", "imagen"),
-    ("salon_2_galeria_fotos", "Galería de fotos del Salón 2", "galeria"),
-    ("salon_2_videos_youtube", "Videos de YouTube del Salón 2 (un enlace por línea)", "textarea"),
+    ("imagen_salon_1_url", "Fotografía principal del salón chico (Salón Doña Rosenda)", "imagen"),
+    ("salon_1_galeria_fotos", "Galería de fotos del salón chico (Salón Doña Rosenda)", "galeria"),
+    ("salon_1_videos_youtube", "Videos de YouTube del salón chico (un enlace por línea)", "textarea"),
+    ("imagen_salon_2_url", "Fotografía principal del salón grande (Salón Esperanza)", "imagen"),
+    ("salon_2_galeria_fotos", "Galería de fotos del salón grande (Salón Esperanza)", "galeria"),
+    ("salon_2_videos_youtube", "Videos de YouTube del salón grande (un enlace por línea)", "textarea"),
     ("email_contacto", "Correo de contacto", "texto"),
     ("telefono_contacto", "Teléfono de contacto", "texto"),
     ("whatsapp_grupo", "Enlace al grupo de WhatsApp", "texto"),
