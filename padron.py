@@ -446,14 +446,20 @@ def importar_padron(registros, db, simular=False):
                     )
                     continue
                 # Lo que el socio ya completó en su perfil (correo, teléfono,
-                # nacimiento) no se borra si el padrón trae esas celdas vacías.
+                # nacimiento) o las bajas registradas en el sitio no se borran
+                # al volver a subir el Excel.
                 db.execute(
                     "UPDATE usuarios SET nombre = ?, apellidos = ?, rut = ?, numero_socio = ?, "
-                    "direccion = ?, telefono = COALESCE(NULLIF(?, ''), telefono), "
-                    "email = COALESCE(NULLIF(?, ''), email), "
-                    "fecha_nacimiento = COALESCE(NULLIF(?, ''), fecha_nacimiento), "
+                    "direccion = COALESCE(NULLIF(?, ''), direccion), "
+                    "telefono = CASE WHEN debe_cambiar_clave = 0 AND telefono != '' THEN telefono "
+                    "ELSE COALESCE(NULLIF(?, ''), telefono) END, "
+                    "email = CASE WHEN debe_cambiar_clave = 0 AND email != '' THEN email "
+                    "ELSE COALESCE(NULLIF(?, ''), email) END, "
+                    "fecha_nacimiento = CASE WHEN debe_cambiar_clave = 0 AND fecha_nacimiento != '' "
+                    "THEN fecha_nacimiento ELSE COALESCE(NULLIF(?, ''), fecha_nacimiento) END, "
                     "fecha_ingreso = COALESCE(NULLIF(?, ''), fecha_ingreso), "
-                    "fallecido = ?, activo = CASE WHEN ? = 1 THEN 0 ELSE activo END "
+                    "fallecido = CASE WHEN fallecido = 1 THEN 1 ELSE ? END, "
+                    "activo = CASE WHEN fallecido = 1 OR ? = 1 OR motivo_baja != '' THEN 0 ELSE activo END "
                     "WHERE id = ?",
                     (
                         datos["nombre"], datos["apellidos"], datos["rut"], datos["numero_socio"],

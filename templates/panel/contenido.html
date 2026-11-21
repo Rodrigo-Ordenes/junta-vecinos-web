@@ -1,19 +1,70 @@
 {% extends "panel/_base_panel.html" %}
-{% block title %}Textos del sitio · Panel{% endblock %}
+{% block title %}Textos e imágenes del sitio · Panel{% endblock %}
 {% block panel %}
-<h1 class="section-title h3">Textos del sitio</h1>
-<p>Desde aquí se actualizan los textos del sitio, el horario de atención y las horas en que se reciben reservas para la sede.</p>
+<h1 class="section-title h3">Textos, salones e imágenes del sitio</h1>
+<p>Desde aquí se actualizan los textos e imágenes de la <strong>Portada</strong>, la <strong>Sede vecinal y sus dos salones</strong> (nombres, horarios, fotos y videos), <strong>Movilidad</strong> y datos de contacto.</p>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="btn btn-sm btn-outline-primary" href="#seccion-portada">🏠 Portada</a>
+  <a class="btn btn-sm btn-outline-primary" href="#seccion-sede">🏛️ Sede y Salones (fotos, nombres y horarios)</a>
+  <a class="btn btn-sm btn-outline-primary" href="#seccion-movilidad">🚌 Movilidad (fotos y tarifas)</a>
+  <a class="btn btn-sm btn-outline-primary" href="#seccion-contacto">📞 Contacto y textos legales</a>
+</div>
+
 <p class="caja small">En los campos de privacidad y uso, pega solo la versión que la contraparte responsable haya revisado y aprobado. Si están vacíos, esos avisos no se publican.</p>
 
-<form method="post" class="row g-3 caja">
+<form method="post" enctype="multipart/form-data" class="row g-3 caja">
   {{ csrf_campo() }}
   {% for clave, etiqueta, tipo in campos %}
+    {% if clave == 'socios_inscritos' %}
+      <div class="col-12 pt-2" id="seccion-portada">
+        <h2 class="h5 mb-0 pb-2 border-bottom">🏠 Portada e información general</h2>
+      </div>
+    {% elif clave == 'direccion_sede' %}
+      <div class="col-12 pt-3" id="seccion-sede">
+        <h2 class="h5 mb-0 pb-2 border-bottom">🏛️ Sede vecinal y Salones (nombres, horarios, fotos y videos)</h2>
+      </div>
+    {% elif clave == 'email_contacto' %}
+      <div class="col-12 pt-3" id="seccion-contacto">
+        <h2 class="h5 mb-0 pb-2 border-bottom">📞 Contacto, historia y textos institucionales</h2>
+      </div>
+    {% elif clave == 'movilidad_505_descripcion' %}
+      <div class="col-12 pt-3" id="seccion-movilidad">
+        <h2 class="h5 mb-0 pb-2 border-bottom">🚌 Movilidad y Accesibilidad (tarifas, recomendaciones, fotos y videos)</h2>
+      </div>
+    {% endif %}
     <div class="col-12 {% if tipo == 'texto' %}col-md-6{% endif %}">
       <label class="form-label" for="{{ clave }}">{{ etiqueta }}</label>
       {% if tipo == 'textarea' %}
         <textarea class="form-control" id="{{ clave }}" name="{{ clave }}" rows="4">{{ conf[clave] }}</textarea>
       {% elif tipo == 'hora' %}
         <input class="form-control" type="time" id="{{ clave }}" name="{{ clave }}" value="{{ conf[clave] }}" required>
+      {% elif tipo == 'imagen' %}
+        <div class="row g-2 align-items-center">
+          <div class="col-md-6">
+            <label class="form-label small mb-1" for="archivo_{{ clave }}">Subir nueva imagen</label>
+            <input class="form-control" type="file" id="archivo_{{ clave }}" name="archivo_{{ clave }}" accept="image/jpeg,image/png,image/webp">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1" for="{{ clave }}">O ruta / enlace directo</label>
+            <input class="form-control" type="text" id="{{ clave }}" name="{{ clave }}" value="{{ conf[clave] }}">
+          </div>
+        </div>
+        {% if conf[clave] %}
+          <div class="mt-2">
+            <img class="panel-imagen-previa" src="{{ conf[clave] }}" alt="Imagen actual" loading="lazy">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="quitar_{{ clave }}" name="quitar_{{ clave }}" value="1">
+              <label class="form-check-label small" for="quitar_{{ clave }}">Quitar esta imagen</label>
+            </div>
+          </div>
+        {% endif %}
+      {% elif tipo == 'galeria' %}
+        <div class="mb-2">
+          <label class="form-label small mb-1" for="archivos_{{ clave }}">Subir una o varias fotografías a esta galería</label>
+          <input class="form-control" type="file" id="archivos_{{ clave }}" name="archivos_{{ clave }}" multiple accept="image/jpeg,image/png,image/webp">
+        </div>
+        <textarea class="form-control" id="{{ clave }}" name="{{ clave }}" rows="3" placeholder="/static/uploads/foto.jpg | Título opcional | Descripción opcional">{{ conf[clave] }}</textarea>
       {% else %}
         <input class="form-control" type="text" id="{{ clave }}" name="{{ clave }}" value="{{ conf[clave] }}">
       {% endif %}
@@ -36,6 +87,19 @@
     El hosting además guarda un respaldo automático cada día.
   </p>
   <a class="btn btn-outline-primary" href="{{ url_for('panel_respaldo') }}">⬇️ Descargar respaldo completo</a>
+</div>
+
+<div class="caja mt-4">
+  <h2 class="h5">Limpiar contenido de demostración</h2>
+  <p class="small text-muted mb-2">
+    Si la base de datos se creó con las noticias, emprendimientos, reservas y balances de ejemplo iniciales
+    (como «Amasandería Doña Rosa» o «Familia Rojas»), puedes borrarlos de una vez aquí sin afectar las cuentas de socios ni los textos configurados.
+  </p>
+  <form method="post" action="{{ url_for('panel_limpiar_ejemplos') }}"
+        onsubmit="return confirm('¿Eliminar las noticias, reservas, emprendimientos y balances de ejemplo iniciales?');">
+    {{ csrf_campo() }}
+    <button class="btn btn-outline-danger" type="submit">🧹 Limpiar datos de ejemplo</button>
+  </form>
 </div>
 {% endif %}
 {% endblock %}

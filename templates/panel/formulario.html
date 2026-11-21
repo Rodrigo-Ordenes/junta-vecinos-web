@@ -77,6 +77,23 @@
               </div>
             </div>
           {% endif %}
+        {% elif c.tipo == 'galeria' %}
+          <div class="mb-2">
+            <label class="form-label small" for="archivos_{{ c.nombre }}">Subir una o varias fotografías</label>
+            <input class="form-control" type="file" id="archivos_{{ c.nombre }}" name="archivos_{{ c.nombre }}"
+                   multiple accept="image/jpeg,image/png,image/webp">
+          </div>
+          <div>
+            <label class="form-label small" for="{{ c.nombre }}">Rutas de las fotografías (una por línea; las que subas se agregan automáticamente)</label>
+            <textarea class="form-control" id="{{ c.nombre }}" name="{{ c.nombre }}" rows="3"
+                      placeholder="/static/uploads/foto1.jpg">{{ valor }}</textarea>
+          </div>
+          {% if valor %}
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="quitar_{{ c.nombre }}" name="quitar_{{ c.nombre }}" value="1">
+              <label class="form-check-label small" for="quitar_{{ c.nombre }}">Vaciar todas las fotografías de esta galería</label>
+            </div>
+          {% endif %}
         {% elif c.tipo == 'clave' %}
           <input class="form-control" type="password" id="{{ c.nombre }}" name="{{ c.nombre }}" autocomplete="new-password">
         {% elif c.tipo == 'fecha' %}

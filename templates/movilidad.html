@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_campos.html" import bloque_multimedia %}
 {% block title %}Movilidad y Accesibilidad · Junta de Vecinos N.° 2 Cerro Esperanza{% endblock %}
 
 {% block extra_head %}
@@ -64,8 +65,7 @@
 
           <!-- Descripción del servicio -->
           <p class="transporte-descripcion text-secondary small mb-3">
-            Conecta el Cerro Esperanza con el plan de Valparaíso a través de los ejes 
-            <strong>Av. Philippi</strong> y <strong>Av. Barros Arana</strong>.
+            {{ conf.movilidad_505_descripcion }}
           </p>
 
           <!-- TABLA TARIFARIA FORMAL CUADRADA -->
@@ -82,7 +82,7 @@
                   <small class="tarifa-subtexto text-muted">Subida desde el plan</small>
                 </div>
                 <div class="tarifa-item-valor">
-                  <span class="tarifa-valor text-success fw-bold">$260</span>
+                  <span class="tarifa-valor text-success fw-bold">{{ conf.movilidad_505_subida or '$260' }}</span>
                 </div>
               </div>
               <div class="tarifa-item d-flex justify-content-between align-items-center py-2 border-bottom border-light-subtle">
@@ -91,7 +91,7 @@
                   <small class="tarifa-subtexto text-muted">Bajada al centro de Valparaíso</small>
                 </div>
                 <div class="tarifa-item-valor">
-                  <span class="tarifa-valor text-success fw-bold">$190</span>
+                  <span class="tarifa-valor text-success fw-bold">{{ conf.movilidad_505_bajada or '$190' }}</span>
                 </div>
               </div>
               <div class="tarifa-item d-flex justify-content-between align-items-center py-2">
@@ -100,7 +100,7 @@
                   <small class="tarifa-subtexto text-muted">Pase escolar nacional</small>
                 </div>
                 <div class="tarifa-item-valor">
-                  <span class="tarifa-valor text-muted fw-bold">$100 <small class="fw-normal">(aprox.)</small></span>
+                  <span class="tarifa-valor text-muted fw-bold">{{ conf.movilidad_505_escolar or '$100' }} <small class="fw-normal">(aprox.)</small></span>
                 </div>
               </div>
             </div>
@@ -110,7 +110,7 @@
           <div class="alerta-servicio alerta-horario mt-auto p-3">
             <div class="alerta-titulo-formal fw-bold small text-uppercase mb-1">Aviso de Operación · Horario Límite</div>
             <p class="alerta-texto text-secondary small mb-0">
-              La última máquina suele iniciar subida desde el plan a las <strong>21:30 hrs</strong>. Posterior a ese horario se recomienda coordinar transporte alternativo.
+              La última máquina suele iniciar subida desde el plan a las <strong>{{ conf.movilidad_505_horario or '21:30 hrs' }}</strong>. Posterior a ese horario se recomienda coordinar transporte alternativo.
             </p>
           </div>
         </div>
@@ -135,8 +135,7 @@
 
           <!-- Descripción del servicio -->
           <p class="transporte-descripcion text-secondary small mb-3">
-            Servicio continuo desde Calle Brasil / Bellavista, subiendo por 
-            <strong>Av. Barros Arana</strong> hacia las cotas media y alta de la Unidad Vecinal N.º 2.
+            {{ conf.movilidad_colectivos_descripcion }}
           </p>
 
           <!-- TABLA FRECUENCIA Y CONEXIÓN FORMAL CUADRADA -->
@@ -153,7 +152,7 @@
                   <small class="tarifa-subtexto text-muted">Mayor flujo hacia el plan</small>
                 </div>
                 <div class="tarifa-item-valor">
-                  <span class="tarifa-valor text-dark fw-bold">07:00 a 09:00 hrs</span>
+                  <span class="tarifa-valor text-dark fw-bold">{{ conf.movilidad_colectivos_manana or '07:00 a 09:00 hrs' }}</span>
                 </div>
               </div>
               <div class="tarifa-item d-flex justify-content-between align-items-center py-2 border-bottom border-light-subtle">
@@ -162,7 +161,7 @@
                   <small class="tarifa-subtexto text-muted">Mayor flujo hacia el cerro</small>
                 </div>
                 <div class="tarifa-item-valor">
-                  <span class="tarifa-valor text-dark fw-bold">18:00 a 20:30 hrs</span>
+                  <span class="tarifa-valor text-dark fw-bold">{{ conf.movilidad_colectivos_tarde or '18:00 a 20:30 hrs' }}</span>
                 </div>
               </div>
               <div class="tarifa-item d-flex justify-content-between align-items-center py-2">
@@ -181,7 +180,7 @@
           <div class="alerta-servicio alerta-nocturna mt-auto p-3">
             <div class="alerta-titulo-formal fw-bold small text-uppercase mb-1">Aviso Tarifario · Horario Nocturno</div>
             <p class="alerta-texto text-secondary small mb-0">
-              Posterior a las <strong>00:00 hrs</strong> rige alza de tarifa nocturna y la frecuencia de circulación disminuye.
+              {{ conf.movilidad_colectivos_nocturno }}
             </p>
           </div>
         </div>
@@ -207,7 +206,7 @@
         <div class="card h-100 p-3 border rounded-2 bg-light-subtle shadow-none">
           <h3 class="h6 fw-bold mb-2 text-dark">Adultos Mayores y Personas con Movilidad Reducida</h3>
           <p class="small text-muted mb-0">
-            Para acudir al <strong>CESFAM Cerro Esperanza</strong>, se sugiere encarecidamente utilizar locomoción colectiva o vehículos de apoyo en los tramos de pendiente pronunciada, evitando el descenso a pie por escaleras no pavimentadas o sin baranda.
+            {{ conf.movilidad_recomendacion_1 }}
           </p>
         </div>
       </div>
@@ -215,7 +214,7 @@
         <div class="card h-100 p-3 border rounded-2 bg-light-subtle shadow-none">
           <h3 class="h6 fw-bold mb-2 text-dark">Precaución en Días de Lluvia</h3>
           <p class="small text-muted mb-0">
-            La <strong>Escalera Chirimoyo</strong> y pasajes de adoquín presentan alto riesgo de caídas y resbalones en días húmedos. Utilice calzado con adherencia y prefiera rutas alternativas con iluminación y pavimento continuo.
+            {{ conf.movilidad_recomendacion_2 }}
           </p>
         </div>
       </div>
@@ -234,82 +233,46 @@
       <span class="badge bg-light text-dark border">Levantamiento en Terreno</span>
     </div>
 
-    <div class="row g-3">
-      <div class="col-12 col-sm-6 col-lg-3">
-        <div class="galeria-card shadow-sm">
-          <div class="galeria-card-img-wrap">
-            <img src="{{ url_for('static', filename='img/territorio/escalera_chirimoyo_terreno.jpg') }}" alt="Escalera Chirimoyo" class="galeria-card-img" loading="lazy">
+    {% set fotos_movilidad = fotos_galeria_de(conf.movilidad_galeria_fotos) %}
+    {% if fotos_movilidad %}
+      <div class="row g-3">
+        {% for f in fotos_movilidad %}
+          <div class="col-12 col-sm-6 col-lg-3">
+            <div class="galeria-card shadow-sm">
+              <div class="galeria-card-img-wrap">
+                <img src="{{ f.url }}" alt="{{ f.titulo or 'Registro territorial' }}" class="galeria-card-img" loading="lazy">
+              </div>
+              {% if f.titulo or f.descripcion %}
+                <div class="galeria-card-cuerpo">
+                  {% if f.titulo %}<h3 class="h6 fw-bold mb-1">{{ f.titulo }}</h3>{% endif %}
+                  {% if f.descripcion %}<p class="small text-muted mb-0">{{ f.descripcion }}</p>{% endif %}
+                </div>
+              {% endif %}
+            </div>
           </div>
-          <div class="galeria-card-cuerpo">
-            <h3 class="h6 fw-bold mb-1">Escalera Chirimoyo</h3>
-            <p class="small text-muted mb-0">Pendiente pronunciada y desgaste de peldaños en la principal conexión peatonal.</p>
-          </div>
-        </div>
+        {% endfor %}
       </div>
-
-      <div class="col-12 col-sm-6 col-lg-3">
-        <div class="galeria-card shadow-sm">
-          <div class="galeria-card-img-wrap">
-            <img src="{{ url_for('static', filename='img/territorio/micro_505_recorrido.jpg') }}" alt="Recorrido Micro 505" class="galeria-card-img" loading="lazy">
-          </div>
-          <div class="galeria-card-cuerpo">
-            <h3 class="h6 fw-bold mb-1">Eje Micro 505</h3>
-            <p class="small text-muted mb-0">Microbús transitando por la calzada principal del cerro hacia el plan.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-sm-6 col-lg-3">
-        <div class="galeria-card shadow-sm">
-          <div class="galeria-card-img-wrap">
-            <img src="{{ url_for('static', filename='img/territorio/paradero_barros_arana.jpg') }}" alt="Refugio peatonal Barros Arana" class="galeria-card-img" loading="lazy">
-          </div>
-          <div class="galeria-card-cuerpo">
-            <h3 class="h6 fw-bold mb-1">Paraderos y Refugios</h3>
-            <p class="small text-muted mb-0">Infraestructura de espera para locomoción mayor y colectivos locales.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-sm-6 col-lg-3">
-        <div class="galeria-card shadow-sm">
-          <div class="galeria-card-img-wrap">
-            <img src="{{ url_for('static', filename='img/territorio/transecto_participativo_aspillaga.jpg') }}" alt="Transecto participativo" class="galeria-card-img" loading="lazy">
-          </div>
-          <div class="galeria-card-cuerpo">
-            <h3 class="h6 fw-bold mb-1">Transecto Participativo</h3>
-            <p class="small text-muted mb-0">Equipo de Geografía PUCV recorriendo calles y pasajes de la UV2.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    {% endif %}
+    {{ bloque_multimedia("", conf.movilidad_videos_youtube) }}
   </section>
 
   <!-- Proyectos Territoriales Relacionados -->
   <section class="caja p-4 shadow-sm" aria-labelledby="titulo-iniciativas">
     <h2 id="titulo-iniciativas" class="h5 mb-3">Iniciativas Territoriales en Gestión</h2>
     <div class="row g-3">
-      <div class="col-md-4">
-        <div class="border rounded p-3 h-100 bg-white">
-          <span class="badge bg-warning text-dark mb-2">Postulado · FONDEVE</span>
-          <h3 class="h6 mb-1">Reparación Escalera Chirimoyo</h3>
-          <p class="small text-muted mb-0">Instalación de pasamanos ergonómicos y peldaños antideslizantes.</p>
+      {% for p in iniciativas %}
+        <div class="col-md-4">
+          <div class="border rounded p-3 h-100 bg-white">
+            <span class="badge-estado {{ p.estado|clase_estado }} mb-2">{{ p.estado }}{% if p.eje %} · {{ p.eje }}{% endif %}</span>
+            <h3 class="h6 mb-1">{{ p.nombre }}</h3>
+            <p class="small text-muted mb-0">{{ p.descripcion }}</p>
+          </div>
         </div>
-      </div>
-      <div class="col-md-4">
-        <div class="border rounded p-3 h-100 bg-white">
-          <span class="badge bg-warning text-dark mb-2">Postulado · FNSP</span>
-          <h3 class="h6 mb-1">Luminarias Tolson y Rebolledo</h3>
-          <p class="small text-muted mb-0">Eliminación de puntos ciegos y refuerzo de seguridad nocturna.</p>
+      {% else %}
+        <div class="col-12">
+          <p class="small text-muted mb-0">Consulta todos los proyectos vigentes en la sección de proyectos.</p>
         </div>
-      </div>
-      <div class="col-md-4">
-        <div class="border rounded p-3 h-100 bg-white">
-          <span class="badge bg-success mb-2">En ejecución · Municipalidad</span>
-          <h3 class="h6 mb-1">Cortafuegos Quebrada Chirimoyo</h3>
-          <p class="small text-muted mb-0">Desmalezado y erradicación de microbasurales en zonas de ladera.</p>
-        </div>
-      </div>
+      {% endfor %}
     </div>
     <div class="text-end mt-3">
       <a href="{{ url_for('proyectos') }}" class="btn btn-sm btn-outline-primary">Ver todos los proyectos comunitarios →</a>

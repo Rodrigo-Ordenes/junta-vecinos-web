@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_campos.html" import bloque_multimedia %}
 {% block title %}Historia y Memoria del Cerro · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 <div class="container-xl my-4 my-md-5">
@@ -14,8 +15,17 @@
         <ol class="linea-tiempo" aria-label="Línea de tiempo de la junta de vecinos">
           {% for h in hitos %}
             <li class="linea-tiempo-item">
-              <span class="linea-tiempo-anio">{{ h.anio }}</span>
-              <p class="linea-tiempo-texto">{{ h.texto }}</p>
+              <article class="caja linea-tiempo-ficha">
+                <span class="linea-tiempo-anio">{{ h.anio }}</span>
+                {% if h.titulo %}
+                  <h2 class="h5 fw-bold mt-2 mb-2">{{ h.titulo }}</h2>
+                {% endif %}
+                {% if h.imagen_url %}
+                  <img src="{{ h.imagen_url }}" alt="{{ h.titulo or ('Hito ' ~ h.anio) }}" class="img-fluid rounded mb-3" loading="lazy">
+                {% endif %}
+                <p class="linea-tiempo-texto">{{ h.texto }}</p>
+                {{ bloque_multimedia(h.galeria_fotos, h.videos_youtube) }}
+              </article>
             </li>
           {% endfor %}
         </ol>

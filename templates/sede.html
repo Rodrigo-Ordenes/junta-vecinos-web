@@ -1,22 +1,39 @@
 {% extends "base.html" %}
+{% from "_campos.html" import bloque_multimedia %}
 {% block title %}Sede vecinal · Junta de Vecinos N.° 2{% endblock %}
 {% block content %}
 
 <div class="container my-4 my-md-5">
+  <!-- Selector de salones independientes -->
+  <div class="caja mb-4 p-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <strong class="d-block">Espacios independientes de la sede:</strong>
+      <span class="small text-muted">Cada salón tiene su propio calendario y reservas; una actividad en un salón no bloquea el otro.</span>
+    </div>
+    <div class="btn-group" role="group" aria-label="Elegir salón de la sede">
+      {% for codigo, nombre in salones %}
+        <a class="btn btn-lg {{ 'btn-primary' if salon == codigo else 'btn-outline-primary' }}"
+           href="{{ url_for('sede', salon=codigo, vista='mes' if vista_mes else None, mes=mes_ref.strftime('%Y-%m') if vista_mes else None, semana=semana.lunes.isoformat() if not vista_mes else None, disponibles=1 if solo_disponibles else None) }}">
+          🏛️ {{ nombre }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
   <!-- Presentación destacada de la Sede Vecinal con contenedor estructurado -->
   <section class="sede-hero-card mb-4" aria-label="Información y reservas de la Sede Vecinal">
-    {% if conf.imagen_sede_url %}
+    {% if imagen_salon_url %}
       <div class="sede-hero-media">
-        <img src="{{ conf.imagen_sede_url }}" alt="Sede comunitaria Junta de Vecinos N.° 2" class="sede-hero-foto" loading="lazy">
+        <img src="{{ imagen_salon_url }}" alt="Sede comunitaria Junta de Vecinos N.° 2 · {{ salon_nombre }}" class="sede-hero-foto" loading="lazy">
       </div>
     {% endif %}
     <div class="sede-hero-info">
       <div class="sede-hero-badge-wrap mb-2">
-        <span class="badge-estado badge-fija">Espacio Comunitario</span>
+        <span class="badge-estado badge-fija">{{ salon_nombre }}</span>
       </div>
-      <h1 class="sede-hero-title">Sede vecinal: disponibilidad y reservas</h1>
+      <h1 class="sede-hero-title">Sede vecinal ({{ salon_nombre }}): disponibilidad y reservas</h1>
       <p class="sede-hero-lead">
-        Aquí puedes ver qué días está ocupada la sede y pedir un día para tu actividad.
+        Aquí puedes ver qué días está ocupado <strong>{{ salon_nombre }}</strong> y pedir un día para tu actividad.
         El encargado o encargada revisa cada solicitud y confirma la reserva.
       </p>
       {% if conf.direccion_sede %}
@@ -26,16 +43,22 @@
         </p>
       {% endif %}
       <div class="sede-hero-actions">
-        <a href="{{ url_for('reservar') }}" class="btn btn-primary btn-lg">
-          Pedir la sede vecinal
+        <a href="{{ url_for('reservar', salon=salon) }}" class="btn btn-primary btn-lg">
+          Pedir {{ salon_nombre }}
         </a>
       </div>
       <div class="mt-3">{% include "_aviso_aporte_sede.html" %}</div>
     </div>
   </section>
 
+  {% if galeria_salon or videos_salon or conf.sede_galeria_fotos or conf.sede_videos_youtube %}
+    <div class="caja mb-4">
+      {{ bloque_multimedia((galeria_salon ~ '\n' ~ conf.sede_galeria_fotos)|trim, (videos_salon ~ '\n' ~ conf.sede_videos_youtube)|trim, "Fotografías y videos de " ~ salon_nombre) }}
+    </div>
+  {% endif %}
+
   <div class="caja mb-4">
-    <h2 class="h5">Horario habitual de la sede</h2>
+    <h2 class="h5">Horario habitual · {{ salon_nombre }}</h2>
     <p class="small mb-2">Las reservas se reciben entre las {{ horario_inicio }} y las {{ horario_fin }}.</p>
     {% if bloques %}
       <ul class="mb-0">
@@ -45,29 +68,29 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="mb-0">Todavía no hay actividades fijas registradas.</p>
+      <p class="mb-0">Todavía no hay actividades fijas registradas en {{ salon_nombre }}.</p>
     {% endif %}
   </div>
 
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div class="btn-group" role="group" aria-label="Vista del calendario">
       <a class="btn {{ 'btn-primary' if not vista_mes else 'btn-outline-primary' }}"
-         href="{{ url_for('sede', semana=semana.lunes.isoformat(), disponibles=1 if solo_disponibles else None) }}">Vista semanal</a>
+         href="{{ url_for('sede', salon=salon, semana=semana.lunes.isoformat(), disponibles=1 if solo_disponibles else None) }}">Vista semanal</a>
       <a class="btn {{ 'btn-primary' if vista_mes else 'btn-outline-primary' }}"
-         href="{{ url_for('sede', vista='mes', mes=mes_ref.strftime('%Y-%m'), disponibles=1 if solo_disponibles else None) }}">Vista mensual</a>
+         href="{{ url_for('sede', salon=salon, vista='mes', mes=mes_ref.strftime('%Y-%m'), disponibles=1 if solo_disponibles else None) }}">Vista mensual</a>
     </div>
     <a class="btn {{ 'btn-success' if solo_disponibles else 'btn-outline-success' }}"
-       href="{{ url_for('sede', vista='mes' if vista_mes else None, mes=mes_ref.strftime('%Y-%m') if vista_mes else None, semana=semana.lunes.isoformat() if not vista_mes else None, disponibles=None if solo_disponibles else 1) }}">
+       href="{{ url_for('sede', salon=salon, vista='mes' if vista_mes else None, mes=mes_ref.strftime('%Y-%m') if vista_mes else None, semana=semana.lunes.isoformat() if not vista_mes else None, disponibles=None if solo_disponibles else 1) }}">
       {{ 'Mostrar todos los días' if solo_disponibles else 'Ver solo horarios disponibles' }}
     </a>
   </div>
 
   {% if vista_mes %}
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <h2 class="h4 mb-0">{{ mes_nombre }} {{ mes_ref.year }}</h2>
+      <h2 class="h4 mb-0">{{ mes_nombre }} {{ mes_ref.year }} · {{ salon_nombre }}</h2>
       <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" href="{{ url_for('sede', vista='mes', mes=mes_anterior, disponibles=1 if solo_disponibles else None) }}" aria-label="Mes anterior">&larr; Anterior</a>
-        <a class="btn btn-outline-primary" href="{{ url_for('sede', vista='mes', mes=mes_siguiente, disponibles=1 if solo_disponibles else None) }}" aria-label="Mes siguiente">Siguiente &rarr;</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', salon=salon, vista='mes', mes=mes_anterior, disponibles=1 if solo_disponibles else None) }}" aria-label="Mes anterior">&larr; Anterior</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', salon=salon, vista='mes', mes=mes_siguiente, disponibles=1 if solo_disponibles else None) }}" aria-label="Mes siguiente">Siguiente &rarr;</a>
       </div>
     </div>
     <p class="small text-muted">En una pantalla pequeña, desliza el calendario hacia los lados para ver todos los días.</p>
@@ -86,7 +109,7 @@
               {% elif dia.horarios %}
                 <span class="calendario-etiqueta disponible">Hay horarios</span>
                 {% for desde, hasta in dia.horarios[:3] %}
-                  <a class="calendario-hora" href="{{ url_for('reservar', fecha=dia.fecha.isoformat(), hora_inicio=desde, hora_fin=hasta) }}">{{ desde }}–{{ hasta }}</a>
+                  <a class="calendario-hora" href="{{ url_for('reservar', salon=salon, fecha=dia.fecha.isoformat(), hora_inicio=desde, hora_fin=hasta) }}">{{ desde }}–{{ hasta }}</a>
                 {% endfor %}
                 {% if dia.horarios|length > 3 %}<small>y {{ dia.horarios|length - 3 }} más</small>{% endif %}
               {% else %}
@@ -95,7 +118,7 @@
                   <small class="calendario-actividad">{{ actividad.hora_inicio }} · {{ actividad.titulo }}</small>
                 {% endfor %}
               {% endif %}
-              <a class="calendario-ver-semana" href="{{ url_for('sede', semana=dia.fecha.isoformat(), disponibles=1 if solo_disponibles else None) }}">Ver semana</a>
+              <a class="calendario-ver-semana" href="{{ url_for('sede', salon=salon, semana=dia.fecha.isoformat(), disponibles=1 if solo_disponibles else None) }}">Ver semana</a>
             </article>
           {% else %}
             <div class="calendario-dia calendario-vacio" aria-hidden="true"></div>
@@ -106,11 +129,11 @@
     </div>
   {% else %}
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <h2 class="h4 mb-0">Semana del {{ semana.lunes|fecha_corta }} al {{ semana.domingo|fecha_corta }}</h2>
+      <h2 class="h4 mb-0">Semana del {{ semana.lunes|fecha_corta }} al {{ semana.domingo|fecha_corta }} · {{ salon_nombre }}</h2>
       <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" href="{{ url_for('sede', semana=anterior, disponibles=1 if solo_disponibles else None) }}">&larr; Semana anterior</a>
-        <a class="btn btn-outline-primary" href="{{ url_for('sede', disponibles=1 if solo_disponibles else None) }}">Esta semana</a>
-        <a class="btn btn-outline-primary" href="{{ url_for('sede', semana=siguiente, disponibles=1 if solo_disponibles else None) }}">Semana siguiente &rarr;</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', salon=salon, semana=anterior, disponibles=1 if solo_disponibles else None) }}">&larr; Semana anterior</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', salon=salon, disponibles=1 if solo_disponibles else None) }}">Esta semana</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('sede', salon=salon, semana=siguiente, disponibles=1 if solo_disponibles else None) }}">Semana siguiente &rarr;</a>
       </div>
     </div>
 
@@ -138,7 +161,7 @@
                 <h4 class="h6 mt-3">Horarios disponibles</h4>
                 <div class="d-flex flex-wrap gap-2">
                   {% for desde, hasta in dia.horarios %}
-                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('reservar', fecha=dia.fecha.isoformat(), hora_inicio=desde, hora_fin=hasta) }}">{{ desde }}–{{ hasta }}</a>
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('reservar', salon=salon, fecha=dia.fecha.isoformat(), hora_inicio=desde, hora_fin=hasta) }}">{{ desde }}–{{ hasta }}</a>
                   {% endfor %}
                 </div>
               {% else %}
@@ -146,7 +169,7 @@
               {% endif %}
             {% endif %}
             {% if not dia.pasado and not solo_disponibles %}
-              <a class="btn btn-sm btn-primary mt-3" href="{{ url_for('reservar', fecha=dia.fecha.isoformat()) }}">Pedir este día</a>
+              <a class="btn btn-sm btn-primary mt-3" href="{{ url_for('reservar', salon=salon, fecha=dia.fecha.isoformat()) }}">Pedir este día</a>
             {% endif %}
           </article>
         </div>

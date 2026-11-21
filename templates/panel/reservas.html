@@ -3,23 +3,41 @@
 {% block panel %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
   <h1 class="section-title mb-0 h3">Reservas de la sede</h1>
-  <a class="btn btn-primary" href="{{ url_for('panel_reserva_nueva') }}">+ Marcar la sede como ocupada</a>
+  <div class="d-flex flex-wrap gap-2">
+    {% if puede('contenido') %}
+      <a class="btn btn-outline-primary" href="{{ url_for('panel_contenido') }}#seccion-sede">⚙️ Fotos, nombres de salones y horarios</a>
+    {% endif %}
+    <a class="btn btn-primary" href="{{ url_for('panel_reserva_nueva') }}">+ Marcar la sede como ocupada</a>
+  </div>
 </div>
 
-<div class="d-flex flex-wrap gap-2 my-3">
-  <a class="btn btn-sm {{ 'btn-primary' if not filtro_estado else 'btn-outline-primary' }}"
-     href="{{ url_for('panel_reservas', estado='todas') }}">Todas</a>
-  {% for e in estados %}
-    <a class="btn btn-sm {{ 'btn-primary' if filtro_estado == e else 'btn-outline-primary' }}"
-       href="{{ url_for('panel_reservas', estado=e) }}">{{ e }}</a>
-  {% endfor %}
+<div class="d-flex flex-wrap gap-2 my-3 align-items-center justify-content-between">
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm {{ 'btn-primary' if not filtro_estado else 'btn-outline-primary' }}"
+       href="{{ url_for('panel_reservas', estado='todas', salon=filtro_salon or None) }}">Todas</a>
+    {% for e in estados %}
+      <a class="btn btn-sm {{ 'btn-primary' if filtro_estado == e else 'btn-outline-primary' }}"
+         href="{{ url_for('panel_reservas', estado=e, salon=filtro_salon or None) }}">{{ e }}</a>
+    {% endfor %}
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm {{ 'btn-primary' if not filtro_salon else 'btn-outline-primary' }}"
+       href="{{ url_for('panel_reservas', estado=filtro_estado or 'todas') }}">Ambos salones</a>
+    {% for codigo, nombre in salones %}
+      <a class="btn btn-sm {{ 'btn-primary' if filtro_salon == codigo else 'btn-outline-primary' }}"
+         href="{{ url_for('panel_reservas', estado=filtro_estado or 'todas', salon=codigo) }}">{{ nombre }}</a>
+    {% endfor %}
+  </div>
 </div>
 
 {% for r in reservas %}
   <div class="caja mb-3">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
       <div>
-        <h2 class="h6 mb-1">{{ r.actividad }}</h2>
+        <h2 class="h6 mb-1">
+          <span class="badge-estado badge-fija me-1">{{ r.salon|nombre_salon }}</span>
+          {{ r.actividad }}
+        </h2>
         <p class="mb-1">
           <strong>{{ r.fecha|fecha_larga }}</strong>, de {{ r.hora_inicio }} a {{ r.hora_fin }}
           {% if r.personas %} · {{ r.personas }} personas{% endif %}

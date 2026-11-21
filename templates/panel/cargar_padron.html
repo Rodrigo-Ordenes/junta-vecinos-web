@@ -95,8 +95,10 @@
         <li><strong>fallecido</strong> <span class="badge bg-secondary">Opcional</span> (1/0 o SI/NO)</li>
       </ul>
       <div class="border-top pt-3 mt-3">
-        <h3 class="h6 small fw-bold">Generación Automática de Accesos:</h3>
-        <p class="small text-muted mb-0">Para cada socio creado, el usuario será su RUT sin puntos ni guión (ej: <code>123456789</code>) y su clave inicial serán los dígitos del RUT completados a 8 caracteres, exigiendo cambio de clave al ingresar.</p>
+        <h3 class="h6 small fw-bold">Generación Automática de Accesos y Registro Oficial:</h3>
+        <p class="small text-muted mb-2">Para cada socio creado, el usuario será su RUT sin puntos ni guión (ej: <code>123456789</code>) y su clave inicial serán los dígitos del RUT completados a 8 caracteres, exigiendo cambio de clave al ingresar.</p>
+        <p class="small text-muted mb-2">Si vuelves a subir el Excel, actualiza los datos sin borrar lo que los socios completaron en el sitio ni las bajas registradas. Los cambios hechos en el sitio se descargan desde el padrón:</p>
+        <a href="{{ url_for('panel_socios_padron_completo') }}" class="btn btn-sm btn-outline-primary w-100">⬇️ Descargar padrón actualizado (Excel)</a>
       </div>
     </div>
   </div>

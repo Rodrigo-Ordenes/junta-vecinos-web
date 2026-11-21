@@ -25,3 +25,46 @@
   </div>
 </div>
 {% endmacro %}
+
+{% macro bloque_multimedia(fotos_texto, videos_texto, titulo_seccion="") %}
+{%- set fotos = fotos_galeria_de(fotos_texto) -%}
+{%- set videos = videos_youtube_de(videos_texto) -%}
+{%- if fotos or videos -%}
+<div class="multimedia-bloque mt-3">
+  {% if titulo_seccion %}<h3 class="h5 mb-3">{{ titulo_seccion }}</h3>{% endif %}
+  {% if fotos %}
+    <div class="row g-3 mb-3">
+      {% for f in fotos %}
+        <div class="col-12 col-sm-6 col-lg-4">
+          <div class="galeria-card shadow-sm h-100">
+            <div class="galeria-card-img-wrap">
+              <img src="{{ f.url }}" alt="{{ f.titulo or 'Fotografía comunitaria' }}" class="galeria-card-img" loading="lazy">
+            </div>
+            {% if f.titulo or f.descripcion %}
+              <div class="galeria-card-cuerpo">
+                {% if f.titulo %}<h4 class="h6 fw-bold mb-1">{{ f.titulo }}</h4>{% endif %}
+                {% if f.descripcion %}<p class="small text-muted mb-0">{{ f.descripcion }}</p>{% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if videos %}
+    <div class="row g-3">
+      {% for v in videos %}
+        <div class="col-12 {% if videos|length > 1 %}col-lg-6{% endif %}">
+          <div class="video-youtube-wrap shadow-sm">
+            <iframe src="{{ v.url }}" title="{{ v.titulo }}" loading="lazy"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen></iframe>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{%- endif -%}
+{% endmacro %}

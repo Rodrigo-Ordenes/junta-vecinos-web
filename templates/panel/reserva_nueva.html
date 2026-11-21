@@ -7,6 +7,14 @@
 <form method="post" class="row g-3 caja">
   {{ csrf_campo() }}
   <div class="col-md-4">
+    <label class="form-label" for="salon">Salón / Espacio <span class="obligatorio">*</span></label>
+    <select class="form-select" id="salon" name="salon" required>
+      {% for codigo, nombre in salones %}
+        <option value="{{ codigo }}" {% if datos.salon == codigo %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
     <label class="form-label" for="fecha">Fecha <span class="obligatorio">*</span></label>
     <input class="form-control" type="date" id="fecha" name="fecha" value="{{ datos.fecha }}" required>
   </div>
